@@ -21,6 +21,9 @@ const words = {
     off: 'Reminders off',
     on: 'Reminders on',
     unconfirmed: 'Unconfirmed dose',
+    unconfirmedReminder: 'Unconfirmed reminder',
+    medicine: 'Medicine',
+    reminder: 'Reminder',
     allowed: 'Allowed',
     notAllowed: 'Not allowed',
     enable: 'Enable reminders',
@@ -31,9 +34,10 @@ const words = {
     explanation:
       'Reminders resume after you unlock your phone for the first time after a restart.',
     cancel: 'Cancel',
-    empty: 'No medicines added yet.',
+    empty: 'No reminders added yet.',
     error: 'Could not save. Please try again.',
-    loading: 'Loading medicines…',
+    loading: 'Loading reminders…',
+    loadError: 'Unable to load reminders',
   },
   es: {
     today: 'Hoy',
@@ -41,6 +45,9 @@ const words = {
     off: 'Recordatorios desactivados',
     on: 'Recordatorios activados',
     unconfirmed: 'Dosis sin confirmar',
+    unconfirmedReminder: 'Recordatorio sin confirmar',
+    medicine: 'Medicamento',
+    reminder: 'Recordatorio',
     allowed: 'Permitido',
     notAllowed: 'No permitido',
     enable: 'Activar recordatorios',
@@ -51,9 +58,10 @@ const words = {
     explanation:
       'Los recordatorios se reanudan después de desbloquear el teléfono por primera vez tras reiniciarlo.',
     cancel: 'Cancelar',
-    empty: 'Aún no hay medicamentos.',
+    empty: 'Aún no hay recordatorios.',
     error: 'No se pudo guardar. Inténtalo de nuevo.',
-    loading: 'Cargando medicamentos…',
+    loading: 'Cargando recordatorios…',
+    loadError: 'No se pudieron cargar los recordatorios',
   },
 };
 export default function App() {
@@ -64,7 +72,7 @@ export default function App() {
     try {
       setState(await reminderRepository.state());
     } catch {
-      setError('Unable to load medicines');
+      setError('load');
     }
   }, []);
   useEffect(() => {
@@ -118,7 +126,7 @@ export default function App() {
             />
             {!!error && (
               <Text accessibilityRole="alert" style={styles.error}>
-                {error}
+                {error === 'load' ? t.loadError : error}
               </Text>
             )}
           </>
@@ -150,7 +158,15 @@ export default function App() {
                   state.medicines.map(medicine => (
                     <View key={medicine.id} style={styles.medicine}>
                       <Text style={styles.title}>{medicine.name}</Text>
-                      <Text style={styles.text}>{medicine.instructions}</Text>
+                      <Text style={styles.text}>
+                        {medicine.type === 'reminder' ? t.reminder : t.medicine}
+                      </Text>
+                      {medicine.type === 'medicine' &&
+                        !!medicine.instructions && (
+                          <Text style={styles.text}>
+                            {medicine.instructions}
+                          </Text>
+                        )}
                       <Text style={styles.text}>
                         {medicine.times.join(', ')}
                       </Text>
@@ -158,7 +174,10 @@ export default function App() {
                         .filter(dose => dose.medicineId === medicine.id)
                         .map(dose => (
                           <Text key={dose.scheduledAt} style={styles.text}>
-                            {t.unconfirmed}:{' '}
+                            {medicine.type === 'reminder'
+                              ? t.unconfirmedReminder
+                              : t.unconfirmed}
+                            :{' '}
                             {new Date(dose.scheduledAt).toLocaleTimeString(
                               language === 'es' ? 'es-MX' : 'en-GB',
                               { hour: '2-digit', minute: '2-digit' },
@@ -220,7 +239,7 @@ export default function App() {
             )}
             {!!error && (
               <Text accessibilityRole="alert" style={styles.error}>
-                {error}
+                {error === 'load' ? t.loadError : error}
               </Text>
             )}
           </ScrollView>

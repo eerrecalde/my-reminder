@@ -1,5 +1,5 @@
 <resources>
-    <string name="reminder_channel">Recordatorios de medicamentos</string>
+    <string name="reminder_channel">Recordatorios</string>
     <string name="reminder_due">Es hora de tomar tu medicamento</string>
     <string name="general_reminder_due">Es hora de tu recordatorio</string>
     <string name="test_reminder">Recordatorio de prueba</string>
