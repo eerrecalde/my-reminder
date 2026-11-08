@@ -124,7 +124,9 @@ class ReminderFoundationTest {
       ReminderScheduler.deliver(context, item.id, due, "snooze-test")
       val next = MedicineRepository(context).use { it.alarm(item.id) }
       assertTrue(ReminderScheduler.snooze(context, item.id, due, 10))
-      assertFalse(ReminderScheduler.snooze(context, item.id, due, 10))
+      val firstSnooze = MedicineRepository(context).use { it.snooze(item.id, due) }
+      assertTrue(ReminderScheduler.snooze(context, item.id, due, 10))
+      assertEquals(firstSnooze, MedicineRepository(context).use { it.snooze(item.id, due) })
       assertEquals(next, MedicineRepository(context).use { it.alarm(item.id) })
       ReminderScheduler.recordOutcome(context, item.id, due, "completed")
       assertFalse(ReminderScheduler.snooze(context, item.id, due, 10))

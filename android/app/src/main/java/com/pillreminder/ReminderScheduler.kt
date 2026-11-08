@@ -21,6 +21,7 @@ object ReminderScheduler {
   private fun notificationId(id: String, at: Long) = ("$id:$at").hashCode()
   private fun dismissOccurrence(context: Context, id: String, at: Long) {
     cancelSnooze(context, id, at)
+    MedicineRepository(context).use { it.setOutstanding(id, at, false) }
     NotificationManagerCompat.from(context).cancel(notificationId(id, at))
     AlarmSoundService.stopOccurrence(context, id, at)
   }
@@ -30,6 +31,10 @@ object ReminderScheduler {
       .setData(Uri.parse("pillreminder://snooze/${item.medicineId}/${item.at}/${item.token}"))
       .putExtra("id", item.medicineId).putExtra("at", item.at).putExtra("token", item.token)
     return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+  }
+  private fun registerSnooze(context: Context, item: MedicineRepository.Snooze) {
+    val show = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    alarmManager(context).setAlarmClock(AlarmManager.AlarmClockInfo(item.alertAt, show), snoozeIntent(context, item))
   }
   private fun cancelSnooze(context: Context, id: String, at: Long) {
     MedicineRepository(context).use { repo ->
@@ -45,8 +50,8 @@ object ReminderScheduler {
       val medicine = repo.all().find { it.id == id } ?: return false
       val occurrence = repo.occurrences().find { it.medicineId == id && it.at == at } ?: return false
       if (occurrence.outcome != null || DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault()) <= Instant.now()) return false
-      if (!repo.saveSnooze(item)) return false
-      try { alarmManager(context).setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, item.alertAt, snoozeIntent(context, item)) }
+      if (!repo.saveSnooze(item)) return true
+      try { registerSnooze(context, item) }
       catch (_: SecurityException) { repo.removeSnooze(id, at); return false }
     }
     NotificationManagerCompat.from(context).cancel(notificationId(id, at))
@@ -159,7 +164,11 @@ object ReminderScheduler {
       val zone = ZoneId.systemDefault()
       val medicines = repo.all()
       if (medicines.isNotEmpty()) ensureReconciliation(context)
-      if (invalidate) repo.snoozes().forEach { cancelSnooze(context, it.medicineId, it.at) }
+      repo.snoozes().forEach { item ->
+        if (available && item.alertAt > now.toEpochMilli()) {
+          try { registerSnooze(context, item) } catch (_: SecurityException) { cancelSnooze(context, item.medicineId, item.at) }
+        } else if (invalidate || !available) cancelSnooze(context, item.medicineId, item.at)
+      }
       medicines.forEach { medicine ->
         if (invalidate) {
           val legacyIntent = Intent(context, ReminderReceiver::class.java).setData(Uri.parse("pillreminder://medicine/${medicine.id}"))
@@ -206,6 +215,7 @@ object ReminderScheduler {
         }
       }
       if (at <= now && at > medicine.createdAt && repo.claimAlarm(id, at, token)) {
+        repo.setOutstanding(id, at, true)
         notifyOccurrence(context, medicine, at)
         if (medicine.mode == "alarm") AlarmSoundService.start(context, id, at)
         schedule(context, medicine)

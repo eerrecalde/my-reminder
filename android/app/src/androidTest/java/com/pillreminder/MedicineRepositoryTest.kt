@@ -30,7 +30,7 @@ class MedicineRepositoryTest {
   }
   @Test fun previousSchemasRetainAlarmAndOccurrence() {
     val context = ApplicationProvider.getApplicationContext<Context>()
-    for (version in listOf(6, 7, 8)) {
+    for (version in listOf(6, 7, 8, 9)) {
     val name = "v6-upgrade.db"
     context.deleteDatabase(name)
     context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null).use { db ->
@@ -42,6 +42,12 @@ class MedicineRepositoryTest {
         db.execSQL("ALTER TABLE doses ADD COLUMN cleared INTEGER NOT NULL DEFAULT 0")
         db.execSQL("ALTER TABLE doses ADD COLUMN missed_acknowledged INTEGER NOT NULL DEFAULT 0")
       }
+      if (version >= 9) {
+        db.execSQL("ALTER TABLE doses ADD COLUMN silenced INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE doses ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("CREATE TABLE occurrence_tracking (medicine_id TEXT PRIMARY KEY, starts_after INTEGER NOT NULL)")
+        db.execSQL("INSERT INTO occurrence_tracking VALUES ('m', 1000)")
+      }
       db.execSQL("INSERT INTO medicines VALUES ('m', 'Water', '', '[\"09:00\"]', 1000, 'reminder', 'notification')")
       db.execSQL("INSERT INTO alarms VALUES ('m', 3000, 'token', 1)")
       db.execSQL("INSERT INTO doses (id, medicine_id, scheduled_at, alerted) VALUES ('m:2000', 'm', 2000, 1)")
@@ -52,7 +58,7 @@ class MedicineRepositoryTest {
       assertEquals(MedicineRepository.Alarm("m", 3000, "token", true), repo.alarm("m"))
       assertEquals(listOf("m" to 2000L), repo.todayDoses(0, 3000))
       assertNull(repo.outcome("m", 2000))
-      assertTrue(repo.trackingStart("m") >= java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() - 1)
+      if (version < 9) assertTrue(repo.trackingStart("m") >= java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() - 1)
     }
     context.deleteDatabase(name)
     }

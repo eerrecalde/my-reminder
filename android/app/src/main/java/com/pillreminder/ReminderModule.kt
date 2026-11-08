@@ -47,7 +47,7 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
             putString("medicineId", occurrence.medicineId); putDouble("scheduledAt", occurrence.at.toDouble()); putString("outcome", occurrence.outcome)
           }
           val medicine = medicinesById[occurrence.medicineId]
-          val previousOutstanding = occurrence.at < start && !occurrence.cleared && occurrence.outcome == null && medicine != null &&
+          val previousOutstanding = occurrence.at < start && occurrence.outstanding && !occurrence.cleared && occurrence.outcome == null && medicine != null &&
             DailySchedule.next(medicine.times, java.time.Instant.ofEpochMilli(occurrence.at), zone) > now
           if (occurrence.at in start until end || previousOutstanding) doses.pushMap(occurrenceMap())
           if (!occurrence.cleared && occurrence.outcome != null) history.pushMap(occurrenceMap())
