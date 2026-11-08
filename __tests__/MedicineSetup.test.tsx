@@ -77,3 +77,31 @@ test('lets the user add a second daily time using the time selector', async () =
     times: ['09:00', '21:30'],
   });
 });
+
+test('shows the schedule controls in Spanish', async () => {
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    view = ReactTestRenderer.create(
+      <MedicineSetup language="es" onSave={jest.fn()} />,
+    );
+  });
+  await ReactTestRenderer.act(() =>
+    view.root.findAllByType(TextInput)[0].props.onChangeText('Medicamento'),
+  );
+  await ReactTestRenderer.act(() =>
+    view.root
+      .findAllByType(Button)
+      .find(button => button.props.title === 'Continuar')!
+      .props.onPress(),
+  );
+  expect(
+    view.root
+      .findAllByType(Button)
+      .some(button => button.props.title === 'Agregar una hora'),
+  ).toBe(true);
+  expect(
+    view.root
+      .findAllByType(Text)
+      .some(text => text.props.children === 'Recordatorio: Notificación'),
+  ).toBe(true);
+});

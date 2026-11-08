@@ -10,14 +10,15 @@ import java.util.UUID
 data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long)
 
 /** Shared by the React Native bridge and Android receivers. */
-class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 3) {
+class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 4) {
   override fun onCreate(db: SQLiteDatabase) {
     db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL)")
-    db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL)")
+    db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0)")
   }
   override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-    if (oldVersion < 3) db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL)")
+    if (oldVersion < 3) db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
+    else if (oldVersion < 4) db.execSQL("ALTER TABLE alarms ADD COLUMN registered INTEGER NOT NULL DEFAULT 1")
     if (oldVersion < 2) db.execSQL("ALTER TABLE doses ADD COLUMN alerted INTEGER NOT NULL DEFAULT 1")
   }
 
@@ -44,17 +45,22 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     return medicines
   }
 
-  data class Alarm(val medicineId: String, val at: Long, val token: String)
+  data class Alarm(val medicineId: String, val at: Long, val token: String, val registered: Boolean = false)
 
   fun alarm(medicineId: String): Alarm? {
-    readableDatabase.rawQuery("SELECT scheduled_at, token FROM alarms WHERE medicine_id = ?", arrayOf(medicineId)).use { cursor ->
-      return if (cursor.moveToFirst()) Alarm(medicineId, cursor.getLong(0), cursor.getString(1)) else null
+    readableDatabase.rawQuery("SELECT scheduled_at, token, registered FROM alarms WHERE medicine_id = ?", arrayOf(medicineId)).use { cursor ->
+      return if (cursor.moveToFirst()) Alarm(medicineId, cursor.getLong(0), cursor.getString(1), cursor.getInt(2) != 0) else null
     }
   }
 
   fun setAlarm(medicineId: String, at: Long, token: String) {
     val values = ContentValues().apply { put("medicine_id", medicineId); put("scheduled_at", at); put("token", token) }
     writableDatabase.insertWithOnConflict("alarms", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+  }
+
+  fun markAlarmRegistered(medicineId: String, token: String) {
+    val values = ContentValues().apply { put("registered", 1) }
+    writableDatabase.update("alarms", values, "medicine_id = ? AND token = ?", arrayOf(medicineId, token))
   }
 
   fun invalidateAlarm(medicineId: String) {

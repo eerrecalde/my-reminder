@@ -31,17 +31,46 @@ object ReminderScheduler {
     return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
   }
 
+  private fun watchdog(context: Context, alarm: MedicineRepository.Alarm): PendingIntent {
+    val intent = Intent(context, ReminderWatchdogReceiver::class.java)
+      .setData(Uri.parse("pillreminder://watchdog/${alarm.medicineId}/${alarm.token}"))
+      .putExtra("medicineId", alarm.medicineId).putExtra("scheduledAt", alarm.at).putExtra("token", alarm.token)
+    return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+  }
+
+  private fun register(context: Context, alarm: MedicineRepository.Alarm) {
+    val show = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    // Register recovery first: if delivery is interrupted it can rebuild the next alarm.
+    alarmManager(context).setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarm.at + 60_000, watchdog(context, alarm))
+    alarmManager(context).setAlarmClock(AlarmManager.AlarmClockInfo(alarm.at, show), pending(context, alarm))
+  }
+
   @Synchronized fun schedule(context: Context, medicine: Medicine, after: Instant = Instant.now()) {
     if (!enabled(context)) return
     MedicineRepository(context).use { repo ->
       val old = repo.alarm(medicine.id)
-      if (old != null) return // Keep a valid alarm even if its delivery is delayed.
+      if (old != null) {
+        if (!old.registered && old.at <= after.toEpochMilli()) {
+          repo.invalidateAlarm(medicine.id)
+          repo.recordDue(medicine.id, old.at)
+        } else {
+          // Re-register future alarms after an interrupted registration; preserve delayed ones.
+          if (old.at > after.toEpochMilli()) {
+            try {
+              register(context, old)
+              repo.markAlarmRegistered(medicine.id, old.token)
+            } catch (_: SecurityException) { repo.invalidateAlarm(medicine.id) }
+          }
+          return
+        }
+      }
       val next = DailySchedule.next(medicine.times, after, ZoneId.systemDefault()).toEpochMilli()
       val alarm = MedicineRepository.Alarm(medicine.id, next, UUID.randomUUID().toString())
-      val show = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
       repo.setAlarm(alarm.medicineId, alarm.at, alarm.token)
-      try { alarmManager(context).setAlarmClock(AlarmManager.AlarmClockInfo(next, show), pending(context, alarm)) }
-      catch (_: SecurityException) { repo.invalidateAlarm(medicine.id) }
+      try {
+        register(context, alarm)
+        repo.markAlarmRegistered(medicine.id, alarm.token)
+      } catch (_: SecurityException) { repo.invalidateAlarm(medicine.id) }
     }
   }
 
@@ -56,7 +85,13 @@ object ReminderScheduler {
       val zone = ZoneId.systemDefault()
       repo.all().forEach { medicine ->
         if (invalidate) {
-          repo.alarm(medicine.id)?.let { alarmManager(context).cancel(pending(context, it)) }
+          val legacyIntent = Intent(context, ReminderReceiver::class.java).setData(Uri.parse("pillreminder://medicine/${medicine.id}"))
+          val legacy = PendingIntent.getBroadcast(context, 0, legacyIntent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
+          if (legacy != null) { alarmManager(context).cancel(legacy); legacy.cancel() }
+          repo.alarm(medicine.id)?.let {
+            alarmManager(context).cancel(pending(context, it))
+            alarmManager(context).cancel(watchdog(context, it))
+          }
           repo.invalidateAlarm(medicine.id)
         }
         DailySchedule.dueToday(medicine.times, Instant.ofEpochMilli(medicine.createdAt), now, zone).forEach { due ->
@@ -78,6 +113,24 @@ object ReminderScheduler {
       }
     }
   }
+  @Synchronized fun recoverInterruptedDelivery(context: Context, id: String, at: Long, token: String) {
+    if (at > System.currentTimeMillis()) return
+    MedicineRepository(context).use { repo ->
+      val current = repo.alarm(id)
+      if (current != null && current.registered && (current.at != at || current.token != token)) return
+      val medicine = repo.all().find { it.id == id } ?: return
+      if (current != null) {
+        alarmManager(context).cancel(pending(context, current))
+        alarmManager(context).cancel(watchdog(context, current))
+        repo.invalidateAlarm(id)
+      }
+      val now = Instant.now()
+      DailySchedule.dueToday(medicine.times, Instant.ofEpochMilli(medicine.createdAt), now, ZoneId.systemDefault()).forEach { due ->
+        repo.recordDue(id, due.toEpochMilli())
+      }
+      schedule(context, medicine, now)
+    }
+  }
   fun notify(context: Context, title: String, text: String, id: Int) {
     val manager = context.getSystemService(NotificationManager::class.java)
     manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.reminder_channel), NotificationManager.IMPORTANCE_HIGH).apply { enableVibration(true) })
@@ -91,10 +144,23 @@ object ReminderScheduler {
 class ReminderReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     val id = intent.getStringExtra("medicineId") ?: return
-    val token = intent.getStringExtra("token") ?: return
+    val token = intent.getStringExtra("token")
+    if (token == null) {
+      val exists = MedicineRepository(context).use { it.alarm(id) != null }
+      if (!exists) ReminderScheduler.rebuild(context, recovery = true)
+      return
+    }
     ReminderScheduler.deliver(context, id, intent.getLongExtra("scheduledAt", 0), token)
   }
 }
 class RecoveryReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) { ReminderScheduler.rebuild(context, recovery = true) }
+}
+
+class ReminderWatchdogReceiver : BroadcastReceiver() {
+  override fun onReceive(context: Context, intent: Intent) {
+    val id = intent.getStringExtra("medicineId") ?: return
+    val token = intent.getStringExtra("token") ?: return
+    ReminderScheduler.recoverInterruptedDelivery(context, id, intent.getLongExtra("scheduledAt", 0), token)
+  }
 }
