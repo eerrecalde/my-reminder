@@ -22,7 +22,6 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     if (oldVersion < 10) {
       db.execSQL("CREATE TABLE snoozes (medicine_id TEXT NOT NULL, occurrence_at INTEGER NOT NULL, alert_at INTEGER NOT NULL, token TEXT NOT NULL, PRIMARY KEY (medicine_id, occurrence_at))")
     }
-    if (oldVersion < 11) db.execSQL("ALTER TABLE doses ADD COLUMN outstanding INTEGER NOT NULL DEFAULT 0")
     if (oldVersion < 7) db.execSQL("ALTER TABLE doses ADD COLUMN outcome TEXT")
     if (oldVersion < 8) {
       db.execSQL("ALTER TABLE doses ADD COLUMN cleared INTEGER NOT NULL DEFAULT 0")
@@ -40,6 +39,10 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     if (oldVersion < 3) db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
     else if (oldVersion < 4) db.execSQL("ALTER TABLE alarms ADD COLUMN registered INTEGER NOT NULL DEFAULT 1")
     if (oldVersion < 2) db.execSQL("ALTER TABLE doses ADD COLUMN alerted INTEGER NOT NULL DEFAULT 1")
+    if (oldVersion < 11) {
+      db.execSQL("ALTER TABLE doses ADD COLUMN outstanding INTEGER NOT NULL DEFAULT 0")
+      db.execSQL("UPDATE doses SET outstanding = 1 WHERE alerted = 1 AND outcome IS NULL AND cleared = 0 AND silenced = 0")
+    }
   }
 
   data class Occurrence(val medicineId: String, val at: Long, val outcome: String?, val cleared: Boolean = false, val outstanding: Boolean = false)

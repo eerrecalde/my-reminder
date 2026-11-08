@@ -26,19 +26,26 @@ object ReminderScheduler {
     AlarmSoundService.stopOccurrence(context, id, at)
   }
 
-  private fun snoozeIntent(context: Context, item: MedicineRepository.Snooze): PendingIntent {
+  private fun snoozeIntent(context: Context, item: MedicineRepository.Snooze, watchdog: Boolean = false): PendingIntent {
     val intent = Intent(context, SnoozeReceiver::class.java)
-      .setData(Uri.parse("pillreminder://snooze/${item.medicineId}/${item.at}/${item.token}"))
+      .setData(Uri.parse("pillreminder://${if (watchdog) "snooze-watchdog" else "snooze"}/${item.medicineId}/${item.at}/${item.token}"))
       .putExtra("id", item.medicineId).putExtra("at", item.at).putExtra("token", item.token)
     return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
   }
   private fun registerSnooze(context: Context, item: MedicineRepository.Snooze) {
     val show = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    alarmManager(context).setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, maxOf(item.alertAt + 60_000, System.currentTimeMillis() + 60_000), snoozeIntent(context, item, true))
     alarmManager(context).setAlarmClock(AlarmManager.AlarmClockInfo(item.alertAt, show), snoozeIntent(context, item))
   }
   private fun cancelSnooze(context: Context, id: String, at: Long) {
     MedicineRepository(context).use { repo ->
-      repo.snooze(id, at)?.let { alarmManager(context).cancel(snoozeIntent(context, it)); snoozeIntent(context, it).cancel() }
+      repo.snooze(id, at)?.let { item ->
+        listOf(false, true).forEach { watchdog ->
+          val operation = snoozeIntent(context, item, watchdog)
+          alarmManager(context).cancel(operation)
+          operation.cancel()
+        }
+      }
       repo.removeSnooze(id, at)
     }
   }
@@ -62,12 +69,15 @@ object ReminderScheduler {
     MedicineRepository(context).use { repo ->
       val item = repo.snooze(id, at) ?: return
       if (item.token != token || item.alertAt > System.currentTimeMillis()) return
-      repo.removeSnooze(id, at)
-      val medicine = repo.all().find { it.id == id } ?: return
-      val occurrence = repo.occurrences().find { it.medicineId == id && it.at == at } ?: return
-      if (!enabled(context) || recoveryPending(context) || occurrence.outcome != null || DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault()) <= Instant.now()) return
+      val medicine = repo.all().find { it.id == id }
+      val occurrence = repo.occurrences().find { it.medicineId == id && it.at == at }
+      if (medicine == null || occurrence == null || !enabled(context) || recoveryPending(context) || occurrence.outcome != null || DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault()) <= Instant.now()) {
+        cancelSnooze(context, id, at)
+        return
+      }
       notifyOccurrence(context, medicine, at)
       if (medicine.mode == "alarm") AlarmSoundService.start(context, id, at)
+      cancelSnooze(context, id, at)
     }
   }
 
