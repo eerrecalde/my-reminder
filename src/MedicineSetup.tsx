@@ -8,8 +8,10 @@ import {
   View,
 } from 'react-native';
 import { nextDailyOccurrences } from './dailySchedule';
+import type { ReminderType } from './reminderRepository';
 
 export type DailyMedicineInput = {
+  type: ReminderType;
   name: string;
   instructions: string;
   times: string[];
@@ -24,6 +26,11 @@ type Props = {
 const copy = {
   en: {
     medicine: 'Medicine',
+    reminder: 'Reminder',
+    choose: 'Choose a type',
+    reminderName: 'Reminder name',
+    reminderRequired: 'Enter a reminder name',
+    saveReminder: 'Save reminder',
     name: 'Medicine name',
     instructions: 'Dose instructions (optional)',
     next: 'Next',
@@ -43,6 +50,11 @@ const copy = {
   },
   es: {
     medicine: 'Medicamento',
+    reminder: 'Recordatorio',
+    choose: 'Elige un tipo',
+    reminderName: 'Nombre del recordatorio',
+    reminderRequired: 'Escribe el nombre del recordatorio',
+    saveReminder: 'Guardar recordatorio',
     name: 'Nombre del medicamento',
     instructions: 'Indicaciones de la dosis (opcional)',
     next: 'Continuar',
@@ -65,6 +77,7 @@ const copy = {
 export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
   const t = copy[language];
   const [step, setStep] = useState(0);
+  const [type, setType] = useState<ReminderType>('reminder');
   const [name, setName] = useState('');
   const [instructions, setInstructions] = useState('');
   const [times, setTimes] = useState(['09:00']);
@@ -72,11 +85,11 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const next = () => {
-    if (step === 0 && !name.trim()) {
-      setError(t.required);
+    if (step === 1 && !name.trim()) {
+      setError(type === 'medicine' ? t.required : t.reminderRequired);
       return;
     }
-    if (step === 1 && !times.length) {
+    if (step === 2 && !times.length) {
       setError(t.invalid);
       return;
     }
@@ -89,27 +102,60 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
       keyboardShouldPersistTaps="handled"
     >
       <Text accessibilityRole="header" style={styles.heading}>
-        {[t.medicine, t.schedule, t.review][step]}
+        {
+          [
+            t.choose,
+            type === 'medicine' ? t.medicine : t.reminder,
+            t.schedule,
+            t.review,
+          ][step]
+        }
       </Text>
       {step === 0 && (
+        <View style={styles.actions}>
+          <Button
+            color="#00535b"
+            title={t.reminder}
+            onPress={() => {
+              setType('reminder');
+              setStep(1);
+            }}
+          />
+          <Button
+            color="#00535b"
+            title={t.medicine}
+            onPress={() => {
+              setType('medicine');
+              setStep(1);
+            }}
+          />
+        </View>
+      )}
+      {step === 1 && (
         <>
-          <Text style={styles.label}>{t.name}</Text>
+          <Text style={styles.label}>
+            {type === 'medicine' ? t.name : t.reminderName}
+          </Text>
           <TextInput
-            accessibilityLabel={t.name}
+            accessibilityLabel={type === 'medicine' ? t.name : t.reminderName}
             style={styles.input}
             value={name}
             onChangeText={setName}
           />
-          <Text style={styles.label}>{t.instructions}</Text>
-          <TextInput
-            accessibilityLabel={t.instructions}
-            style={styles.input}
-            value={instructions}
-            onChangeText={setInstructions}
-          />
+          {type === 'medicine' && (
+            <>
+              <Text style={styles.label}>{t.instructions}</Text>
+              <TextInput
+                accessibilityLabel={t.instructions}
+                style={styles.input}
+                value={instructions}
+                onChangeText={setInstructions}
+              />
+            </>
+          )}
         </>
       )}
-      {step === 1 && (
+      {step === 2 && (
         <>
           <Text style={styles.label}>{t.times}</Text>
           {times.map((time, index) => (
@@ -156,10 +202,13 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
           <Text style={styles.label}>{t.mode}</Text>
         </>
       )}
-      {step === 2 && (
+      {step === 3 && (
         <>
+          <Text style={styles.label}>
+            {type === 'medicine' ? t.medicine : t.reminder}
+          </Text>
           <Text style={styles.label}>{name.trim()}</Text>
-          {!!instructions.trim() && (
+          {type === 'medicine' && !!instructions.trim() && (
             <Text style={styles.label}>{instructions.trim()}</Text>
           )}
           <Text style={styles.label}>{t.mode}</Text>
@@ -195,16 +244,16 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
             }}
           />
         )}
-        {step < 2 ? (
+        {step > 0 && step < 3 ? (
           <Button
             color="#00535b"
-            title={step === 0 ? t.next : t.review}
+            title={step === 1 ? t.next : t.review}
             onPress={next}
           />
-        ) : (
+        ) : step === 3 ? (
           <Button
             color="#00535b"
-            title={t.save}
+            title={type === 'medicine' ? t.save : t.saveReminder}
             disabled={saving}
             onPress={async () => {
               if (savingRef.current) return;
@@ -212,8 +261,9 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
               setSaving(true);
               try {
                 await onSave({
+                  type,
                   name: name.trim(),
-                  instructions: instructions.trim(),
+                  instructions: type === 'medicine' ? instructions.trim() : '',
                   times: [...new Set(times)],
                 });
               } finally {
@@ -222,7 +272,7 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
               }
             }}
           />
-        )}
+        ) : null}
       </View>
     </ScrollView>
   );

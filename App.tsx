@@ -17,7 +17,7 @@ import { reminderRepository, ReminderState } from './src/reminderRepository';
 const words = {
   en: {
     today: 'Today',
-    add: 'Add medicine',
+    add: 'Add reminder',
     off: 'Reminders off',
     on: 'Reminders on',
     unconfirmed: 'Unconfirmed dose',
@@ -41,7 +41,7 @@ const words = {
   },
   es: {
     today: 'Hoy',
-    add: 'Agregar medicamento',
+    add: 'Agregar recordatorio',
     off: 'Recordatorios desactivados',
     on: 'Recordatorios activados',
     unconfirmed: 'Dosis sin confirmar',
@@ -111,7 +111,8 @@ export default function App() {
               language={language}
               onSave={async medicine => {
                 try {
-                  await reminderRepository.save(
+                  await reminderRepository.saveTyped(
+                    medicine.type,
                     medicine.name,
                     medicine.instructions,
                     medicine.times,

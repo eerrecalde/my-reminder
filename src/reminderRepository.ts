@@ -2,7 +2,7 @@ import { NativeModules } from 'react-native';
 import type { DailyMedicineInput } from './MedicineSetup';
 
 export type ReminderType = 'medicine' | 'reminder';
-export type Medicine = DailyMedicineInput & { id: string; type: ReminderType };
+export type Medicine = DailyMedicineInput & { id: string };
 export type ReminderState = {
   enabled: boolean;
   exactAlarms: boolean;
