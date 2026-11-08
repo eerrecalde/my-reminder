@@ -113,6 +113,32 @@ class ReminderFoundationTest {
       }
     }
   }
+  @Test fun snoozingAnOccurrenceDoesNotChangeItsNextReminderAndCompletionCancelsSnooze() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val now = System.currentTimeMillis()
+    val time = LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))
+    val item = MedicineRepository(context).use { it.save("Snooze test", "", listOf(time), now - 10000, "reminder") }
+    val due = now - 1000
+    try {
+      MedicineRepository(context).use { it.setAlarm(item.id, due, "snooze-test") }
+      ReminderScheduler.deliver(context, item.id, due, "snooze-test")
+      val next = MedicineRepository(context).use { it.alarm(item.id) }
+      assertTrue(ReminderScheduler.snooze(context, item.id, due, 10))
+      assertFalse(ReminderScheduler.snooze(context, item.id, due, 10))
+      assertEquals(next, MedicineRepository(context).use { it.alarm(item.id) })
+      ReminderScheduler.recordOutcome(context, item.id, due, "completed")
+      assertFalse(ReminderScheduler.snooze(context, item.id, due, 10))
+      assertNull(MedicineRepository(context).use { it.snooze(item.id, due) })
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
   private fun cancel(context: Context, alarm: MedicineRepository.Alarm) {
     val manager = context.getSystemService(AlarmManager::class.java)
     listOf(ReminderReceiver::class.java to "medicine", ReminderWatchdogReceiver::class.java to "watchdog").forEach { (receiver, path) ->

@@ -10,14 +10,16 @@ import java.util.UUID
 data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification")
 
 /** Shared by the React Native bridge and Android receivers. */
-class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 9) {
+class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 10) {
   override fun onCreate(db: SQLiteDatabase) {
     db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification')")
     db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0, outcome TEXT, cleared INTEGER NOT NULL DEFAULT 0, missed_acknowledged INTEGER NOT NULL DEFAULT 0, silenced INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0)")
+    db.execSQL("CREATE TABLE snoozes (medicine_id TEXT NOT NULL, occurrence_at INTEGER NOT NULL, alert_at INTEGER NOT NULL, token TEXT NOT NULL, PRIMARY KEY (medicine_id, occurrence_at))")
     db.execSQL("CREATE TABLE occurrence_tracking (medicine_id TEXT PRIMARY KEY, starts_after INTEGER NOT NULL)")
   }
   override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+    if (oldVersion < 10) db.execSQL("CREATE TABLE snoozes (medicine_id TEXT NOT NULL, occurrence_at INTEGER NOT NULL, alert_at INTEGER NOT NULL, token TEXT NOT NULL, PRIMARY KEY (medicine_id, occurrence_at))")
     if (oldVersion < 7) db.execSQL("ALTER TABLE doses ADD COLUMN outcome TEXT")
     if (oldVersion < 8) {
       db.execSQL("ALTER TABLE doses ADD COLUMN cleared INTEGER NOT NULL DEFAULT 0")
@@ -143,6 +145,21 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
       }
     }
     return medicines
+  }
+
+  data class Snooze(val medicineId: String, val at: Long, val alertAt: Long, val token: String)
+  fun snooze(id: String, at: Long): Snooze? = readableDatabase.rawQuery("SELECT alert_at, token FROM snoozes WHERE medicine_id = ? AND occurrence_at = ?", arrayOf(id, at.toString())).use { c ->
+    if (c.moveToFirst()) Snooze(id, at, c.getLong(0), c.getString(1)) else null
+  }
+  fun saveSnooze(item: Snooze): Boolean {
+    val values = ContentValues().apply { put("medicine_id", item.medicineId); put("occurrence_at", item.at); put("alert_at", item.alertAt); put("token", item.token) }
+    return writableDatabase.insertWithOnConflict("snoozes", null, values, SQLiteDatabase.CONFLICT_IGNORE) != -1L
+  }
+  fun removeSnooze(id: String, at: Long): Int = writableDatabase.delete("snoozes", "medicine_id = ? AND occurrence_at = ?", arrayOf(id, at.toString()))
+  fun snoozes(): List<Snooze> = readableDatabase.rawQuery("SELECT medicine_id, occurrence_at, alert_at, token FROM snoozes", null).use { c ->
+    val items = mutableListOf<Snooze>()
+    while (c.moveToNext()) items.add(Snooze(c.getString(0), c.getLong(1), c.getLong(2), c.getString(3)))
+    items
   }
 
   data class Alarm(val medicineId: String, val at: Long, val token: String, val registered: Boolean = false)

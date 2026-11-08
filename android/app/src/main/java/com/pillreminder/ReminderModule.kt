@@ -67,6 +67,10 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       promise.resolve(result)
     } catch (error: Exception) { promise.reject("state_failed", error) }
   }
+  @ReactMethod fun snooze(id: String, at: Double, minutes: Int, promise: Promise) {
+    try { check(ReminderScheduler.snooze(reactContext, id, at.toLong(), minutes)) { "Unable to snooze occurrence" }; promise.resolve(null) }
+    catch (error: Exception) { promise.reject("snooze_failed", error) }
+  }
   @ReactMethod fun setOutcome(id: String, at: Double, outcome: String?, promise: Promise) {
     try {
       val result = requireNotNull(ReminderScheduler.recordOutcome(reactContext, id, at.toLong(), outcome))

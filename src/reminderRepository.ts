@@ -21,6 +21,7 @@ export type ReminderState = {
 };
 export interface ReminderRepository {
   state(): Promise<ReminderState>;
+  snooze(id: string, at: number, minutes: number): Promise<void>;
   setOutcome(
     id: string,
     at: number,
