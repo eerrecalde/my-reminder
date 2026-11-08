@@ -1,99 +1,31 @@
-# Android pill reminder MVP
+# Android reminder MVP
 
-Product behaviour and the fully local MVP scope confirmed on 2026-11-06. Use React Native with persistent on-device storage and Kotlin reminder handling. Defer sign-in, cloud saving, and replacement-phone recovery until after the private test.
+Product behaviour for a fully local reminder app with medicine support. Use React Native, persistent on-device storage, and Kotlin reminder handling. Preserve existing medicines, schedules, identities, and installed-app identity. Choose the app name separately.
 
-## Summary
+## Experience
 
-Build a React Native app that older people can set up independently. Medicines, dose outcomes, and reminders work entirely offline without an account or backend. Store data persistently on the phone so it survives app closure, process termination, and phone restarts.
+- People can add a Reminder or Medicine. Both have a name, schedules, notification or alarm, snooze, skip, completion and history. Medicine has optional dosage instructions; the app does not calculate or recommend doses. Type can be changed without losing dosage text.
+- Today shows the next reminder prominently, followed by today’s occurrences and their statuses, with type-appropriate wording and actions. Manage reminders individually, including edit, pause, resume and delete. Preserve already-due occurrences and their details and outcomes after changes, pause or deletion.
+- Keep completion, skipped and missed history until the user confirms clearing it. Clearing history does not delete active reminders. An unanswered occurrence becomes missed when its next occurrence arrives.
+- Use large labelled controls, scalable text, strong contrast and status labels independent of colour. Use Latin American Spanish for Spanish phone settings and British English otherwise, including notifications. Preserve the current look and feel.
+- Settings explain reminder access, test reminders, and the limits of on-device storage and recovery. No account, cloud saving, or replacement-phone recovery is included in the MVP.
 
-Deliver an installable Android build for a small private test. Build in working stages, with all four schedule types included in the completed MVP.
+## Schedules and alerts
 
-## User experience
+Both types support one or more daily times, selected weekdays with one or more times, positive whole-hour intervals from a chosen first date and time, and monthly numbered dates or the last day of the month. For days 29–31, choose the last day or skip when a date is unavailable. Support a start date and optional inclusive end date, next three occurrences, overnight previews and final reminder preview. Adding an item creates only future occurrences. Daily, weekday and monthly schedules follow local time; intervals preserve elapsed hours. A nonexistent local time moves forward by the clock-change gap; a repeated time fires once at its first occurrence.
 
-- **Today:** show the next medicine prominently, followed by today’s doses and their due, taken, skipped, or unconfirmed status.
-- **Medicines:** add, edit, pause, resume, and delete medicines individually.
-- **Settings:** reminder permissions, a test-reminder action, and a plain-language explanation of on-device storage and recovery limitations.
-- Use large labelled controls, scalable text, strong contrast, and status labels that do not rely on colour.
-- Use Latin American Spanish for any Spanish phone setting; otherwise use British English. Apply this to notifications too.
+Notification is the default and sounds and vibrates once, subject to device settings. An alarm sounds until an action stops it or its next occurrence supersedes it. Overlapping alarms share sound while retaining separate actions. Stop sound leaves the occurrence unconfirmed. Respect sound settings and Do Not Disturb; no full-screen takeover.
 
-Adding a medicine follows three steps:
+Snooze applies only to the current occurrence, with 5, 10 or 15 minutes, default 10. Completion and skip cancel remaining alerts for that occurrence, tolerate repeated taps, offer immediate Undo and later correction. Returning an occurrence to unconfirmed does not re-alert it. A previous-day occurrence with an outstanding alert remains accessible on Today until acted on or superseded. Restart and permission recovery resume future reminders without catch-up sound. Pausing or deleting cancels outstanding alerts and future reminders; resuming starts at the next future occurrence.
 
-1. **Medicine:** required name and optional dose instructions, such as “1 tablet.”
-2. **Schedule:** frequency, relevant dates/times, and notification or alarm.
-3. **Review:** a plain-language summary and the next three reminder dates/times.
+## Implementation and acceptance
 
-Start defaults to today. An optional end date supports short treatments; include all scheduled doses on that end date, evaluated using the phone's local calendar date, and show the final reminder in the review. The app records instructions without calculating or recommending doses.
-
-## Scheduling and alert behaviour
-
-| Schedule | Settings and behaviour |
-|---|---|
-| Every day | One or more clock times. |
-| Selected days | Weekday buttons plus one or more times. Selecting one day covers weekly reminders. |
-| Every X hours | Positive whole-hour interval and first-dose date/time. Preserve elapsed intervals from that starting point. |
-| Monthly | Numbered day or “Last day of month,” plus a time. For days 29–31, ask whether unavailable dates should use the month’s last day or skip that month. |
-
-- Daily, weekday, and monthly reminders follow the phone’s local time zone. Interval reminders preserve elapsed hours.
-- Preview overnight reminders explicitly. Recording a late dose never shifts the timetable.
-- During daylight saving changes, a nonexistent clock time moves forward by the clock-change gap; a repeated time produces one reminder at its first occurrence.
-- Changes to schedules affect only doses scheduled after the edit. Preserve doses already due, including their taken, skipped, or unconfirmed state and the ability to record an outcome. Show the next reminder explicitly in the review: moving an unconfirmed 9 am schedule to 10 am at 9:05 preserves the 9 am dose and creates a separate 10 am dose. Pausing or deleting a medicine cancels its outstanding alerts.
-- When reminders resume after the phone was off, show today's past doses without a recorded outcome as unconfirmed. Do not sound catch-up alerts or automatically mark these doses taken or skipped; continue with the next future reminder.
-- Newly added medicines create no past dose occurrences. Adding a daily 9 am medicine at noon starts reminders tomorrow at 9 am. An interval schedule may have a past starting point to preserve its cadence, but only future occurrences become reminders.
-- Pausing or deleting a medicine preserves doses already due on Today, including their medicine names, instructions, and outcomes, and allows outcome corrections. Cancel their outstanding alerts and remove future reminders. Resuming starts at the next future dose without catch-up alerts.
-
-Each medicine supports:
-
-- **Notification, default:** one notification sound and vibration.
-- **Alarm:** sound and vibration for up to two minutes, then leave the dose visibly unconfirmed. No automatic repeat unless snoozed.
-- Actions: **Taken**, **Remind me in 10 minutes**, and **Skip this dose**. Alarm mode also offers **Stop sound**, which leaves the dose unconfirmed.
-- Taken and Skip do not require confirmation on every tap. Offer an immediate Undo and allow later outcome corrections on Today. Returning a dose to unconfirmed does not automatically sound another alert.
-- Snoozing changes only that alert. Taken/skipped actions cancel its remaining alerts and tolerate repeated taps.
-- An older outstanding alert stops when the next scheduled dose for that medicine becomes due.
-- Overlapping alarm doses share one sound session while retaining separate dose actions. A dose arriving during playback joins the session without extending its two-minute limit. Taken or Skip affects only that dose; playback continues for other active alarm doses. Stop sound silences the whole shared session, leaving unresolved doses unconfirmed. A later reminder or explicit snooze can start a new session.
-- Respect device sound settings. Full-screen takeover and overriding Do Not Disturb are outside the MVP.
-
-Show today's status only; defer history and reports. As a narrow exception, a previous-day dose with an outstanding alert or snooze remains accessible on Today, labelled with its date (for example, “Yesterday”), until taken, skipped, or superseded by the medicine's next scheduled dose.
-
-## Implementation and local storage
-
-- Use React Native with TypeScript and a standard Android native project. Target Android 8+ phones with Google Play services.
-- Keep scheduling, local persistence, notification actions, and bounded alarm playback in a Kotlin component, exposed through a typed interface to the screens.
-- Use Room/SQLite for persistent medicines and dose states. React Native and background handlers use the same repository through a small typed storage interface. Commit edits locally immediately; in-memory state alone is not durable storage. Do not add cloud dependencies or an account-update queue to the MVP.
-- Use Android exact alarms, scheduling the next occurrence per medicine and scheduling its successor when it fires. Prefer timely delivery during device idle over hiding the system's upcoming-alarm indicator: use Android's alarm-clock mechanism where needed, including for notification-mode reminders. Rebuild scheduling after app launch, restart and first unlock, clock changes, and permission restoration. Android alarms can operate outside the app's lifetime. [Android alarm documentation](https://developer.android.com/develop/background-work/services/alarms)
-- After a restart, reminders resume only after the first device unlock. Explain this during setup; reminders before that unlock are outside the MVP. [Android Direct Boot documentation](https://developer.android.com/privacy-and-security/direct-boot)
-- Request notification and exact-alarm access through a guided setup. If required access is missing or revoked, save medicines but show a prominent “Reminders off” message on Today with an action to enable them. Do not silently substitute less precise reminders. When access is restored, resume future reminders without catch-up sounds.
-- Use a short-lived foreground service only while persistent alarm audio is playing; stop it within two minutes. Validate this on real devices in the first milestone.
-- Core data types: `Medicine`, a four-variant `Schedule`, and `DoseOccurrence`. Give medicines and occurrences stable identities so retries cannot create duplicate reminders or dose records.
-
-- Keep a rolling 30 days of local dose records, plus any older dose with a still-outstanding alert. Clean up older dose records during local use; this does not add a history screen. Keep medicine schedules until the medicine is deleted.
-- Explain that the MVP provides no guaranteed recovery after phone loss, uninstalling, or clearing app data. Android system backup must be configured deliberately and must not be presented as tested account recovery. [Android backup documentation](https://developer.android.com/identity/data/autobackup)
-
-## Delivery and acceptance
-
-Build and verify these stages:
-
-1. **Reminder foundation:** one daily medicine, durable storage, permission setup, notification and two-minute alarm.
-2. **Daily use:** Today screen, medicine management, dose actions, and both languages.
-3. **Scheduling:** selected weekdays, fixed intervals, monthly rules, treatment dates, and previews.
-4. **Private test:** signed Android build, installation instructions including local-storage limitations, recorded real-device checks, and observed usability sessions with at least three older testers.
-
-Required checks:
-
-- Real-device reminders with the screen locked, app closed, internet disconnected, device idle, and after restart and unlock.
-- Permission denial/revocation, muted channels, zero volume, and Android force-stop. Clearly distinguish force-stop from normal app closure.
-- All schedule types, overnight intervals, leap years, short months, clock changes, and treatment end dates.
-- Snooze, duplicate actions, simultaneous medicines, closely spaced doses during device idle, edits/deletions, and two-minute alarm timeout.
-- Medicines, edits, and dose outcomes surviving app closure, process termination, and phone restarts without a connection. Repeated actions must not create duplicate reminders or dose records.
-- Large system text, TalkBack, and Spanish layouts.
-- Record tested phone models and Android versions. Complete the real-device reminder checks and observe at least three older testers, each independently adding a medicine, understanding its preview, and recording a dose outcome. Fix failures that prevent these tasks before declaring the MVP complete.
-
-Defer Google sign-in, cloud saving, replacement-phone recovery, public Play Store launch, caregiver access, history/reports, refill tracking, scanning, and medical recommendations.
-
-## Deferred account-saving design
-
-Account saving is outside MVP implementation and acceptance. The earlier proposal used Firebase Authentication with Google and Firestore on Spark without a custom server; revisit the provider and integration after the private test.
-
-Retain the earlier product decisions as input to that later work: optional sign-in, explicit list selection instead of automatically combining existing local and account medicines, acknowledged saving statuses that distinguish offline and account failures, sign-out warnings before stopping reminders and clearing account data, and permission-guided restoration without catch-up sounds. One reminder phone per person remains the proposed boundary for that future feature.
+- Android 8+, React Native/TypeScript screens, SQLite storage, and Kotlin scheduling and background handling; no backend. Use stable identities and persist edits immediately.
+- Use exact alarms and the alarm-clock mechanism where needed, including notification mode. Rebuild after launch, restart and first unlock, clock changes and permission restoration. Explain that reminders resume only after first unlock. Save when access is unavailable and prominently show Reminders off; never silently substitute approximate reminders.
+- Use a foreground service only while alarm audio plays. Preserve existing data and scheduled reminders on upgrade. Keep outcome history until explicitly cleared. Explain that phone loss, uninstalling or clearing app data may lose local data; configure backup deliberately without promising account recovery.
+- Verify on real devices with locked screen, app closed, offline, idle, restart and first unlock; test permissions, muted channels, zero volume and force-stop. Verify schedules, DST, dates, snooze, duplicate actions, overlapping alarms, edits and deletion, persistence, accessibility and both languages. Record device models and Android versions.
+- Deliver a signed Android build and observe at least three older testers independently adding a reminder or medicine, understanding the preview and recording an outcome. Fix blocking failures before declaring the MVP complete.
+- Defer sign-in, cloud saving, replacement-phone recovery, public launch, caregiver access, refill tracking, scanning, and medical recommendations.
 
 ## Comments
 

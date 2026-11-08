@@ -1,13 +1,9 @@
-# 07: Edit, pause, resume, and delete medicines
+# 07: Edit, pause, resume, and delete reminders
 
-**What to build:** Manage medicines individually. Changes to future reminders preserve the doses already due on Today, including their displayed medicine names, instructions, and outcomes.
+**What to build:** Manage both reminder types and allow changing type without losing dosage text. Preview the next reminder after edits. Preserve already-due occurrences, displayed details and outcomes, including after pause or deletion, and allow corrections. Cancel outstanding alerts and future reminders on pause or deletion without interrupting other alarms. Resume at the next future occurrence without catch-up alerts. Verify persistence, both languages and accessibility.
 
-**Blocked by:** 06 — Handle overlapping alarm doses in one sound session
+**Blocked by:** 06 — Handle overlapping alarms in one sound session
 
 **Status:** ready-for-agent
 
-- [ ] Edit a medicine and preview the next reminder. Moving a 9 am schedule to 10 am at 9:05 preserves the 9 am occurrence and makes the 10 am dose a separate occurrence.
-- [ ] Pause or delete a medicine to remove its future reminders and cancel outstanding alerts and snoozes without interrupting another medicine’s active alarm.
-- [ ] Already-due doses retain their displayed details and outcomes after pause or deletion. The user can still record or correct their outcomes on Today.
-- [ ] Resume a paused medicine at its next future occurrence without catch-up alerts. Verify edits and pause state persist offline through process termination and restart.
-- [ ] Verify the management flows and review in both languages with large text and TalkBack.
+- [ ] Implement and verify the behaviour above against the [spec](../spec.md).

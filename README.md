@@ -1,6 +1,6 @@
 # Pill Reminder
 
-An Android app scaffold built with React Native and TypeScript, with a Kotlin Android entry point. It supports Android 8.0 (API 26) and later. The first screen displays **Pill Reminder**.
+An offline Android reminder app with medicine support, built with React Native, TypeScript and Kotlin. It supports Android 8.0 (API 26) and later. The current app name is **Pill Reminder**.
 
 ## Local setup
 

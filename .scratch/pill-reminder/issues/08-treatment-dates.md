@@ -1,13 +1,9 @@
-# 08: Set treatment dates and preview the final reminder
+# 08: Set dates and preview the final reminder
 
-**What to build:** Set a medicine’s start and optional end date. Review the next reminders and, for a short treatment, see its final reminder before saving.
+**What to build:** Support start and optional end dates for both types; default start to today and include every occurrence on the end date in local time. Review next reminders and the actual final reminder. New items create only future occurrences. Verify multiple times, edits preserving already-due occurrences, both languages and accessibility.
 
-**Blocked by:** 07 — Edit, pause, resume, and delete medicines
+**Blocked by:** 07 — Edit, pause, resume, and delete reminders
 
 **Status:** ready-for-agent
 
-- [ ] Default the start date to today and support a future start date.
-- [ ] Include all scheduled doses on the end date, using the phone’s local calendar date, and show the actual final reminder in Review.
-- [ ] Adding a medicine creates only future occurrences. Adding a daily 9 am medicine at noon schedules its first reminder for the next eligible day.
-- [ ] Verify multiple times on the inclusive end date and date edits that preserve doses already due.
-- [ ] Verify the date controls and plain-language review in both languages with large text and TalkBack.
+- [ ] Implement and verify the behaviour above against the [spec](../spec.md).

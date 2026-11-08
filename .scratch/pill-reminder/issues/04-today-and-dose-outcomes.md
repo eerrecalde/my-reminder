@@ -1,13 +1,9 @@
-# 04: See today’s doses and record outcomes
+# 04: See today’s reminders and record outcomes
 
-**What to build:** Show the next medicine prominently and list today’s doses with their status. Let the user record a dose outcome from Today or the notification, undo it immediately, and correct it later on Today.
+**What to build:** Show upcoming and due occurrences for both types with type-appropriate labels. Record completion or skip from Today and notifications; provide immediate Undo and later correction. Persist outcomes offline, tolerate repeated actions, cancel remaining alerts, and never shift the schedule. After restart show past due occurrences without catch-up sound. An unanswered occurrence becomes missed when the next occurrence arrives. Keep history of completed, skipped and missed occurrences until the user confirms clearing it; clearing history must not delete active reminders. Verify both languages, large text and TalkBack.
 
-**Blocked by:** 02 — Save one daily medicine and receive a notification
+**Blocked by:** 02c — Choose Reminder or Medicine when adding an item
 
 **Status:** ready-for-agent
 
-- [ ] Today distinguishes due, taken, skipped, and unconfirmed doses using readable labels. After restart and unlock, past doses from today with no recorded outcome appear as unconfirmed, with no catch-up sound.
-- [ ] Taken and Skip work from Today and the notification without routine confirmation. Each offers immediate Undo, and Today supports later corrections, including returning a dose to unconfirmed.
-- [ ] Taken and Skip cancel the dose’s remaining alerts. Repeated taps do not create duplicates, and returning a dose to unconfirmed does not sound another alert.
-- [ ] Recorded outcomes survive app closure, process termination, and restart offline. Recording an outcome late leaves the schedule intact.
-- [ ] Verify Today, reminder actions, and status labels in both languages with large text and TalkBack.
+- [ ] Implement and verify the behaviour above against the [spec](../spec.md).
