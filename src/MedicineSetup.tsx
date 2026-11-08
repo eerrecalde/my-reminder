@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   Button,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +13,7 @@ import type { ReminderType } from './reminderRepository';
 
 export type DailyMedicineInput = {
   type: ReminderType;
+  mode: 'notification' | 'alarm';
   name: string;
   instructions: string;
   times: string[];
@@ -42,6 +44,9 @@ const copy = {
     removeTime: 'Remove time',
     invalid: 'Enter one or more times, for example 09:00, 21:00',
     mode: 'Reminder: Notification',
+    alarmMode: 'Reminder: Alarm',
+    notification: 'Notification',
+    alarm: 'Alarm',
     review: 'Review',
     nextThree: 'Next three reminders',
     everyDay: 'Every day at',
@@ -66,6 +71,9 @@ const copy = {
     removeTime: 'Quitar hora',
     invalid: 'Escribe una o más horas, por ejemplo 09:00, 21:00',
     mode: 'Recordatorio: Notificación',
+    alarmMode: 'Recordatorio: Alarma',
+    notification: 'Notificación',
+    alarm: 'Alarma',
     review: 'Revisar',
     nextThree: 'Próximos tres recordatorios',
     everyDay: 'Todos los días a las',
@@ -78,6 +86,7 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
   const t = copy[language];
   const [step, setStep] = useState(0);
   const [type, setType] = useState<ReminderType>('reminder');
+  const [mode, setMode] = useState<'notification' | 'alarm'>('notification');
   const [name, setName] = useState('');
   const [instructions, setInstructions] = useState('');
   const [times, setTimes] = useState(['09:00']);
@@ -199,7 +208,26 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
                 );
             }}
           />
-          <Text style={styles.label}>{t.mode}</Text>
+          <Text accessibilityLiveRegion="polite" style={styles.label}>
+            {mode === 'alarm' ? t.alarmMode : t.mode}
+          </Text>
+          <View accessibilityRole="radiogroup">
+            {(['notification', 'alarm'] as const).map(choice => (
+              <Pressable
+                key={choice}
+                accessibilityRole="radio"
+                accessibilityLabel={t[choice]}
+                accessibilityState={{ checked: mode === choice }}
+                onPress={() => setMode(choice)}
+                style={styles.modeOption}
+              >
+                <Text style={styles.modeText}>
+                  {mode === choice ? '● ' : '○ '}
+                  {t[choice]}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </>
       )}
       {step === 3 && (
@@ -211,7 +239,9 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
           {type === 'medicine' && !!instructions.trim() && (
             <Text style={styles.label}>{instructions.trim()}</Text>
           )}
-          <Text style={styles.label}>{t.mode}</Text>
+          <Text style={styles.label}>
+            {mode === 'alarm' ? t.alarmMode : t.mode}
+          </Text>
           <Text style={styles.label}>
             {t.everyDay} {times.join(', ')}
           </Text>
@@ -262,6 +292,7 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
               try {
                 await onSave({
                   type,
+                  mode,
                   name: name.trim(),
                   instructions: type === 'medicine' ? instructions.trim() : '',
                   times: [...new Set(times)],
@@ -298,4 +329,6 @@ const styles = StyleSheet.create({
   error: { color: '#a01818', fontSize: 18, marginVertical: 12 },
   actions: { gap: 12, marginTop: 24 },
   timeRow: { gap: 8, marginVertical: 8 },
+  modeOption: { minHeight: 48, justifyContent: 'center' },
+  modeText: { color: '#162524', fontSize: 18 },
 });

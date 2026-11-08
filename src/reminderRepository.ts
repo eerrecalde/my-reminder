@@ -19,6 +19,7 @@ export interface ReminderRepository {
     name: string,
     instructions: string,
     times: string[],
+    mode: 'notification' | 'alarm',
   ): Promise<void>;
   openAlarmSettings(): void;
   openNotificationSettings(): void;
