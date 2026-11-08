@@ -5,7 +5,15 @@ import App from '../App';
 
 test('records and undoes a reminder outcome from Today', async () => {
   const repo = require('../src/reminderRepository');
-  const setOutcome = jest.fn().mockResolvedValue(undefined);
+  const setOutcome = jest
+    .fn()
+    .mockResolvedValue({
+      previous: null,
+      revision: 1,
+      previousCleared: false,
+      changed: true,
+    });
+  const undoOutcome = jest.fn().mockResolvedValue(undefined);
   repo.reminderRepository = {
     state: jest.fn().mockResolvedValue({
       enabled: true,
@@ -26,6 +34,7 @@ test('records and undoes a reminder outcome from Today', async () => {
       upcoming: [],
     }),
     setOutcome,
+    undoOutcome,
   };
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
@@ -44,7 +53,7 @@ test('records and undoes a reminder outcome from Today', async () => {
       .find(button => button.props.title === 'Undo')!
       .props.onPress();
   });
-  expect(setOutcome).toHaveBeenLastCalledWith('r', 2000, null);
+  expect(undoOutcome).toHaveBeenCalledWith('r', 2000, null, 1, false);
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 

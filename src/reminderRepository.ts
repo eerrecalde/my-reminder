@@ -21,7 +21,23 @@ export type ReminderState = {
 };
 export interface ReminderRepository {
   state(): Promise<ReminderState>;
-  setOutcome(id: string, at: number, outcome: Outcome | null): Promise<void>;
+  setOutcome(
+    id: string,
+    at: number,
+    outcome: Outcome | null,
+  ): Promise<{
+    previous: Outcome | null;
+    revision: number;
+    previousCleared: boolean;
+    changed: boolean;
+  }>;
+  undoOutcome(
+    id: string,
+    at: number,
+    previous: Outcome | null,
+    revision: number,
+    previousCleared: boolean,
+  ): Promise<void>;
   clearHistory(): Promise<void>;
   save(name: string, instructions: string, times: string[]): Promise<void>;
   saveTyped(

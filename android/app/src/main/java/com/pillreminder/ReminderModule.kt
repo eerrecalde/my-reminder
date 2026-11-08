@@ -40,15 +40,19 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       val history = Arguments.createArray()
       val upcoming = Arguments.createArray()
       MedicineRepository(reactContext).use { repo ->
-        repo.occurrences().forEach { occurrence ->
+        val now = java.time.Instant.now()
+        val medicinesById = repo.all().associateBy { it.id }
+        repo.occurrences(includeCleared = true).forEach { occurrence ->
           fun occurrenceMap() = Arguments.createMap().apply {
             putString("medicineId", occurrence.medicineId); putDouble("scheduledAt", occurrence.at.toDouble()); putString("outcome", occurrence.outcome)
           }
-          if (occurrence.at in start until end || (occurrence.at < start && occurrence.outcome == null)) doses.pushMap(occurrenceMap())
-          if (occurrence.outcome != null) history.pushMap(occurrenceMap())
+          val medicine = medicinesById[occurrence.medicineId]
+          val previousOutstanding = occurrence.at < start && !occurrence.cleared && occurrence.outcome == null && medicine != null &&
+            DailySchedule.next(medicine.times, java.time.Instant.ofEpochMilli(occurrence.at), zone) > now
+          if (occurrence.at in start until end || previousOutstanding) doses.pushMap(occurrenceMap())
+          if (!occurrence.cleared && occurrence.outcome != null) history.pushMap(occurrenceMap())
         }
-        val now = java.time.Instant.now()
-        repo.all().forEach { medicine ->
+        medicinesById.values.forEach { medicine ->
           var next = DailySchedule.next(medicine.times, now, zone)
           // Include the next occurrence even when it is tomorrow, plus all of today's upcoming occurrences.
           do {
@@ -64,8 +68,17 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
     } catch (error: Exception) { promise.reject("state_failed", error) }
   }
   @ReactMethod fun setOutcome(id: String, at: Double, outcome: String?, promise: Promise) {
-    try { ReminderScheduler.recordOutcome(reactContext, id, at.toLong(), outcome); promise.resolve(null) }
+    try {
+      val result = requireNotNull(ReminderScheduler.recordOutcome(reactContext, id, at.toLong(), outcome))
+      promise.resolve(Arguments.createMap().apply { putString("previous", result.previous); putDouble("revision", result.revision.toDouble()); putBoolean("previousCleared", result.previousCleared); putBoolean("changed", result.changed) })
+    }
     catch (error: Exception) { promise.reject("outcome_failed", error) }
+  }
+  @ReactMethod fun undoOutcome(id: String, at: Double, previous: String?, revision: Double, previousCleared: Boolean, promise: Promise) {
+    try {
+      check(ReminderScheduler.undoOutcome(reactContext, id, at.toLong(), previous, revision.toLong(), previousCleared)) { "Occurrence changed since this action" }
+      promise.resolve(null)
+    } catch (error: Exception) { promise.reject("undo_failed", error) }
   }
   @ReactMethod fun clearHistory(promise: Promise) {
     try { MedicineRepository(reactContext).use { it.clearHistory() }; promise.resolve(null) }

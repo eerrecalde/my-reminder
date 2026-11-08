@@ -17,6 +17,34 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ReminderFoundationTest {
+  @Test fun recoveryPreservesOverdueAlarmFromBeforeTrackingBegan() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val now = System.currentTimeMillis()
+    val at = now - 2 * 24 * 60 * 60 * 1000L
+    val time = LocalTime.now().minusMinutes(1).format(DateTimeFormatter.ofPattern("HH:mm"))
+    val item = MedicineRepository(context).use { repo ->
+      val medicine = repo.save("Old alarm", "", listOf(time), at - 10000, "reminder")
+      repo.writableDatabase.execSQL("UPDATE occurrence_tracking SET starts_after = ? WHERE medicine_id = ?", arrayOf(now - 60000, medicine.id))
+      repo.setAlarm(medicine.id, at, "old")
+      medicine
+    }
+    try {
+      ReminderScheduler.rebuild(context, recovery = true)
+      val occurrences = MedicineRepository(context).use { it.occurrences().filter { occurrence -> occurrence.medicineId == item.id } }
+      assertEquals("missed", occurrences.find { it.at == at }?.outcome)
+      assertFalse(context.getSystemService(NotificationManager::class.java).activeNotifications.any { it.id == ("${item.id}:$at").hashCode() })
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
   @Test fun recoveryKeepsPastOccurrencesAndMarksEarlierOnesMissedWithoutAlerts() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     assertTrue(ReminderScheduler.enabled(context))

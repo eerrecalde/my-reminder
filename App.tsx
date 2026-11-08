@@ -111,6 +111,8 @@ export default function App() {
   const [undo, setUndo] = useState<{
     occurrence: Occurrence;
     previous: Outcome | null;
+    revision: number;
+    previousCleared: boolean;
   }>();
   const refresh = useCallback(async () => {
     try {
@@ -135,23 +137,43 @@ export default function App() {
   const changeOutcome = async (
     occurrence: Occurrence,
     outcome: Outcome | null,
-    remember = true,
   ) => {
     try {
-      await reminderRepository.setOutcome(
+      const change = await reminderRepository.setOutcome(
         occurrence.medicineId,
         occurrence.scheduledAt,
         outcome,
       );
-      setUndo(
-        remember
-          ? { occurrence, previous: occurrence.outcome ?? null }
-          : undefined,
-      );
+      if (change.changed)
+        setUndo({
+          occurrence,
+          previous: change.previous,
+          revision: change.revision,
+          previousCleared: change.previousCleared,
+        });
       setError('');
       await refresh();
     } catch {
       setError(t.actionError);
+    }
+  };
+  const undoChange = async () => {
+    if (!undo) return;
+    try {
+      await reminderRepository.undoOutcome(
+        undo.occurrence.medicineId,
+        undo.occurrence.scheduledAt,
+        undo.previous,
+        undo.revision,
+        undo.previousCleared,
+      );
+      setUndo(undefined);
+      setError('');
+      await refresh();
+    } catch {
+      setUndo(undefined);
+      setError(t.actionError);
+      await refresh();
     }
   };
   const timeLabel = (at: number) =>
@@ -279,13 +301,7 @@ export default function App() {
                   </View>
                 )}
                 {undo && (
-                  <Button
-                    color="#00535b"
-                    title={t.undo}
-                    onPress={() =>
-                      changeOutcome(undo.occurrence, undo.previous, false)
-                    }
-                  />
+                  <Button color="#00535b" title={t.undo} onPress={undoChange} />
                 )}
                 {(state.upcoming ?? []).length > 0 &&
                   (() => {
@@ -361,13 +377,7 @@ export default function App() {
             ) : screen === 'history' ? (
               <>
                 {undo && (
-                  <Button
-                    color="#00535b"
-                    title={t.undo}
-                    onPress={() =>
-                      changeOutcome(undo.occurrence, undo.previous, false)
-                    }
-                  />
+                  <Button color="#00535b" title={t.undo} onPress={undoChange} />
                 )}
                 {(state.history ?? []).length === 0 && (
                   <Text style={styles.text}>{t.noHistory}</Text>

@@ -57,6 +57,10 @@ class AlarmSoundService : Service() {
     }
     val id = intent?.getStringExtra("id") ?: run { finish(); return START_NOT_STICKY }
     val at = intent.getLongExtra("at", 0)
+    if (!MedicineRepository(this).use { it.soundAllowed(id, at) }) {
+      if (active.isEmpty()) finish()
+      return START_NOT_STICKY
+    }
     val previous = active[id]
     if (previous != null && at <= previous) return START_NOT_STICKY
     active[id] = at

@@ -25,7 +25,7 @@ object ReminderScheduler {
   }
 
   private fun reconcileOccurrences(context: Context, repo: MedicineRepository, medicine: Medicine, now: Instant, zone: ZoneId) {
-    var cursor = Instant.ofEpochMilli(repo.latestOccurrence(medicine.id) ?: medicine.createdAt)
+    var cursor = Instant.ofEpochMilli(maxOf(repo.latestOccurrence(medicine.id) ?: medicine.createdAt, repo.trackingStart(medicine.id)))
     while (true) {
       val next = DailySchedule.next(medicine.times, cursor, zone)
       if (next > now) break
@@ -122,11 +122,13 @@ object ReminderScheduler {
           val legacyIntent = Intent(context, ReminderReceiver::class.java).setData(Uri.parse("pillreminder://medicine/${medicine.id}"))
           val legacy = PendingIntent.getBroadcast(context, 0, legacyIntent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
           if (legacy != null) { alarmManager(context).cancel(legacy); legacy.cancel() }
-          repo.alarm(medicine.id)?.let {
+          val oldAlarm = repo.alarm(medicine.id)
+          oldAlarm?.let {
             alarmManager(context).cancel(pending(context, it))
             alarmManager(context).cancel(watchdog(context, it))
           }
           repo.invalidateAlarm(medicine.id)
+          if (oldAlarm != null && oldAlarm.at <= now.toEpochMilli() && oldAlarm.at > medicine.createdAt) repo.recordDue(medicine.id, oldAlarm.at)
         }
         reconcileOccurrences(context, repo, medicine, now, zone)
         if (available) schedule(context, medicine, now)
@@ -167,34 +169,43 @@ object ReminderScheduler {
       }
     }
   }
-  @Synchronized fun recordOutcome(context: Context, id: String, at: Long, outcome: String?, onlyUnconfirmed: Boolean = false): Boolean {
+  @Synchronized fun recordOutcome(context: Context, id: String, at: Long, outcome: String?, onlyUnconfirmed: Boolean = false): MedicineRepository.OutcomeChange? {
     val changed = MedicineRepository(context).use { repo ->
-      if (onlyUnconfirmed) repo.setOutcomeIfUnconfirmed(id, at, requireNotNull(outcome))
+      if (onlyUnconfirmed) {
+        if (repo.setOutcomeIfUnconfirmed(id, at, requireNotNull(outcome))) MedicineRepository.OutcomeChange(null, repo.revision(id, at)) else null
+      }
       else {
         val medicine = requireNotNull(repo.all().find { it.id == id })
         val next = DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault())
-        repo.setOutcome(id, at, outcome, outcome == null && next <= Instant.now()); true
+        repo.setOutcome(id, at, outcome, outcome == null && next <= Instant.now())
       }
     }
-    if (changed) dismissOccurrence(context, id, at)
+    if (changed?.changed == true) dismissOccurrence(context, id, at)
     return changed
+  }
+
+  @Synchronized fun undoOutcome(context: Context, id: String, at: Long, previous: String?, revision: Long, previousCleared: Boolean = false): Boolean {
+    val undone = MedicineRepository(context).use { repo ->
+      val medicine = repo.all().find { it.id == id } ?: return false
+      val next = DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault())
+      repo.undoOutcome(id, at, revision, previous, previous == null && next <= Instant.now(), previousCleared)
+    }
+    if (undone) dismissOccurrence(context, id, at)
+    return undone
   }
 
   @Synchronized fun notificationOutcome(context: Context, id: String, at: Long, outcome: String) {
     if (outcome.startsWith("undo_")) {
-      val undone = MedicineRepository(context).use { repo ->
-        val medicine = repo.all().find { it.id == id } ?: return
-        val next = DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault())
-        repo.undoOutcome(id, at, outcome.removePrefix("undo_"), next <= Instant.now())
-      }
-      if (undone) NotificationManagerCompat.from(context).cancel(notificationId(id, at))
+      val revision = outcome.removePrefix("undo_").toLongOrNull() ?: return
+      undoOutcome(context, id, at, null, revision)
       return
     }
-    if (outcome !in listOf("completed", "skipped") || !recordOutcome(context, id, at, outcome, true)) return
+    if (outcome !in listOf("completed", "skipped")) return
+    val change = recordOutcome(context, id, at, outcome, true) ?: return
     val medicine = MedicineRepository(context).use { repo -> repo.all().find { it.id == id } } ?: return
     val notification = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info)
       .setContentTitle(medicine.name).setContentText(context.getString(if (outcome == "skipped") R.string.skipped else if (medicine.type == "medicine") R.string.taken else R.string.completed))
-      .setSilent(true).setAutoCancel(true).addAction(0, context.getString(R.string.undo), outcomeIntent(context, id, at, "undo_$outcome")).build()
+      .setSilent(true).setAutoCancel(true).addAction(0, context.getString(R.string.undo), outcomeIntent(context, id, at, "undo_${change.revision}")).build()
     try { NotificationManagerCompat.from(context).notify(notificationId(id, at), notification) } catch (_: SecurityException) { }
   }
 
