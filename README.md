@@ -9,6 +9,13 @@ An offline Android reminder app with medicine support, built with React Native, 
 - Set `ANDROID_HOME` to the SDK path shown in Android Studio and add `$ANDROID_HOME/platform-tools` to your `PATH`. On macOS, the usual SDK path is `$HOME/Library/Android/sdk`.
 - Run `npm ci` from the repository root.
 
+On Emiliano's Mac, the existing JDK 17 is at `~/Library/Android/jdk17`. For Android builds and tests in a shell where `JAVA_HOME` is not already set, use:
+
+```sh
+export JAVA_HOME="$HOME/Library/Android/jdk17"
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+```
+
 See the [React Native environment guide](https://reactnative.dev/docs/set-up-your-environment) for platform-specific setup. Use the SDK versions listed above for this repository.
 
 ## Build and check on a phone
