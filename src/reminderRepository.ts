@@ -8,6 +8,8 @@ export type Occurrence = {
   medicineId: string;
   scheduledAt: number;
   outcome?: Outcome | null;
+  outstanding?: boolean;
+  snoozed?: boolean;
 };
 export type ReminderState = {
   enabled: boolean;

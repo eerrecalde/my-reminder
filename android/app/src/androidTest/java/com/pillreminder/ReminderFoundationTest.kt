@@ -36,6 +36,7 @@ class ReminderFoundationTest {
       assertEquals("missed", occurrences.find { it.at == at }?.outcome)
       assertFalse(context.getSystemService(NotificationManager::class.java).activeNotifications.any { it.id == ("${item.id}:$at").hashCode() })
     } finally {
+      runCatching { ReminderScheduler.recordOutcome(context, item.id, due, "skipped") }
       MedicineRepository(context).use { repo ->
         repo.alarm(item.id)?.let { cancel(context, it) }
         repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
@@ -166,6 +167,7 @@ class ReminderFoundationTest {
         assertEquals(1, MedicineRepository(context).use { it.occurrences().count { occurrence -> occurrence.medicineId == item.id && occurrence.at == due } })
         ReminderScheduler.recordOutcome(context, item.id, due, "skipped")
       } finally {
+        runCatching { ReminderScheduler.recordOutcome(context, item.id, due, "skipped") }
         manager.cancel(notificationId)
         context.stopService(Intent(context, AlarmSoundService::class.java))
         MedicineRepository(context).use { repo ->
@@ -176,6 +178,36 @@ class ReminderFoundationTest {
           repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
           repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
         }
+      }
+    }
+  }
+  @Test fun reconciliationRecoversAnInterruptedOverdueSnooze() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val now = System.currentTimeMillis()
+    val time = LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))
+    val item = MedicineRepository(context).use { it.save("Interrupted snooze", "", listOf(time), now - 10000, "reminder") }
+    val due = now - 1000
+    try {
+      MedicineRepository(context).use { repo ->
+        repo.recordDue(item.id, due)
+        repo.setOutstanding(item.id, due, true)
+        assertTrue(repo.saveSnooze(MedicineRepository.Snooze(item.id, due, now - 500, "interrupted")))
+      }
+      ReminderScheduler.rebuild(context)
+      val manager = context.getSystemService(NotificationManager::class.java)
+      val notificationId = ("${item.id}:$due").hashCode()
+      repeat(100) { if (manager.activeNotifications.none { it.id == notificationId }) Thread.sleep(100) }
+      assertTrue(manager.activeNotifications.any { it.id == notificationId })
+      assertNull(MedicineRepository(context).use { it.snooze(item.id, due) })
+      ReminderScheduler.recordOutcome(context, item.id, due, "skipped")
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        repo.writableDatabase.delete("snoozes", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
       }
     }
   }

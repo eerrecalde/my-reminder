@@ -56,7 +56,7 @@ object ReminderScheduler {
     MedicineRepository(context).use { repo ->
       val medicine = repo.all().find { it.id == id } ?: return false
       val occurrence = repo.occurrences().find { it.medicineId == id && it.at == at } ?: return false
-      if (occurrence.outcome != null || DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault()) <= Instant.now()) return false
+      if (!occurrence.outstanding || occurrence.outcome != null || DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault()) <= Instant.now()) return false
       if (!repo.saveSnooze(item)) return true
       try { registerSnooze(context, item) }
       catch (_: SecurityException) { repo.removeSnooze(id, at); return false }
@@ -175,9 +175,9 @@ object ReminderScheduler {
       val medicines = repo.all()
       if (medicines.isNotEmpty()) ensureReconciliation(context)
       repo.snoozes().forEach { item ->
-        if (available && item.alertAt > now.toEpochMilli()) {
+        if (available && (item.alertAt > now.toEpochMilli() || !invalidate)) {
           try { registerSnooze(context, item) } catch (_: SecurityException) { cancelSnooze(context, item.medicineId, item.at) }
-        } else if (invalidate || !available) cancelSnooze(context, item.medicineId, item.at)
+        } else if (item.alertAt <= now.toEpochMilli() && invalidate) cancelSnooze(context, item.medicineId, item.at)
       }
       medicines.forEach { medicine ->
         if (invalidate) {

@@ -43,7 +43,7 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
         val medicinesById = repo.all().associateBy { it.id }
         repo.occurrences(includeCleared = true).forEach { occurrence ->
           fun occurrenceMap() = Arguments.createMap().apply {
-            putString("medicineId", occurrence.medicineId); putDouble("scheduledAt", occurrence.at.toDouble()); putString("outcome", occurrence.outcome)
+            putString("medicineId", occurrence.medicineId); putDouble("scheduledAt", occurrence.at.toDouble()); putString("outcome", occurrence.outcome); putBoolean("outstanding", occurrence.outstanding); putBoolean("snoozed", repo.snooze(occurrence.medicineId, occurrence.at) != null)
           }
           val medicine = medicinesById[occurrence.medicineId]
           if (TodayPolicy.includes(occurrence, medicine, now, zone)) doses.pushMap(occurrenceMap())
