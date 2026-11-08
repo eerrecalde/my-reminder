@@ -228,6 +228,7 @@ class ReminderFoundationTest {
     assertTrue("Run this test only on a disposable installation with no reminders", MedicineRepository(context).use { it.all().isEmpty() })
     val ids = mutableListOf<String>()
     val notificationIds = mutableListOf<Int>()
+    val dueTimes = mutableListOf<Long>()
     val notifications = context.getSystemService(NotificationManager::class.java)
     try {
       listOf("medicine", "reminder").forEach { type ->
@@ -280,6 +281,7 @@ class ReminderFoundationTest {
     assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
     val ids = mutableListOf<String>()
     val notificationIds = mutableListOf<Int>()
+    val dueTimes = mutableListOf<Long>()
     val notifications = context.getSystemService(NotificationManager::class.java)
     try {
       listOf("medicine", "reminder").forEach { type ->
@@ -288,6 +290,7 @@ class ReminderFoundationTest {
         val item = MedicineRepository(context).use { it.save("Alarm test", "", listOf(time), now - 10_000, type, "alarm") }
         ids.add(item.id)
         val due = now - 1000
+        dueTimes.add(due)
         MedicineRepository(context).use { it.setAlarm(item.id, due, "test-$type") }
         ReminderScheduler.deliver(context, item.id, due, "test-$type")
         notificationIds.add(("${item.id}:$due").hashCode())
@@ -301,6 +304,13 @@ class ReminderFoundationTest {
       val audio = context.getSystemService(android.media.AudioManager::class.java)
       assertTrue("Alarm audio should be playing", audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
       assertEquals(context.getString(R.string.stop_sound), session!!.actions.single().title.toString())
+      val first = requireNotNull(notifications.activeNotifications.find { it.id == notificationIds[0] }).notification
+      first.actions[0].actionIntent.send()
+      repeat(50) { if (MedicineRepository(context).use { it.outcome(ids[0], dueTimes[0]) } != "completed") Thread.sleep(50) }
+      assertEquals("completed", MedicineRepository(context).use { it.outcome(ids[0], dueTimes[0]) })
+      assertNull(MedicineRepository(context).use { it.outcome(ids[1], dueTimes[1]) })
+      assertTrue("The other occurrence should keep the session running", notifications.activeNotifications.any { it.id == 119348 })
+      assertTrue("The other occurrence should keep sound playing", audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
       session!!.actions.single().actionIntent.send()
       repeat(50) {
         if (notifications.activeNotifications.any { it.id == 119348 }) Thread.sleep(100)
