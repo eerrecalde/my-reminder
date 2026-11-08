@@ -195,7 +195,7 @@ object ReminderScheduler {
     manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.reminder_channel), NotificationManager.IMPORTANCE_HIGH).apply { enableVibration(true) })
     val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     val notification = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle(title).setContentText(text).setContentIntent(open).setAutoCancel(true).setSilent(silent).setPriority(NotificationCompat.PRIORITY_HIGH).build()
+      .setContentTitle(title).setContentText(text).setContentIntent(open).setAutoCancel(true).setCategory(NotificationCompat.CATEGORY_REMINDER).setSilent(silent).setPriority(NotificationCompat.PRIORITY_HIGH).build()
     try { NotificationManagerCompat.from(context).notify(id, notification) } catch (_: SecurityException) { }
   }
 }

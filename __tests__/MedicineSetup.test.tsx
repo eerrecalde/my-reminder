@@ -116,6 +116,19 @@ test('shows the schedule controls in Spanish', async () => {
       .findAllByType(Text)
       .some(text => text.props.children === 'Recordatorio: Notificación'),
   ).toBe(true);
+  const alarm = view.root.findAll(
+    option =>
+      option.props.accessibilityRole === 'radio' &&
+      option.props.accessibilityLabel === 'Alarma',
+  )[0];
+  await ReactTestRenderer.act(() => alarm.props.onPress());
+  expect(
+    view.root.findAll(
+      option =>
+        option.props.accessibilityRole === 'radio' &&
+        option.props.accessibilityLabel === 'Alarma',
+    )[0].props.accessibilityState.checked,
+  ).toBe(true);
 });
 
 test('ignores repeated saves until the first save completes', async () => {
@@ -218,7 +231,22 @@ test.each(['Reminder', 'Medicine'])(
       view.root.findAllByType(TextInput)[0].props.onChangeText('Test'),
     );
     await press('Next');
-    await press('Alarm');
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findAll(
+          option =>
+            option.props.accessibilityRole === 'radio' &&
+            option.props.accessibilityLabel === 'Alarm',
+        )[0]
+        .props.onPress(),
+    );
+    expect(
+      view.root.findAll(
+        option =>
+          option.props.accessibilityRole === 'radio' &&
+          option.props.accessibilityLabel === 'Alarm',
+      )[0].props.accessibilityState.checked,
+    ).toBe(true);
     await press('Review');
     expect(
       view.root

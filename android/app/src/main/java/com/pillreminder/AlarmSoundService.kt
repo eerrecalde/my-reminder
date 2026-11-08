@@ -5,6 +5,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioManager
@@ -19,6 +21,22 @@ class AlarmSoundService : Service() {
   private val active = mutableMapOf<String, Long>()
   private var player: MediaPlayer? = null
   private var vibrator: Vibrator? = null
+  private val settingsChanged = object : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+      stopOutputs()
+      startSound(getSystemService(NotificationManager::class.java))
+    }
+  }
+
+  override fun onCreate() {
+    super.onCreate()
+    val filter = IntentFilter().apply {
+      addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
+      addAction(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
+      addAction(NotificationManager.ACTION_NOTIFICATION_CHANNEL_BLOCK_STATE_CHANGED)
+    }
+    androidx.core.content.ContextCompat.registerReceiver(this, settingsChanged, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+  }
 
   override fun onBind(intent: Intent?): IBinder? = null
 
@@ -46,19 +64,29 @@ class AlarmSoundService : Service() {
 
   private fun startSound(manager: NotificationManager) {
     val audio = getSystemService(AudioManager::class.java)
-    if (manager.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL) { finish(); return }
     val reminderChannel = manager.getNotificationChannel("medicine_reminders")
+    val allowed = when (manager.currentInterruptionFilter) {
+      NotificationManager.INTERRUPTION_FILTER_ALL -> true
+      NotificationManager.INTERRUPTION_FILTER_PRIORITY -> try {
+        reminderChannel?.canBypassDnd() == true ||
+          manager.notificationPolicy.priorityCategories and NotificationManager.Policy.PRIORITY_CATEGORY_REMINDERS != 0
+      } catch (_: SecurityException) { false }
+      else -> false
+    }
+    if (!allowed || reminderChannel == null || reminderChannel.importance == NotificationManager.IMPORTANCE_NONE) { finish(); return }
     val uri = reminderChannel?.sound
     if (uri != null && audio.ringerMode == AudioManager.RINGER_MODE_NORMAL && audio.getStreamVolume(AudioManager.STREAM_NOTIFICATION) > 0) {
+      val newPlayer = MediaPlayer()
       try {
-        player = MediaPlayer().apply {
+        newPlayer.apply {
           setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
           setDataSource(this@AlarmSoundService, uri)
           isLooping = true
           prepare()
           start()
         }
-      } catch (_: Exception) { player?.release(); player = null }
+        player = newPlayer
+      } catch (_: Exception) { newPlayer.release() }
     }
     if (audio.ringerMode != AudioManager.RINGER_MODE_SILENT && reminderChannel?.shouldVibrate() == true) {
       @Suppress("DEPRECATION")
@@ -72,9 +100,15 @@ class AlarmSoundService : Service() {
   }
 
   private fun finish() { stopSelf() }
-  override fun onDestroy() {
+  private fun stopOutputs() {
     player?.release()
+    player = null
     vibrator?.cancel()
+    vibrator = null
+  }
+  override fun onDestroy() {
+    unregisterReceiver(settingsChanged)
+    stopOutputs()
     super.onDestroy()
   }
   companion object {

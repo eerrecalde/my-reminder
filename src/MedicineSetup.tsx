@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   Button,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -210,16 +211,23 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
           <Text accessibilityLiveRegion="polite" style={styles.label}>
             {mode === 'alarm' ? t.alarmMode : t.mode}
           </Text>
-          <Button
-            title={t.notification}
-            color="#00535b"
-            onPress={() => setMode('notification')}
-          />
-          <Button
-            title={t.alarm}
-            color="#00535b"
-            onPress={() => setMode('alarm')}
-          />
+          <View accessibilityRole="radiogroup">
+            {(['notification', 'alarm'] as const).map(choice => (
+              <Pressable
+                key={choice}
+                accessibilityRole="radio"
+                accessibilityLabel={t[choice]}
+                accessibilityState={{ checked: mode === choice }}
+                onPress={() => setMode(choice)}
+                style={styles.modeOption}
+              >
+                <Text style={styles.modeText}>
+                  {mode === choice ? '● ' : '○ '}
+                  {t[choice]}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </>
       )}
       {step === 3 && (
@@ -321,4 +329,6 @@ const styles = StyleSheet.create({
   error: { color: '#a01818', fontSize: 18, marginVertical: 12 },
   actions: { gap: 12, marginTop: 24 },
   timeRow: { gap: 8, marginVertical: 8 },
+  modeOption: { minHeight: 48, justifyContent: 'center' },
+  modeText: { color: '#162524', fontSize: 18 },
 });
