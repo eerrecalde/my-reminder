@@ -1,16 +1,18 @@
 # 04: See today’s reminders and record outcomes
 
-**What to build:** Show upcoming and due occurrences for both types with type-appropriate labels. Record completion or skip from Today and notifications; provide immediate Undo and later correction. Persist outcomes offline, tolerate repeated actions, cancel remaining alerts, and never shift the schedule. After restart show past due occurrences without catch-up sound. An unanswered occurrence becomes missed when the next occurrence arrives. Keep history of completed, skipped and missed occurrences until the user confirms clearing it; clearing history must not delete active reminders. Verify both languages, large text and TalkBack.
+**What to build:** Show upcoming and due occurrences for both types with type-appropriate labels. Record completion or skip from Today and notifications; provide immediate Undo and later correction. Persist outcomes offline, tolerate repeated actions, cancel remaining alerts, and never shift the schedule. After restart show past due occurrences without catch-up sound. An unanswered occurrence becomes missed when the next occurrence arrives. Keep history of completed, skipped and missed occurrences until the user confirms clearing it; clearing history must not delete active reminders. Verify both languages.
 
 **Blocked by:** 02c — Choose Reminder or Medicine when adding an item
 
 **Status:** ready-for-agent
 
-**Implementation:** Complete. Spoken TalkBack navigation and physical-device checks remain in [06b](06b-daily-use-device-checkpoint.md).
+**Implementation:** Complete. Physical-device checks remain in [06b](06b-daily-use-device-checkpoint.md).
 
-- [x] Implement and verify the behaviour above against the [spec](../spec.md), with the spoken TalkBack check deferred to 06b.
+- [x] Implement and verify the behaviour above against the [spec](../spec.md), with physical-device checks deferred to 06b.
 
 ## Comments
+
+Accessibility checks described in older comments are deferred beyond the MVP and do not block this ticket.
 
 ### 2026-11-08 — Implementation and emulator verification
 

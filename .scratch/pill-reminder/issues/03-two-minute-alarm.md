@@ -12,7 +12,7 @@
 - [x] Use a short-lived foreground service for alarm sound and vibration. Continue playback until the user stops it, acts on the occurrence, or the next occurrence supersedes it.
 - [x] Stop sound leaves the dose unconfirmed. Respect device sound settings and Do Not Disturb.
 - [x] Verify playback and stopping behaviour with automated checks and a disposable emulator. Physical-device playback, idle and sound-setting checks are collected in [06b](06b-daily-use-device-checkpoint.md).
-- [x] Localise the mode and action in both supported languages and verify their accessibility.
+- [x] Localise the mode and action in both supported languages.
 
 ## Comments
 

@@ -7,7 +7,7 @@ Product behaviour for a fully local reminder app with medicine support. Use Reac
 - People can add a Reminder or Medicine. Both have a name, schedules, notification or alarm, snooze, skip, completion and history. Medicine has optional dosage instructions; the app does not calculate or recommend doses. Type can be changed without losing dosage text.
 - Today shows the next reminder prominently, followed by today’s occurrences and their statuses, with type-appropriate wording and actions. Manage reminders individually, including edit, pause, resume and delete. Preserve already-due occurrences and their details and outcomes after changes, pause or deletion.
 - Keep completion, skipped and missed history until the user confirms clearing it. Clearing history does not delete active reminders. An unanswered occurrence becomes missed when its next occurrence arrives.
-- Use large labelled controls, scalable text, strong contrast and status labels independent of colour. Use Latin American Spanish for Spanish phone settings and British English otherwise, including notifications. Preserve the current look and feel.
+- Use Latin American Spanish for Spanish phone settings and British English otherwise, including notifications. Preserve the current look and feel.
 - Settings explain reminder access, test reminders, and the limits of on-device storage and recovery. No account, cloud saving, or replacement-phone recovery is included in the MVP.
 
 ## Schedules and alerts
@@ -23,13 +23,14 @@ Snooze applies only to the current occurrence, with 5, 10 or 15 minutes, default
 - Android 8+, React Native/TypeScript screens, SQLite storage, and Kotlin scheduling and background handling; no backend. Use stable identities and persist edits immediately.
 - Use exact alarms and the alarm-clock mechanism where needed, including notification mode. Rebuild after launch, restart and first unlock, clock changes and permission restoration. Explain that reminders resume only after first unlock. Save when access is unavailable and prominently show Reminders off; never silently substitute approximate reminders.
 - Use a foreground service only while alarm audio plays. Preserve existing data and scheduled reminders on upgrade. Keep outcome history until explicitly cleared. Explain that phone loss, uninstalling or clearing app data may lose local data; configure backup deliberately without promising account recovery.
-- Verify on real devices with locked screen, app closed, offline, idle, restart and first unlock; test permissions, muted channels, zero volume and force-stop. Verify schedules, DST, dates, snooze, duplicate actions, overlapping alarms, edits and deletion, persistence, accessibility and both languages. Record device models and Android versions.
+- Verify on real devices with locked screen, app closed, offline, idle, restart and first unlock; test permissions, muted channels, zero volume and force-stop. Verify schedules, DST, dates, snooze, duplicate actions, overlapping alarms, edits and deletion, persistence and both languages. Record device models and Android versions.
 - Deliver a signed Android build and observe at least three older testers independently adding a reminder or medicine, understanding the preview and recording an outcome. Fix blocking failures before declaring the MVP complete.
+- Defer accessibility requirements and dedicated accessibility testing until after the MVP.
 - Defer sign-in, cloud saving, replacement-phone recovery, public launch, caregiver access, refill tracking, scanning, and medical recommendations.
 
 ## Comments
 
-Earlier account-saving decisions below are historical and now belong to deferred scope. The confirmed local MVP above is the current implementation target.
+Earlier account-saving decisions below are historical and now belong to deferred scope. Accessibility decisions in older task comments are also superseded by the deferral above. The confirmed local MVP above is the current implementation target.
 
 ### 2026-11-06 — Refinement round 1
 

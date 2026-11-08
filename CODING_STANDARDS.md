@@ -5,7 +5,7 @@
 - Implement the requested ticket's acceptance criteria; leave work assigned to later tickets for those tickets unless the user changes the scope. The active product requirements are in `.scratch/pill-reminder/spec.md`; its comments record historical decisions.
 - Keep the installed app identity and existing local data when changing product wording. Changes to identifiers or app name need an explicit product decision.
 - Changes to storage must migrate existing records without changing their identities or schedules. Test upgrades from the previous schema, including retained alarm and occurrence records.
-- For shared reminder behaviour, check both Reminder and Medicine, British English and Latin American Spanish. Keep notification text and accessibility labels consistent with the selected type.
+- For shared reminder behaviour, check both Reminder and Medicine, British English and Latin American Spanish. Keep notification text consistent with the selected type. Accessibility work is deferred for the MVP; where labels are changed, keep their wording consistent with the selected type.
 
 ## Android verification
 

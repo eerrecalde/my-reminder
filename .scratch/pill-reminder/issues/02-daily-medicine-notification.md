@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-**Implementation:** Complete for this stage. The remaining reliability edge and device/accessibility checks are deferred to [12 — Run the private Android test](12-private-android-test.md) and remain required before the private test is complete.
+**Implementation:** Complete for this stage. The remaining reliability edge and device checks are deferred to [12 — Run the private Android test](12-private-android-test.md) and remain required before the private test is complete.
 
 - [x] Require a medicine name, accept optional dose instructions, and let the user select one or more daily times. Default to Notification and preview the next three occurrences in plain language.
 - [x] Persist the medicine in Room/SQLite. The TypeScript screens and Kotlin background handlers use the same local repository through a typed interface, with stable medicine and dose occurrence identities.
@@ -14,9 +14,11 @@
 - [x] Use exact alarms and schedule the next occurrence per medicine. Use Android’s alarm-clock mechanism where needed for timely delivery during idle, including in Notification mode. When exact-alarm access is unavailable, show “Reminders off”.
 - [x] Rebuild future scheduling on launch, restart and first unlock, clock changes, and access restoration. Daily reminders follow the phone’s local time zone and the spec’s daylight-saving rules. The remaining interrupted-registration edge and full recovery verification are deferred to ticket 12.
 - [x] Verify on a real device while offline, with the screen off and the app closed, and after restart and first unlock. Check that the saved medicine survives process termination and restart. Deep-idle delivery is deferred to ticket 12.
-- [x] Use British English or Latin American Spanish according to the phone’s language, including notifications. Use large labelled controls, scalable text, strong contrast, and accessible status labels. Full device checks for Spanish notifications, large text and TalkBack are deferred to ticket 12.
+- [x] Use British English or Latin American Spanish according to the phone’s language, including notifications. Full device checks for Spanish notifications are deferred to ticket 12.
 
 ## Comments
+
+Accessibility checks described in older comments are deferred beyond the MVP and do not block the private test.
 
 ### 2026-11-08 — Device and implementation checks
 

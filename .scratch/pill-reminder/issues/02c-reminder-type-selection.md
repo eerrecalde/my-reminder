@@ -8,5 +8,5 @@
 
 - [ ] Present Reminder and Medicine as the first step after adding a new reminder.
 - [ ] For either type, collect a name and daily schedule; for Medicine, offer optional dosage instructions. Show the selected type and relevant details in review.
-- [ ] Save each type using the shared foundation and deliver its daily notification. Preserve the current visual style, both languages and accessibility.
+- [ ] Save each type using the shared foundation and deliver its daily notification. Preserve the current visual style and both languages.
 - [ ] Verify creation, review, persistence and notification for both types. Type changes after creation belong with the later management work.

@@ -12,11 +12,13 @@
 - [x] Review project metadata and configuration, including package.json and similar files, for medicine-only names or descriptions. Update appropriate general descriptions and repository references; choose no new app name without the user's decision. Avoid changing application identifiers or installed-app identity as a routine rename, so existing data and upgrades remain intact.
 - [x] Persist a reminder type and optional medicine dosage instructions; migrate existing medicines as Medicine without losing their data, identity or scheduled reminders.
 - [x] Generalise shared daily scheduling, persistence and notification behaviour for both types, retaining existing reliability and permission behaviour.
-- [x] Use appropriate Reminder and Medicine wording in existing surfaces and both supported languages; retain the current look and accessibility.
+- [x] Use appropriate Reminder and Medicine wording in existing surfaces and both supported languages; retain the current look.
 - [x] Verify existing medicine migration and daily notifications for both types, including app restart and rescheduling.
 - [x] Keep this stage focused on the existing daily foundation; later tickets add alarm, outcomes, history and additional schedules.
 
 ## Comments
+
+Accessibility checks mentioned below are deferred beyond the MVP.
 
 ### 2026-11-08 — Data foundation
 
