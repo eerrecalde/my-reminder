@@ -17,6 +17,74 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ReminderFoundationTest {
+  @Test fun recoveryKeepsPastOccurrencesAndMarksEarlierOnesMissedWithoutAlerts() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val now = System.currentTimeMillis()
+    val time = LocalTime.now().minusHours(1).format(DateTimeFormatter.ofPattern("HH:mm"))
+    val item = MedicineRepository(context).use { it.save("Recovery test", "", listOf(time), now - 3 * 24 * 60 * 60 * 1000L, "reminder") }
+    try {
+      ReminderScheduler.rebuild(context, recovery = true)
+      val occurrences = MedicineRepository(context).use { repo -> repo.occurrences().filter { it.medicineId == item.id } }
+      assertTrue(occurrences.size >= 3)
+      assertTrue(occurrences.dropLast(1).all { it.outcome == "missed" })
+      assertNull(occurrences.last().outcome)
+      val notifications = context.getSystemService(NotificationManager::class.java)
+      assertTrue(occurrences.none { occurrence -> notifications.activeNotifications.any { it.id == ("${item.id}:${occurrence.at}").hashCode() } })
+      val first = occurrences.first()
+      ReminderScheduler.recordOutcome(context, item.id, first.at, null)
+      ReminderScheduler.rebuild(context)
+      assertNull(MedicineRepository(context).use { it.outcome(item.id, first.at) })
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
+  @Test fun notificationActionsPersistUndoAndKeepFutureScheduleForBothTypes() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(NotificationManager::class.java)
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    listOf("medicine", "reminder").forEach { type ->
+      val now = System.currentTimeMillis()
+      val time = LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))
+      val item = MedicineRepository(context).use { it.save("Action test", "", listOf(time), now - 10000, type) }
+      val due = now - 1000
+      val notificationId = ("${item.id}:$due").hashCode()
+      try {
+        MedicineRepository(context).use { it.setAlarm(item.id, due, "action-test") }
+        ReminderScheduler.deliver(context, item.id, due, "action-test")
+        val future = MedicineRepository(context).use { it.alarm(item.id) }
+        val notification = requireNotNull(manager.activeNotifications.find { it.id == notificationId }).notification
+        assertEquals(context.getString(if (type == "medicine") R.string.taken else R.string.completed), notification.actions[0].title.toString())
+        val action = notification.actions[0].actionIntent
+        action.send()
+        repeat(50) { if (MedicineRepository(context).use { it.outcome(item.id, due) } != "completed") Thread.sleep(50) }
+        assertEquals("completed", MedicineRepository(context).use { it.outcome(item.id, due) })
+        action.send()
+        repeat(50) { if (manager.activeNotifications.find { it.id == notificationId }?.notification?.actions?.singleOrNull()?.title?.toString() != context.getString(R.string.undo)) Thread.sleep(50) }
+        val undo = requireNotNull(manager.activeNotifications.find { it.id == notificationId }).notification.actions.single().actionIntent
+        assertEquals(future, MedicineRepository(context).use { it.alarm(item.id) })
+        undo.send()
+        repeat(50) { if (MedicineRepository(context).use { it.outcome(item.id, due) } != null) Thread.sleep(50) }
+        assertNull(MedicineRepository(context).use { it.outcome(item.id, due) })
+        assertEquals(future, MedicineRepository(context).use { it.alarm(item.id) })
+      } finally {
+        manager.cancel(notificationId)
+        MedicineRepository(context).use { repo ->
+          repo.alarm(item.id)?.let { cancel(context, it) }
+          repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
+          repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+          repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+        }
+      }
+    }
+  }
   private fun cancel(context: Context, alarm: MedicineRepository.Alarm) {
     val manager = context.getSystemService(AlarmManager::class.java)
     listOf(ReminderReceiver::class.java to "medicine", ReminderWatchdogReceiver::class.java to "watchdog").forEach { (receiver, path) ->

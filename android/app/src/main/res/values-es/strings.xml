@@ -7,4 +7,9 @@
     <string name="alarm_channel">Sonido de alarma</string>
     <string name="alarm_playing">Suena la alarma</string>
     <string name="stop_sound">Detener sonido</string>
+    <string name="taken">Tomado</string>
+    <string name="completed">Hecho</string>
+    <string name="skip">Omitir</string>
+    <string name="skipped">Omitido</string>
+    <string name="undo">Deshacer</string>
 </resources>

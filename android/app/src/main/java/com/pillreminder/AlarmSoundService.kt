@@ -27,6 +27,14 @@ class AlarmSoundService : Service() {
       startSound(getSystemService(NotificationManager::class.java))
     }
   }
+  private val occurrenceStopped = object : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+      val id = intent.getStringExtra("id") ?: return
+      val at = intent.getLongExtra("at", 0)
+      if (active[id] == at) active.remove(id)
+      if (active.isEmpty()) finish()
+    }
+  }
 
   override fun onCreate() {
     super.onCreate()
@@ -36,6 +44,7 @@ class AlarmSoundService : Service() {
       addAction(NotificationManager.ACTION_NOTIFICATION_CHANNEL_BLOCK_STATE_CHANGED)
     }
     androidx.core.content.ContextCompat.registerReceiver(this, settingsChanged, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+    androidx.core.content.ContextCompat.registerReceiver(this, occurrenceStopped, IntentFilter(STOP_OCCURRENCE), androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
   }
 
   override fun onBind(intent: Intent?): IBinder? = null
@@ -108,6 +117,7 @@ class AlarmSoundService : Service() {
   }
   override fun onDestroy() {
     unregisterReceiver(settingsChanged)
+    unregisterReceiver(occurrenceStopped)
     stopOutputs()
     super.onDestroy()
   }
@@ -115,6 +125,10 @@ class AlarmSoundService : Service() {
     private const val CHANNEL = "alarm_sound_session"
     private const val NOTIFICATION_ID = 119348
     private const val STOP = "com.pillreminder.STOP_SOUND"
+    private const val STOP_OCCURRENCE = "com.pillreminder.STOP_OCCURRENCE"
+    fun stopOccurrence(context: Context, id: String, at: Long) {
+      context.sendBroadcast(Intent(STOP_OCCURRENCE).setPackage(context.packageName).putExtra("id", id).putExtra("at", at))
+    }
     fun start(context: Context, id: String, at: Long) {
       val intent = Intent(context, AlarmSoundService::class.java).putExtra("id", id).putExtra("at", at)
       androidx.core.content.ContextCompat.startForegroundService(context, intent)

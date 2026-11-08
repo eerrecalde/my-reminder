@@ -10,14 +10,18 @@ import java.util.UUID
 data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification")
 
 /** Shared by the React Native bridge and Android receivers. */
-class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 7) {
+class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 8) {
   override fun onCreate(db: SQLiteDatabase) {
     db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification')")
     db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
-    db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0, outcome TEXT)")
+    db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0, outcome TEXT, cleared INTEGER NOT NULL DEFAULT 0, missed_acknowledged INTEGER NOT NULL DEFAULT 0)")
   }
   override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
     if (oldVersion < 7) db.execSQL("ALTER TABLE doses ADD COLUMN outcome TEXT")
+    if (oldVersion < 8) {
+      db.execSQL("ALTER TABLE doses ADD COLUMN cleared INTEGER NOT NULL DEFAULT 0")
+      db.execSQL("ALTER TABLE doses ADD COLUMN missed_acknowledged INTEGER NOT NULL DEFAULT 0")
+    }
     if (oldVersion < 6) db.execSQL("ALTER TABLE medicines ADD COLUMN mode TEXT NOT NULL DEFAULT 'notification'")
     if (oldVersion < 5) db.execSQL("ALTER TABLE medicines ADD COLUMN type TEXT NOT NULL DEFAULT 'medicine'")
     if (oldVersion < 3) db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
@@ -25,10 +29,51 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     if (oldVersion < 2) db.execSQL("ALTER TABLE doses ADD COLUMN alerted INTEGER NOT NULL DEFAULT 1")
   }
 
-  fun setOutcome(medicineId: String, at: Long, outcome: String?) {
-    require(outcome == null || outcome in listOf("completed", "skipped", "missed"))
+  data class Occurrence(val medicineId: String, val at: Long, val outcome: String?)
+
+  fun occurrences(): List<Occurrence> {
+    val result = mutableListOf<Occurrence>()
+    readableDatabase.rawQuery("SELECT medicine_id, scheduled_at, outcome FROM doses WHERE cleared = 0 ORDER BY scheduled_at", null).use { cursor ->
+      while (cursor.moveToNext()) result.add(Occurrence(cursor.getString(0), cursor.getLong(1), cursor.getString(2)))
+    }
+    return result
+  }
+
+  fun clearHistory() {
+    writableDatabase.execSQL("UPDATE doses SET cleared = 1 WHERE outcome IS NOT NULL")
+  }
+
+  fun markMissedBefore(medicineId: String, at: Long) {
+    val values = ContentValues().apply { put("outcome", "missed") }
+    writableDatabase.update("doses", values, "medicine_id = ? AND scheduled_at < ? AND outcome IS NULL AND cleared = 0 AND missed_acknowledged = 0", arrayOf(medicineId, at.toString()))
+  }
+
+  fun markMissed(medicineId: String, at: Long): Boolean {
+    val values = ContentValues().apply { put("outcome", "missed") }
+    return writableDatabase.update("doses", values, "id = ? AND outcome IS NULL AND cleared = 0 AND missed_acknowledged = 0", arrayOf("$medicineId:$at")) == 1
+  }
+
+  fun latestOccurrence(medicineId: String): Long? {
+    readableDatabase.rawQuery("SELECT MAX(scheduled_at) FROM doses WHERE medicine_id = ?", arrayOf(medicineId)).use { cursor ->
+      return if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
+    }
+  }
+
+  fun setOutcomeIfUnconfirmed(medicineId: String, at: Long, outcome: String): Boolean {
+    require(outcome == "completed" || outcome == "skipped")
     val values = ContentValues().apply { put("outcome", outcome) }
-    writableDatabase.update("doses", values, "id = ?", arrayOf("$medicineId:$at"))
+    return writableDatabase.update("doses", values, "id = ? AND outcome IS NULL AND cleared = 0", arrayOf("$medicineId:$at")) == 1
+  }
+
+  fun undoOutcome(medicineId: String, at: Long, expected: String, missedAcknowledged: Boolean): Boolean {
+    val values = ContentValues().apply { putNull("outcome"); put("missed_acknowledged", if (missedAcknowledged) 1 else 0) }
+    return writableDatabase.update("doses", values, "id = ? AND outcome = ? AND cleared = 0", arrayOf("$medicineId:$at", expected)) == 1
+  }
+
+  fun setOutcome(medicineId: String, at: Long, outcome: String?, missedAcknowledged: Boolean = false) {
+    require(outcome == null || outcome in listOf("completed", "skipped", "missed"))
+    val values = ContentValues().apply { put("outcome", outcome); put("missed_acknowledged", if (missedAcknowledged) 1 else 0) }
+    check(writableDatabase.update("doses", values, "id = ? AND cleared = 0", arrayOf("$medicineId:$at")) == 1) { "Occurrence not found" }
   }
 
   fun outcome(medicineId: String, at: Long): String? {

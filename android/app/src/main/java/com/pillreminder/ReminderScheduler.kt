@@ -18,6 +18,27 @@ import java.util.UUID
 object ReminderScheduler {
   private const val CHANNEL = "medicine_reminders"
   private fun alarmManager(context: Context) = context.getSystemService(AlarmManager::class.java)
+  private fun notificationId(id: String, at: Long) = ("$id:$at").hashCode()
+  private fun dismissOccurrence(context: Context, id: String, at: Long) {
+    NotificationManagerCompat.from(context).cancel(notificationId(id, at))
+    AlarmSoundService.stopOccurrence(context, id, at)
+  }
+
+  private fun reconcileOccurrences(context: Context, repo: MedicineRepository, medicine: Medicine, now: Instant, zone: ZoneId) {
+    var cursor = Instant.ofEpochMilli(repo.latestOccurrence(medicine.id) ?: medicine.createdAt)
+    while (true) {
+      val next = DailySchedule.next(medicine.times, cursor, zone)
+      if (next > now) break
+      repo.recordDue(medicine.id, next.toEpochMilli())
+      cursor = next
+    }
+    repo.occurrences().filter { it.medicineId == medicine.id && it.outcome == null }.forEach { occurrence ->
+      val next = DailySchedule.next(medicine.times, Instant.ofEpochMilli(occurrence.at), zone)
+      if (next <= now && repo.markMissed(medicine.id, occurrence.at)) {
+        dismissOccurrence(context, medicine.id, occurrence.at)
+      }
+    }
+  }
   fun notificationsEnabled(context: Context): Boolean {
     val channel = context.getSystemService(NotificationManager::class.java).getNotificationChannel(CHANNEL)
     return NotificationManagerCompat.from(context).areNotificationsEnabled() && (channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
@@ -107,9 +128,7 @@ object ReminderScheduler {
           }
           repo.invalidateAlarm(medicine.id)
         }
-        DailySchedule.dueToday(medicine.times, Instant.ofEpochMilli(medicine.createdAt), now, zone).forEach { due ->
-          repo.recordDue(medicine.id, due.toEpochMilli())
-        }
+        reconcileOccurrences(context, repo, medicine, now, zone)
         if (available) schedule(context, medicine, now)
       }
     }
@@ -129,22 +148,76 @@ object ReminderScheduler {
     val now = System.currentTimeMillis()
     MedicineRepository(context).use { repo ->
       val medicine = repo.all().find { it.id == id } ?: return
+      reconcileOccurrences(context, repo, medicine, Instant.ofEpochMilli(now), ZoneId.systemDefault())
       val active = repo.alarm(id)
       if (active != null && active.at == at && active.token == token && at <= now) {
         val following = DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault())
         if (!following.isAfter(Instant.ofEpochMilli(now))) {
           repo.invalidateAlarm(id)
-          DailySchedule.dueToday(medicine.times, Instant.ofEpochMilli(medicine.createdAt), Instant.ofEpochMilli(now), ZoneId.systemDefault()).forEach { due -> repo.recordDue(id, due.toEpochMilli()) }
+          repo.recordDue(id, at)
+          reconcileOccurrences(context, repo, medicine, Instant.ofEpochMilli(now), ZoneId.systemDefault())
           schedule(context, medicine, Instant.ofEpochMilli(now))
           return
         }
       }
       if (at <= now && at > medicine.createdAt && repo.claimAlarm(id, at, token)) {
-        notify(context, medicine.name, medicine.instructions.takeIf { medicine.type == "medicine" && it.isNotBlank() } ?: context.getString(if (medicine.type == "medicine") R.string.reminder_due else R.string.general_reminder_due), ("$id:$at").hashCode(), medicine.mode == "alarm")
+        notifyOccurrence(context, medicine, at)
         if (medicine.mode == "alarm") AlarmSoundService.start(context, id, at)
         schedule(context, medicine)
       }
     }
+  }
+  @Synchronized fun recordOutcome(context: Context, id: String, at: Long, outcome: String?, onlyUnconfirmed: Boolean = false): Boolean {
+    val changed = MedicineRepository(context).use { repo ->
+      if (onlyUnconfirmed) repo.setOutcomeIfUnconfirmed(id, at, requireNotNull(outcome))
+      else {
+        val medicine = requireNotNull(repo.all().find { it.id == id })
+        val next = DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault())
+        repo.setOutcome(id, at, outcome, outcome == null && next <= Instant.now()); true
+      }
+    }
+    if (changed) dismissOccurrence(context, id, at)
+    return changed
+  }
+
+  @Synchronized fun notificationOutcome(context: Context, id: String, at: Long, outcome: String) {
+    if (outcome.startsWith("undo_")) {
+      val undone = MedicineRepository(context).use { repo ->
+        val medicine = repo.all().find { it.id == id } ?: return
+        val next = DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault())
+        repo.undoOutcome(id, at, outcome.removePrefix("undo_"), next <= Instant.now())
+      }
+      if (undone) NotificationManagerCompat.from(context).cancel(notificationId(id, at))
+      return
+    }
+    if (outcome !in listOf("completed", "skipped") || !recordOutcome(context, id, at, outcome, true)) return
+    val medicine = MedicineRepository(context).use { repo -> repo.all().find { it.id == id } } ?: return
+    val notification = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info)
+      .setContentTitle(medicine.name).setContentText(context.getString(if (outcome == "skipped") R.string.skipped else if (medicine.type == "medicine") R.string.taken else R.string.completed))
+      .setSilent(true).setAutoCancel(true).addAction(0, context.getString(R.string.undo), outcomeIntent(context, id, at, "undo_$outcome")).build()
+    try { NotificationManagerCompat.from(context).notify(notificationId(id, at), notification) } catch (_: SecurityException) { }
+  }
+
+  private fun outcomeIntent(context: Context, id: String, at: Long, outcome: String): PendingIntent {
+    val intent = Intent(context, OutcomeReceiver::class.java)
+      .setData(Uri.parse("pillreminder://outcome/$id/$at/$outcome"))
+      .putExtra("id", id).putExtra("at", at).putExtra("outcome", outcome)
+    return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+  }
+
+  private fun notifyOccurrence(context: Context, medicine: Medicine, at: Long) {
+    val manager = context.getSystemService(NotificationManager::class.java)
+    manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.reminder_channel), NotificationManager.IMPORTANCE_HIGH).apply { enableVibration(true) })
+    val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    val body = medicine.instructions.takeIf { medicine.type == "medicine" && it.isNotBlank() }
+      ?: context.getString(if (medicine.type == "medicine") R.string.reminder_due else R.string.general_reminder_due)
+    val notification = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info)
+      .setContentTitle(medicine.name).setContentText(body).setContentIntent(open).setAutoCancel(false)
+      .setCategory(NotificationCompat.CATEGORY_REMINDER).setSilent(medicine.mode == "alarm").setPriority(NotificationCompat.PRIORITY_HIGH)
+      .addAction(0, context.getString(if (medicine.type == "medicine") R.string.taken else R.string.completed), outcomeIntent(context, medicine.id, at, "completed"))
+      .addAction(0, context.getString(R.string.skip), outcomeIntent(context, medicine.id, at, "skipped"))
+      .build()
+    try { NotificationManagerCompat.from(context).notify(notificationId(medicine.id, at), notification) } catch (_: SecurityException) { }
   }
   @Synchronized fun recoverInterruptedDelivery(context: Context, id: String, at: Long, token: String) {
     if (!enabled(context) || recoveryPending(context)) { rebuild(context, recovery = true); return }
@@ -210,6 +283,14 @@ class ReminderReceiver : BroadcastReceiver() {
       return
     }
     ReminderScheduler.deliver(context, id, intent.getLongExtra("scheduledAt", 0), token)
+  }
+}
+
+class OutcomeReceiver : BroadcastReceiver() {
+  override fun onReceive(context: Context, intent: Intent) {
+    val id = intent.getStringExtra("id") ?: return
+    val outcome = intent.getStringExtra("outcome") ?: return
+    ReminderScheduler.notificationOutcome(context, id, intent.getLongExtra("at", 0), outcome)
   }
 }
 class RecoveryReceiver : BroadcastReceiver() {

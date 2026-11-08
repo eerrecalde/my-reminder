@@ -8,4 +8,9 @@
     <string name="alarm_channel">Alarm sound</string>
     <string name="alarm_playing">Alarm sounding</string>
     <string name="stop_sound">Stop sound</string>
+    <string name="taken">Taken</string>
+    <string name="completed">Done</string>
+    <string name="skip">Skip</string>
+    <string name="skipped">Skipped</string>
+    <string name="undo">Undo</string>
 </resources>

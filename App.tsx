@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   AppState,
+  Alert,
   Button,
   PermissionsAndroid,
   Platform,
@@ -12,7 +13,13 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { MedicineSetup } from './src/MedicineSetup';
-import { reminderRepository, ReminderState } from './src/reminderRepository';
+import {
+  reminderRepository,
+  ReminderState,
+  Occurrence,
+  Outcome,
+  Medicine,
+} from './src/reminderRepository';
 
 const words = {
   en: {
@@ -38,6 +45,21 @@ const words = {
     error: 'Could not save. Please try again.',
     loading: 'Loading reminders…',
     loadError: 'Unable to load reminders',
+    upcoming: 'Upcoming',
+    next: 'Next reminder',
+    done: 'Done',
+    taken: 'Taken',
+    skip: 'Skip',
+    skipped: 'Skipped',
+    missed: 'Missed',
+    undo: 'Undo',
+    unconfirm: 'Mark unconfirmed',
+    history: 'History',
+    clearHistory: 'Clear history',
+    clearQuestion: 'Clear all completed, skipped and missed history?',
+    clear: 'Clear',
+    noHistory: 'No history yet.',
+    actionError: 'Could not update the occurrence. Please try again.',
   },
   es: {
     today: 'Hoy',
@@ -62,12 +84,34 @@ const words = {
     error: 'No se pudo guardar. Inténtalo de nuevo.',
     loading: 'Cargando recordatorios…',
     loadError: 'No se pudieron cargar los recordatorios',
+    upcoming: 'Próximo',
+    next: 'Próximo recordatorio',
+    done: 'Hecho',
+    taken: 'Tomado',
+    skip: 'Omitir',
+    skipped: 'Omitido',
+    missed: 'No confirmado a tiempo',
+    undo: 'Deshacer',
+    unconfirm: 'Marcar sin confirmar',
+    history: 'Historial',
+    clearHistory: 'Borrar historial',
+    clearQuestion:
+      '¿Borrar todo el historial de recordatorios completados, omitidos y no confirmados a tiempo?',
+    clear: 'Borrar',
+    noHistory: 'Aún no hay historial.',
+    actionError: 'No se pudo actualizar. Inténtalo de nuevo.',
   },
 };
 export default function App() {
   const [state, setState] = useState<ReminderState>();
-  const [screen, setScreen] = useState<'today' | 'setup' | 'access'>('today');
+  const [screen, setScreen] = useState<
+    'today' | 'setup' | 'access' | 'history'
+  >('today');
   const [error, setError] = useState('');
+  const [undo, setUndo] = useState<{
+    occurrence: Occurrence;
+    previous: Outcome | null;
+  }>();
   const refresh = useCallback(async () => {
     try {
       setState(await reminderRepository.state());
@@ -88,6 +132,82 @@ export default function App() {
   }, [refresh]);
   const language = state?.language ?? 'en';
   const t = words[language];
+  const changeOutcome = async (
+    occurrence: Occurrence,
+    outcome: Outcome | null,
+    remember = true,
+  ) => {
+    try {
+      await reminderRepository.setOutcome(
+        occurrence.medicineId,
+        occurrence.scheduledAt,
+        outcome,
+      );
+      setUndo(
+        remember
+          ? { occurrence, previous: occurrence.outcome ?? null }
+          : undefined,
+      );
+      setError('');
+      await refresh();
+    } catch {
+      setError(t.actionError);
+    }
+  };
+  const timeLabel = (at: number) =>
+    new Date(at).toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  const occurrenceView = (occurrence: Occurrence, medicine: Medicine) => {
+    const label =
+      occurrence.outcome === 'completed'
+        ? medicine.type === 'reminder'
+          ? t.done
+          : t.taken
+        : occurrence.outcome === 'skipped'
+        ? t.skipped
+        : occurrence.outcome === 'missed'
+        ? t.missed
+        : medicine.type === 'reminder'
+        ? t.unconfirmedReminder
+        : t.unconfirmed;
+    const context = `${medicine.name}, ${timeLabel(occurrence.scheduledAt)}`;
+    return (
+      <View
+        key={`${occurrence.medicineId}:${occurrence.scheduledAt}`}
+        style={styles.occurrence}
+      >
+        <Text style={styles.text}>
+          {label}: {timeLabel(occurrence.scheduledAt)}
+        </Text>
+        <Button
+          color="#00535b"
+          title={medicine.type === 'reminder' ? t.done : t.taken}
+          accessibilityLabel={`${
+            medicine.type === 'reminder' ? t.done : t.taken
+          }, ${context}`}
+          onPress={() => changeOutcome(occurrence, 'completed')}
+        />
+        <Button
+          color="#00535b"
+          title={t.skip}
+          accessibilityLabel={`${t.skip}, ${context}`}
+          onPress={() => changeOutcome(occurrence, 'skipped')}
+        />
+        {occurrence.outcome != null && (
+          <Button
+            color="#00535b"
+            title={t.unconfirm}
+            accessibilityLabel={`${t.unconfirm}, ${context}`}
+            onPress={() => changeOutcome(occurrence, null)}
+          />
+        )}
+      </View>
+    );
+  };
   const allowNotifications = async () => {
     if (Platform.OS === 'android' && Number(Platform.Version) >= 33)
       await PermissionsAndroid.request(
@@ -135,7 +255,11 @@ export default function App() {
         ) : (
           <ScrollView contentContainerStyle={styles.content}>
             <Text accessibilityRole="header" style={styles.title}>
-              {screen === 'today' ? t.today : t.settings}
+              {screen === 'today'
+                ? t.today
+                : screen === 'history'
+                ? t.history
+                : t.settings}
             </Text>
             {!state ? (
               <Text style={styles.text}>{t.loading}</Text>
@@ -154,6 +278,29 @@ export default function App() {
                     />
                   </View>
                 )}
+                {undo && (
+                  <Button
+                    color="#00535b"
+                    title={t.undo}
+                    onPress={() =>
+                      changeOutcome(undo.occurrence, undo.previous, false)
+                    }
+                  />
+                )}
+                {(state.upcoming ?? []).length > 0 &&
+                  (() => {
+                    const next = [...state.upcoming].sort(
+                      (a, b) => a.scheduledAt - b.scheduledAt,
+                    )[0];
+                    const medicine = state.medicines.find(
+                      item => item.id === next.medicineId,
+                    );
+                    return medicine ? (
+                      <Text style={styles.title}>
+                        {t.next}: {medicine.name}, {timeLabel(next.scheduledAt)}
+                      </Text>
+                    ) : null;
+                  })()}
                 {state.medicines.length === 0 ? (
                   <Text style={styles.text}>{t.empty}</Text>
                 ) : (
@@ -172,20 +319,21 @@ export default function App() {
                       <Text style={styles.text}>
                         {medicine.times.join(', ')}
                       </Text>
-                      {state.todayDoses
-                        .filter(dose => dose.medicineId === medicine.id)
-                        .map(dose => (
-                          <Text key={dose.scheduledAt} style={styles.text}>
-                            {medicine.type === 'reminder'
-                              ? t.unconfirmedReminder
-                              : t.unconfirmed}
-                            :{' '}
-                            {new Date(dose.scheduledAt).toLocaleTimeString(
-                              language === 'es' ? 'es-MX' : 'en-GB',
-                              { hour: '2-digit', minute: '2-digit' },
-                            )}
+                      {(state.upcoming ?? [])
+                        .filter(
+                          item =>
+                            item.medicineId === medicine.id &&
+                            new Date(item.scheduledAt).toDateString() ===
+                              new Date().toDateString(),
+                        )
+                        .map(item => (
+                          <Text key={item.scheduledAt} style={styles.text}>
+                            {t.upcoming}: {timeLabel(item.scheduledAt)}
                           </Text>
                         ))}
+                      {state.todayDoses
+                        .filter(dose => dose.medicineId === medicine.id)
+                        .map(dose => occurrenceView(dose, medicine))}
                     </View>
                   ))
                 )}
@@ -197,8 +345,76 @@ export default function App() {
                 <View style={styles.spacer} />
                 <Button
                   color="#00535b"
+                  title={t.history}
+                  onPress={() => {
+                    setUndo(undefined);
+                    setScreen('history');
+                  }}
+                />
+                <View style={styles.spacer} />
+                <Button
+                  color="#00535b"
                   title={t.settings}
                   onPress={() => setScreen('access')}
+                />
+              </>
+            ) : screen === 'history' ? (
+              <>
+                {undo && (
+                  <Button
+                    color="#00535b"
+                    title={t.undo}
+                    onPress={() =>
+                      changeOutcome(undo.occurrence, undo.previous, false)
+                    }
+                  />
+                )}
+                {(state.history ?? []).length === 0 && (
+                  <Text style={styles.text}>{t.noHistory}</Text>
+                )}
+                {[...(state.history ?? [])].reverse().map(occurrence => {
+                  const medicine = state.medicines.find(
+                    item => item.id === occurrence.medicineId,
+                  );
+                  return medicine ? (
+                    <View
+                      key={`${occurrence.medicineId}:${occurrence.scheduledAt}`}
+                      style={styles.medicine}
+                    >
+                      <Text style={styles.title}>{medicine.name}</Text>
+                      {occurrenceView(occurrence, medicine)}
+                    </View>
+                  ) : null;
+                })}
+                <Button
+                  color="#00535b"
+                  title={t.clearHistory}
+                  onPress={() =>
+                    Alert.alert(t.clearHistory, t.clearQuestion, [
+                      { text: t.cancel, style: 'cancel' },
+                      {
+                        text: t.clear,
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            await reminderRepository.clearHistory();
+                            setUndo(undefined);
+                            await refresh();
+                          } catch {
+                            setError(t.actionError);
+                          }
+                        },
+                      },
+                    ])
+                  }
+                />
+                <Button
+                  color="#00535b"
+                  title={t.cancel}
+                  onPress={() => {
+                    setUndo(undefined);
+                    setScreen('today');
+                  }}
                 />
               </>
             ) : (
@@ -257,6 +473,7 @@ const styles = StyleSheet.create({
   text: { color: '#162524', fontSize: 18, marginVertical: 8 },
   warning: { borderWidth: 2, borderColor: '#a01818', padding: 16, gap: 12 },
   medicine: { borderWidth: 1, borderColor: '#324b49', padding: 16 },
+  occurrence: { gap: 8, marginVertical: 8 },
   spacer: { height: 12 },
   error: { color: '#a01818', fontSize: 18 },
 });

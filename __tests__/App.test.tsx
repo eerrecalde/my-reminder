@@ -1,11 +1,112 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Button, NativeModules, Text } from 'react-native';
+import { Alert, Button, NativeModules, Text } from 'react-native';
 import App from '../App';
+
+test('records and undoes a reminder outcome from Today', async () => {
+  const repo = require('../src/reminderRepository');
+  const setOutcome = jest.fn().mockResolvedValue(undefined);
+  repo.reminderRepository = {
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      exactAlarms: true,
+      notifications: true,
+      language: 'en',
+      medicines: [
+        {
+          id: 'r',
+          type: 'reminder',
+          name: 'Water',
+          instructions: '',
+          times: ['10:00'],
+        },
+      ],
+      todayDoses: [{ medicineId: 'r', scheduledAt: 2000, outcome: null }],
+      history: [],
+      upcoming: [],
+    }),
+    setOutcome,
+  };
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root
+      .findAllByType(Button)
+      .find(button => button.props.title === 'Done')!
+      .props.onPress();
+  });
+  expect(setOutcome).toHaveBeenCalledWith('r', 2000, 'completed');
+  await ReactTestRenderer.act(async () => {
+    await renderer.root
+      .findAllByType(Button)
+      .find(button => button.props.title === 'Undo')!
+      .props.onPress();
+  });
+  expect(setOutcome).toHaveBeenLastCalledWith('r', 2000, null);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
 
 jest.mock('react-native-safe-area-context', () => {
   const mock = jest.requireActual('react-native-safe-area-context/jest/mock');
   return mock.default;
+});
+
+test('history is cleared only after confirmation', async () => {
+  const repo = require('../src/reminderRepository');
+  const clearHistory = jest.fn().mockResolvedValue(undefined);
+  repo.reminderRepository = {
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      exactAlarms: true,
+      notifications: true,
+      language: 'en',
+      medicines: [
+        {
+          id: 'm',
+          type: 'medicine',
+          name: 'Aspirin',
+          instructions: '',
+          times: ['09:00'],
+        },
+      ],
+      todayDoses: [],
+      upcoming: [],
+      history: [{ medicineId: 'm', scheduledAt: 2000, outcome: 'skipped' }],
+    }),
+    clearHistory,
+  };
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  await ReactTestRenderer.act(() =>
+    renderer.root
+      .findAllByType(Button)
+      .find(button => button.props.title === 'History')!
+      .props.onPress(),
+  );
+  expect(
+    renderer.root
+      .findAllByType(Text)
+      .some(text => JSON.stringify(text.props.children).includes('Skipped')),
+  ).toBe(true);
+  await ReactTestRenderer.act(() =>
+    renderer.root
+      .findAllByType(Button)
+      .find(button => button.props.title === 'Clear history')!
+      .props.onPress(),
+  );
+  expect(clearHistory).not.toHaveBeenCalled();
+  const actions = alert.mock.calls[0][2]!;
+  await ReactTestRenderer.act(async () => {
+    await actions.find(action => action.text === 'Clear')!.onPress!();
+  });
+  expect(clearHistory).toHaveBeenCalledTimes(1);
+  alert.mockRestore();
+  await ReactTestRenderer.act(() => renderer.unmount());
 });
 
 test('shows reminders off and offers an enable action when access is missing', async () => {

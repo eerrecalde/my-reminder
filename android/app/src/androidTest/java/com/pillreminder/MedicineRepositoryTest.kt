@@ -9,6 +9,64 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MedicineRepositoryTest {
+  @Test fun nextOccurrenceMarksOnlyEarlierUnansweredOccurrencesMissed() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val name = "missed-test.db"
+    context.deleteDatabase(name)
+    MedicineRepository(context, name).use { repo ->
+      val medicine = repo.save("Water", "", listOf("09:00"), 1000, "reminder")
+      repo.recordDue(medicine.id, 2000)
+      repo.recordDue(medicine.id, 3000)
+      repo.setOutcome(medicine.id, 2000, "completed")
+      repo.recordDue(medicine.id, 4000)
+      repo.markMissedBefore(medicine.id, 4000)
+      assertEquals(listOf("completed", "missed", null), repo.occurrences().map { it.outcome })
+      assertFalse(repo.setOutcomeIfUnconfirmed(medicine.id, 3000, "skipped"))
+      assertTrue(repo.setOutcomeIfUnconfirmed(medicine.id, 4000, "skipped"))
+      assertFalse(repo.setOutcomeIfUnconfirmed(medicine.id, 4000, "completed"))
+    }
+    context.deleteDatabase(name)
+  }
+  @Test fun previousSchemasRetainAlarmAndOccurrence() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    for (version in listOf(6, 7)) {
+    val name = "v6-upgrade.db"
+    context.deleteDatabase(name)
+    context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null).use { db ->
+      db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL, mode TEXT NOT NULL)")
+      db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
+      db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0)")
+      if (version == 7) db.execSQL("ALTER TABLE doses ADD COLUMN outcome TEXT")
+      db.execSQL("INSERT INTO medicines VALUES ('m', 'Water', '', '[\"09:00\"]', 1000, 'reminder', 'notification')")
+      db.execSQL("INSERT INTO alarms VALUES ('m', 3000, 'token', 1)")
+      db.execSQL("INSERT INTO doses (id, medicine_id, scheduled_at, alerted) VALUES ('m:2000', 'm', 2000, 1)")
+      db.version = version
+    }
+    MedicineRepository(context, name).use { repo ->
+      assertEquals(listOf("09:00"), repo.all().single().times)
+      assertEquals(MedicineRepository.Alarm("m", 3000, "token", true), repo.alarm("m"))
+      assertEquals(listOf("m" to 2000L), repo.todayDoses(0, 3000))
+      assertNull(repo.outcome("m", 2000))
+    }
+    context.deleteDatabase(name)
+    }
+  }
+
+  @Test fun historyClearingRetainsRemindersAndDoesNotRecreateClearedOccurrences() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val name = "history-test.db"
+    context.deleteDatabase(name)
+    MedicineRepository(context, name).use { repo ->
+      val medicine = repo.save("Water", "", listOf("09:00"), 1000, "reminder")
+      repo.recordDue(medicine.id, 2000)
+      repo.setOutcome(medicine.id, 2000, "completed")
+      repo.clearHistory()
+      repo.recordDue(medicine.id, 2000)
+      assertTrue(repo.occurrences().isEmpty())
+      assertEquals(medicine, repo.all().single())
+    }
+    context.deleteDatabase(name)
+  }
   @Test fun outcomeSurvivesReopenAndCanBeCorrected() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val name = "outcome-test.db"
