@@ -58,19 +58,14 @@ object ReminderScheduler {
     MedicineRepository(context).use { repo ->
       val old = repo.alarm(medicine.id)
       if (old != null) {
-        if (!old.registered && old.at <= after.toEpochMilli()) {
-          repo.invalidateAlarm(medicine.id)
-          repo.recordDue(medicine.id, old.at)
-        } else {
-          // Re-register future alarms after an interrupted registration; preserve delayed ones.
-          if (old.at > after.toEpochMilli()) {
-            try {
-              register(context, old)
-              repo.markAlarmRegistered(medicine.id, old.token)
-            } catch (_: SecurityException) { repo.invalidateAlarm(medicine.id) }
-          }
-          return
+        // Retrying an interrupted registration keeps its identity and a delayed delivery valid.
+        if (RecoveryPolicy.shouldRegister(old, after.toEpochMilli())) {
+          try {
+            register(context, old)
+            repo.markAlarmRegistered(medicine.id, old.token)
+          } catch (_: SecurityException) { repo.invalidateAlarm(medicine.id) }
         }
+        return
       }
       val next = DailySchedule.next(medicine.times, after, ZoneId.systemDefault()).toEpochMilli()
       val alarm = MedicineRepository.Alarm(medicine.id, next, UUID.randomUUID().toString())
@@ -86,8 +81,10 @@ object ReminderScheduler {
     val available = enabled(context)
     val prefs = context.getSharedPreferences("reminder_access", Context.MODE_PRIVATE)
     val wasAvailable = prefs.getBoolean("enabled", available)
-    val invalidate = recovery || !available || !wasAvailable
-    prefs.edit().putBoolean("enabled", available).commit()
+    val boot = android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1)
+    val previousBoot = prefs.getInt("boot", boot)
+    val invalidate = recovery || !available || !wasAvailable || RecoveryPolicy.bootChanged(previousBoot, boot)
+    prefs.edit().putBoolean("enabled", available).putInt("boot", boot).commit()
     MedicineRepository(context).use { repo ->
       val now = Instant.now()
       val zone = ZoneId.systemDefault()
@@ -130,9 +127,8 @@ object ReminderScheduler {
       if (!RecoveryPolicy.needsRepair(current)) return
       val medicine = repo.all().find { it.id == id } ?: return
       if (current != null) {
-        alarmManager(context).cancel(pending(context, current))
-        alarmManager(context).cancel(watchdog(context, current))
-        repo.invalidateAlarm(id)
+        schedule(context, medicine)
+        return
       }
       val now = Instant.now()
       DailySchedule.dueToday(medicine.times, Instant.ofEpochMilli(medicine.createdAt), now, ZoneId.systemDefault()).forEach { due ->
