@@ -1,0 +1,48 @@
+import React from 'react';
+import ReactTestRenderer from 'react-test-renderer';
+import { Button, Text, TextInput } from 'react-native';
+import { MedicineSetup } from '../src/MedicineSetup';
+
+test('requires a name and previews three daily reminders before saving', async () => {
+  const save = jest.fn();
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    view = ReactTestRenderer.create(
+      <MedicineSetup
+        language="en"
+        now={new Date(2026, 5, 1, 12)}
+        onSave={save}
+      />,
+    );
+  });
+  const press = async (title: string) => {
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findAllByType(Button)
+        .find(button => button.props.title === title)!
+        .props.onPress(),
+    );
+  };
+  await press('Next');
+  expect(
+    view.root
+      .findAllByType(Text)
+      .some(text => text.props.children === 'Enter a medicine name'),
+  ).toBe(true);
+  await ReactTestRenderer.act(() =>
+    view.root.findAllByType(TextInput)[0].props.onChangeText('Aspirin'),
+  );
+  await press('Next');
+  await press('Review');
+  expect(
+    view.root
+      .findAllByType(Text)
+      .some(text => text.props.children === 'Next three reminders'),
+  ).toBe(true);
+  await press('Save medicine');
+  expect(save).toHaveBeenCalledWith({
+    name: 'Aspirin',
+    instructions: '',
+    times: ['09:00'],
+  });
+});
