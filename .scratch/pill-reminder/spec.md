@@ -16,7 +16,7 @@ Both types support one or more daily times, selected weekdays with one or more t
 
 Notification is the default and sounds and vibrates once, subject to device settings. An alarm sounds until an action stops it or its next occurrence supersedes it. Overlapping alarms share sound while retaining separate actions. Stop sound leaves the occurrence unconfirmed. Respect sound settings and Do Not Disturb; no full-screen takeover.
 
-Snooze applies only to the current occurrence, with 5, 10 or 15 minutes, default 10. Completion and skip cancel remaining alerts for that occurrence, tolerate repeated taps, offer immediate Undo and later correction. Returning an occurrence to unconfirmed does not re-alert it. A previous-day occurrence with an outstanding alert remains accessible on Today until acted on or superseded. Restart and permission recovery resume future reminders without catch-up sound. Pausing or deleting cancels outstanding alerts and future reminders; resuming starts at the next future occurrence.
+Snooze applies only to the current occurrence, for 10 minutes. Completion and skip cancel remaining alerts for that occurrence, tolerate repeated taps, offer immediate Undo and later correction. Returning an occurrence to unconfirmed does not re-alert it. A previous-day occurrence with an outstanding alert remains accessible on Today until acted on or superseded. Restart and permission recovery resume future reminders without catch-up sound. Pausing or deleting cancels outstanding alerts and future reminders; resuming starts at the next future occurrence.
 
 ## Implementation and acceptance
 
@@ -71,3 +71,7 @@ Earlier account-saving decisions below are historical and now belong to deferred
 - The user confirmed React Native as the desired screen framework.
 - The user accepted a fully local, persistently stored MVP (Q20). Defer Google sign-in, cloud saving, and replacement-phone recovery until after the private test.
 - Confirmed MVP stack: React Native/TypeScript screens, Room/SQLite persistence, Kotlin scheduling and background actions, and no backend or sign-in. Removed account-update types, cloud status UI, and account-recovery delivery checks from the active MVP scope.
+
+### 2026-11-08 — Snooze simplification
+
+- Use one 10-minute snooze action. A configurable duration can be considered later.
