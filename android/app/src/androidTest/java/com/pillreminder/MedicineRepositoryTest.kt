@@ -9,6 +9,26 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MedicineRepositoryTest {
+  @Test fun outcomeSurvivesReopenAndCanBeCorrected() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val name = "outcome-test.db"
+    context.deleteDatabase(name)
+    val id = MedicineRepository(context, name).use { repo ->
+      val medicine = repo.save("Water", "", listOf("09:00"), 1000, "reminder")
+      repo.recordDue(medicine.id, 2000)
+      repo.setOutcome(medicine.id, 2000, "completed")
+      repo.setOutcome(medicine.id, 2000, "completed")
+      medicine.id
+    }
+    MedicineRepository(context, name).use { repo ->
+      assertEquals("completed", repo.outcome(id, 2000))
+      repo.setOutcome(id, 2000, "skipped")
+      assertEquals("skipped", repo.outcome(id, 2000))
+      repo.setOutcome(id, 2000, null)
+      assertNull(repo.outcome(id, 2000))
+    }
+    context.deleteDatabase(name)
+  }
   @Test fun versionFourMedicineAndAlarmSurviveUpgrade() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val name = "migration-test.db"
