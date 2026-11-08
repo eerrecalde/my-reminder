@@ -6,8 +6,12 @@
 
 **Status:** ready-for-agent
 
-- [ ] Implement and verify the behaviour above against the [spec](../spec.md).
+**Completion:** complete
+
+- [x] Implement and verify the behaviour above against the [spec](../spec.md).
 
 ## Comments
 
 2026-11-08: The user simplified the snooze choice to a single 10-minute action; configurable durations may be considered later.
+
+2026-11-08: Implemented and merged into main. Verified with automated tests and the disposable Android emulator; physical-device checks are grouped in ticket 06b.
