@@ -226,15 +226,14 @@ export default function App() {
           onPress={() => changeOutcome(occurrence, 'skipped')}
         />
         {occurrence.snoozed && <Text style={styles.text}>{t.snoozed}</Text>}
-        {occurrence.outstanding && !occurrence.snoozed && occurrence.outcome == null && [10, 5, 15].map(minutes => (
+        {occurrence.outstanding && !occurrence.snoozed && occurrence.outcome == null && (
           <Button
-            key={minutes}
             color="#00535b"
-            title={`${t.snooze} ${minutes} ${t.minutes}`}
-            accessibilityLabel={`${t.snooze} ${minutes} ${t.minutes}, ${context}`}
+            title={`${t.snooze} 10 ${t.minutes}`}
+            accessibilityLabel={`${t.snooze} 10 ${t.minutes}, ${context}`}
             onPress={async () => {
               try {
-                await reminderRepository.snooze(occurrence.medicineId, occurrence.scheduledAt, minutes);
+                await reminderRepository.snooze(occurrence.medicineId, occurrence.scheduledAt, 10);
                 setError('');
                 await refresh();
               } catch {
@@ -242,7 +241,7 @@ export default function App() {
               }
             }}
           />
-        ))}
+        )}
         {occurrence.outcome != null && (
           <Button
             color="#00535b"

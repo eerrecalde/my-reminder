@@ -255,7 +255,7 @@ test.each([
 test.each([
   ['en', 'Snooze', 'minutes'],
   ['es', 'Posponer', 'minutos'],
-])('offers accessible snooze choices in %s', async (language, snoozeText, minutesText) => {
+])('offers one accessible ten-minute snooze in %s', async (language, snoozeText, minutesText) => {
   const repository = require('../src/reminderRepository');
   const snooze = jest.fn().mockResolvedValue(undefined);
   repository.reminderRepository = {
@@ -269,11 +269,12 @@ test.each([
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<App />); });
   const buttons = renderer.root.findAllByType(Button);
-  for (const duration of [5, 10, 15]) {
-    const button = buttons.find(item => item.props.title === `${snoozeText} ${duration} ${minutesText}`)!;
-    expect(button.props.accessibilityLabel).toContain('Water');
-    await ReactTestRenderer.act(async () => { await button.props.onPress(); });
-    expect(snooze).toHaveBeenLastCalledWith('r', 2000, duration);
-  }
+  const snoozeButtons = buttons.filter(item => item.props.title.startsWith(snoozeText));
+  expect(snoozeButtons).toHaveLength(1);
+  const button = snoozeButtons[0];
+  expect(button.props.title).toBe(`${snoozeText} 10 ${minutesText}`);
+  expect(button.props.accessibilityLabel).toContain('Water');
+  await ReactTestRenderer.act(async () => { await button.props.onPress(); });
+  expect(snooze).toHaveBeenCalledWith('r', 2000, 10);
   await ReactTestRenderer.act(() => renderer.unmount());
 });
