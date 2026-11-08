@@ -1,16 +1,6 @@
-## Agent skills
+# Agent guidance
 
-### Issue tracker
-
-Issues and specs live in local Markdown files under `.scratch/`.
-Read `docs/agents/issue-tracker.md` before creating or updating tickets.
-
-### Triage labels
-
-Use the five default triage roles.
-Read `docs/agents/triage-labels.md` when assigning triage status.
-
-### Domain docs
-
-Single-context layout: root `GLOSSARY.md` and `docs/adr/`.
-Read `docs/agents/domain.md` before exploring the codebase.
+- Before exploring the codebase, read [domain guidance](docs/agents/domain.md).
+- When implementing or reviewing code, read [coding standards](CODING_STANDARDS.md).
+- When creating or updating tickets, read [issue tracker conventions](docs/agents/issue-tracker.md).
+- When assigning triage status, read [triage labels](docs/agents/triage-labels.md).

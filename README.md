@@ -38,3 +38,24 @@ See the [React Native environment guide](https://reactnative.dev/docs/set-up-you
 For live editing, run `npm start` in one terminal and `npm run android` in another with the phone connected. If the debug build cannot reach Metro over USB, run `adb reverse tcp:8081 tcp:8081` and reopen the app.
 
 Run `npm run typecheck`, `npm run lint`, and `npm test -- --runInBand` to check the TypeScript project.
+
+## Routine Android tests
+
+Use a disposable Android emulator for day-to-day Android changes. The emulator tests can install or replace the app and change its permissions, alarms and data; reserve the `pill_reminder_test` virtual device for disposable test data. Never run the instrumentation suite against a phone containing data to keep.
+
+Create an Android 36 Google APIs virtual device named `pill_reminder_test` in Android Studio's Device Manager (use an ARM64 image on Apple Silicon). With the SDK and JDK configured as above, start it and identify its serial:
+
+```sh
+"$ANDROID_HOME/emulator/emulator" -avd pill_reminder_test
+"$ANDROID_HOME/platform-tools/adb" devices -l
+```
+
+In another terminal, run the test script with the emulator serial shown by `adb`:
+
+```sh
+ANDROID_SERIAL=emulator-5554 ./scripts/test-android-emulator.sh
+```
+
+The script checks both the serial and virtual-device name, builds the app and test APKs, installs them on that emulator only, enables reminder permissions there, and runs instrumentation. It reports a failed or incomplete test as an error. The recovery test requires the test installation to have no saved reminders. A disposable emulator can be reset using Device Manager if necessary; resetting deletes its data.
+
+The emulator is suitable for routine UI, storage, permission, scheduling and recovery checks, but simulated delivery and recovery are not proof of real phone behaviour. Physical-device checks are grouped at the [daily-use checkpoint](.scratch/pill-reminder/issues/06b-daily-use-device-checkpoint.md) and the [private-test checkpoint](.scratch/pill-reminder/issues/12-private-android-test.md).
