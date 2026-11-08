@@ -1,0 +1,18 @@
+.DS_Store
+
+# Android and IDE output
+build/
+.gradle/
+.kotlin/
+.cxx/
+.idea/
+*.iml
+local.properties
+*.keystore
+!android/app/debug.keystore
+
+# JavaScript tooling
+node_modules/
+npm-debug.log*
+.metro-health-check*
+coverage/

@@ -6,6 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] Commit the working app scaffold on top of the project’s initial documentation commit.
-- [ ] The baseline builds, installs, and opens on a real Android phone.
-- [ ] Local setup, build, and installation instructions reproduce the smoke check.
+- [x] Commit the working app scaffold on top of the project’s initial documentation commit.
+- [x] The baseline builds, installs, and opens on a real Android phone.
+- [x] Local setup, build, and installation instructions reproduce the smoke check.
+
+## Verification
+
+On 2026-11-08, the bundled APK built locally, installed over USB, and opened to the Pill Reminder screen on a Google Pixel 9a running Android 17. The APK declares Android 8.0 (API 26) as its minimum. See the [local setup and smoke-check instructions](../../../README.md).
