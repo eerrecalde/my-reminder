@@ -319,25 +319,46 @@ class ReminderFoundationTest {
       repeat(50) { if (MedicineRepository(context).use { it.outcome(ids[0], dueTimes[0]) } != "completed") Thread.sleep(50) }
       assertEquals("completed", MedicineRepository(context).use { it.outcome(ids[0], dueTimes[0]) })
       assertNull(MedicineRepository(context).use { it.outcome(ids[1], dueTimes[1]) })
-      Thread.sleep(500) // Allow the occurrence-stop broadcast to reach the sound service.
+      androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().waitForIdleSync()
       assertTrue("The other occurrence should keep the session running", notifications.activeNotifications.any { it.id == 119348 })
       assertTrue("The other occurrence should keep sound playing", audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
       val second = requireNotNull(notifications.activeNotifications.find { it.id == notificationIds[1] }).notification
       second.actions[1].actionIntent.send()
       repeat(50) { if (MedicineRepository(context).use { it.outcome(ids[1], dueTimes[1]) } != "skipped") Thread.sleep(50) }
       assertEquals("skipped", MedicineRepository(context).use { it.outcome(ids[1], dueTimes[1]) })
-      Thread.sleep(500)
+      androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().waitForIdleSync()
       assertTrue("The remaining occurrence should keep sound playing", audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
-      session!!.actions.single().actionIntent.send()
+      // Removing the last occurrence must end the session, proving the earlier actions
+      // were processed too. A stale membership would keep the service alive.
+      val third = requireNotNull(notifications.activeNotifications.find { it.id == notificationIds[2] }).notification
+      third.actions[0].actionIntent.send()
+      repeat(100) { if (notifications.activeNotifications.any { it.id == 119348 }) Thread.sleep(50) }
+      assertFalse("Acting on all occurrences should end the session", notifications.activeNotifications.any { it.id == 119348 })
+
+      // Start a fresh unresolved occurrence to check the separate Stop sound action.
+      val now = System.currentTimeMillis()
+      val item = MedicineRepository(context).use { it.save("Stop test", "", listOf(LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))), now - 10_000, "reminder", "alarm") }
+      ids.add(item.id)
+      val stopAt = now - 1000
+      dueTimes.add(stopAt)
+      notificationIds.add(("${item.id}:$stopAt").hashCode())
+      MedicineRepository(context).use { it.setAlarm(item.id, stopAt, "stop-test") }
+      ReminderScheduler.deliver(context, item.id, stopAt, "stop-test")
+      var stopSession: Notification? = null
+      repeat(100) {
+        if (stopSession == null) { Thread.sleep(50); stopSession = notifications.activeNotifications.find { it.id == 119348 }?.notification }
+      }
+      assertNotNull("A fresh session should start", stopSession)
+      stopSession!!.actions.single().actionIntent.send()
       repeat(50) {
         if (notifications.activeNotifications.any { it.id == 119348 }) Thread.sleep(100)
       }
       assertFalse(notifications.activeNotifications.any { it.id == 119348 })
       repeat(50) { if (audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION }) Thread.sleep(100) }
       assertFalse("Alarm audio should stop", audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
-      assertNull(MedicineRepository(context).use { it.outcome(ids[2], dueTimes[2]) })
+      assertNull(MedicineRepository(context).use { it.outcome(ids[3], dueTimes[3]) })
       MedicineRepository(context).use { repo ->
-        assertEquals(3, repo.todayDoses(0, System.currentTimeMillis() + 1000).count { it.first in ids })
+        assertEquals(4, repo.todayDoses(0, System.currentTimeMillis() + 1000).count { it.first in ids })
       }
     } finally {
       scheduledIntents.forEach { context.getSystemService(AlarmManager::class.java).cancel(it); it.cancel() }
@@ -351,4 +372,48 @@ class ReminderFoundationTest {
       } }
     }
   }
+  @Test fun nextScheduledOccurrenceSupersedesTheSoundingOccurrence() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val notifications = context.getSystemService(NotificationManager::class.java)
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val now = System.currentTimeMillis()
+    val next = java.time.ZonedDateTime.now().plusMinutes(1).withSecond(0).withNano(0)
+    val nextAt = next.toInstant().toEpochMilli()
+    val priorAt = now - 1000
+    val time = next.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
+    val item = MedicineRepository(context).use { it.save("Supersession test", "", listOf(time), now - 10_000, "reminder", "alarm") }
+    val oldNotification = ("${item.id}:$priorAt").hashCode()
+    val nextNotification = ("${item.id}:$nextAt").hashCode()
+    try {
+      MedicineRepository(context).use { it.setAlarm(item.id, priorAt, "supersession-test") }
+      // Seed the first due occurrence; the scheduler registers the next with Android.
+      ReminderScheduler.deliver(context, item.id, priorAt, "supersession-test")
+      repeat(100) { if (notifications.activeNotifications.none { it.id == 119348 }) Thread.sleep(50) }
+      assertTrue("The earlier occurrence should be sounding", notifications.activeNotifications.any { it.id == 119348 })
+      assertTrue(notifications.activeNotifications.any { it.id == oldNotification })
+      repeat(750) { if (notifications.activeNotifications.none { it.id == nextNotification }) Thread.sleep(100) }
+      val nextAlert = requireNotNull(notifications.activeNotifications.find { it.id == nextNotification }) { "The next scheduled occurrence was not delivered" }.notification
+      assertEquals("missed", MedicineRepository(context).use { it.outcome(item.id, priorAt) })
+      assertNull(MedicineRepository(context).use { it.outcome(item.id, nextAt) })
+      assertFalse(notifications.activeNotifications.any { it.id == oldNotification })
+      assertTrue("The next occurrence should be sounding", notifications.activeNotifications.any { it.id == 119348 })
+      nextAlert.actions[0].actionIntent.send()
+      repeat(100) { if (notifications.activeNotifications.any { it.id == 119348 }) Thread.sleep(50) }
+      assertFalse("The superseded occurrence must not keep the session alive", notifications.activeNotifications.any { it.id == 119348 })
+      assertEquals("completed", MedicineRepository(context).use { it.outcome(item.id, nextAt) })
+    } finally {
+      context.stopService(Intent(context, AlarmSoundService::class.java))
+      notifications.cancel(oldNotification)
+      notifications.cancel(nextNotification)
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
+
 }
