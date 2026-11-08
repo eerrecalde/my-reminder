@@ -9,6 +9,29 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MedicineRepositoryTest {
+  @Test fun versionFourMedicineAndAlarmSurviveUpgrade() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val name = "migration-test.db"
+    context.deleteDatabase(name)
+    val legacy = context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null)
+    legacy.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL)")
+    legacy.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
+    legacy.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0)")
+    legacy.execSQL("INSERT INTO medicines VALUES ('old', 'Aspirin', 'one tablet', '[\"09:00\"]', 1000)")
+    legacy.execSQL("INSERT INTO alarms VALUES ('old', 2000, 'token', 1)")
+    legacy.execSQL("INSERT INTO doses VALUES ('old:1500', 'old', 1500, 1)")
+    legacy.version = 4
+    legacy.close()
+    MedicineRepository(context, name).use { repo ->
+      assertEquals(Medicine("old", "Aspirin", "one tablet", listOf("09:00"), 1000, "medicine"), repo.all().single())
+      assertEquals(MedicineRepository.Alarm("old", 2000, "token", true), repo.alarm("old"))
+      assertEquals(listOf("old" to 1500L), repo.todayDoses(0, 2000))
+      repo.save("Water", "", listOf("10:00"), 3000, "reminder")
+    }
+    MedicineRepository(context, name).use { assertEquals(listOf("medicine", "reminder"), it.all().map { item -> item.type }) }
+    context.deleteDatabase(name)
+  }
+
   @Test fun saveSurvivesReopenAndDoseIdentityIsStable() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     context.deleteDatabase("medicines-test.db")

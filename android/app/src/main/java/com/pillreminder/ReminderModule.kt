@@ -27,7 +27,7 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       val medicines = Arguments.createArray()
       MedicineRepository(reactContext).use { repo -> repo.all().forEach { medicine ->
         medicines.pushMap(Arguments.createMap().apply {
-          putString("id", medicine.id); putString("name", medicine.name); putString("instructions", medicine.instructions)
+          putString("id", medicine.id); putString("type", medicine.type); putString("name", medicine.name); putString("instructions", medicine.instructions)
           putArray("times", Arguments.createArray().apply { medicine.times.forEach { pushString(it) } })
         })
       } }
@@ -45,12 +45,15 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
     } catch (error: Exception) { promise.reject("state_failed", error) }
   }
   @ReactMethod fun save(name: String, instructions: String, times: ReadableArray, promise: Promise) {
+    saveTyped("medicine", name, instructions, times, promise)
+  }
+  @ReactMethod fun saveTyped(type: String, name: String, instructions: String, times: ReadableArray, promise: Promise) {
     try {
       val clockTimes = (0 until times.size()).map { requireNotNull(times.getString(it)) }
       ReminderScheduler.rebuild(reactContext)
       ReminderScheduler.ensureReconciliation(reactContext)
       MedicineRepository(reactContext).use { repo ->
-        val medicine = repo.save(name, instructions, clockTimes, System.currentTimeMillis())
+        val medicine = repo.save(name, instructions, clockTimes, System.currentTimeMillis(), type)
         ReminderScheduler.schedule(reactContext, medicine)
       }
       promise.resolve(null)

@@ -140,7 +140,7 @@ object ReminderScheduler {
         }
       }
       if (at <= now && at > medicine.createdAt && repo.claimAlarm(id, at, token)) {
-        notify(context, medicine.name, medicine.instructions.ifBlank { context.getString(R.string.reminder_due) }, ("$id:$at").hashCode())
+        notify(context, medicine.name, medicine.instructions.takeIf { medicine.type == "medicine" && it.isNotBlank() } ?: context.getString(if (medicine.type == "medicine") R.string.reminder_due else R.string.general_reminder_due), ("$id:$at").hashCode())
         schedule(context, medicine)
       }
     }

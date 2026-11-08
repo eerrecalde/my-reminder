@@ -1,7 +1,8 @@
 import { NativeModules } from 'react-native';
 import type { DailyMedicineInput } from './MedicineSetup';
 
-export type Medicine = DailyMedicineInput & { id: string };
+export type ReminderType = 'medicine' | 'reminder';
+export type Medicine = DailyMedicineInput & { id: string; type: ReminderType };
 export type ReminderState = {
   enabled: boolean;
   exactAlarms: boolean;
@@ -13,6 +14,12 @@ export type ReminderState = {
 export interface ReminderRepository {
   state(): Promise<ReminderState>;
   save(name: string, instructions: string, times: string[]): Promise<void>;
+  saveTyped(
+    type: ReminderType,
+    name: string,
+    instructions: string,
+    times: string[],
+  ): Promise<void>;
   openAlarmSettings(): void;
   openNotificationSettings(): void;
   testReminder(): void;
