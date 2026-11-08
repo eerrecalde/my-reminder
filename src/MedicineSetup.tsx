@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { nextDailyOccurrences } from './dailySchedule';
+import { isDailyTime, nextDailyOccurrences } from './dailySchedule';
 
 export type DailyMedicineInput = {
   name: string;
@@ -33,6 +33,7 @@ const copy = {
     mode: 'Reminder: Notification',
     review: 'Review',
     nextThree: 'Next three reminders',
+    everyDay: 'Every day at',
     save: 'Save medicine',
     back: 'Back',
   },
@@ -48,6 +49,7 @@ const copy = {
     mode: 'Recordatorio: Notificación',
     review: 'Revisar',
     nextThree: 'Próximos tres recordatorios',
+    everyDay: 'Todos los días a las',
     save: 'Guardar medicamento',
     back: 'Volver',
   },
@@ -68,8 +70,7 @@ export function MedicineSetup({ language, now, onSave }: Props) {
     }
     if (
       step === 1 &&
-      (!times.length ||
-        times.some(time => !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)))
+      (!times.length || times.some(time => !isDailyTime(time)))
     ) {
       setError(t.invalid);
       return;
@@ -122,6 +123,9 @@ export function MedicineSetup({ language, now, onSave }: Props) {
             <Text style={styles.label}>{instructions.trim()}</Text>
           )}
           <Text style={styles.label}>{t.mode}</Text>
+          <Text style={styles.label}>
+            {t.everyDay} {times.join(', ')}
+          </Text>
           <Text accessibilityRole="header" style={styles.label}>
             {t.nextThree}
           </Text>

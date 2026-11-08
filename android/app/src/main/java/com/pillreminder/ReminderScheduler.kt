@@ -36,7 +36,16 @@ object ReminderScheduler {
     catch (_: SecurityException) { /* Access may have been revoked since the check. */ }
   }
   fun rebuild(context: Context) {
-    MedicineRepository(context).use { repo -> repo.all().forEach { schedule(context, it) } }
+    MedicineRepository(context).use { repo ->
+      val now = Instant.now()
+      val zone = ZoneId.systemDefault()
+      repo.all().forEach { medicine ->
+        DailySchedule.dueToday(medicine.times, Instant.ofEpochMilli(medicine.createdAt), now, zone).forEach { due ->
+          repo.recordDue(medicine.id, due.toEpochMilli())
+        }
+        schedule(context, medicine, now)
+      }
+    }
   }
   fun notify(context: Context, title: String, text: String, id: Int) {
     val manager = context.getSystemService(NotificationManager::class.java)
@@ -55,8 +64,8 @@ class ReminderReceiver : BroadcastReceiver() {
     val now = System.currentTimeMillis()
     MedicineRepository(context).use { repo ->
       val medicine = repo.all().find { it.id == id } ?: return
-      // Old broadcasts are not catch-up alerts. Rebuild from the current time.
-      if (at > medicine.createdAt && at <= now && now - at < 60_000 && ReminderScheduler.enabled(context) && repo.recordDose(id, at)) {
+      // A recovery rebuild schedules only future reminders.
+      if (at > medicine.createdAt && at <= now && ReminderScheduler.enabled(context) && repo.recordDose(id, at)) {
         ReminderScheduler.notify(context, medicine.name, medicine.instructions.ifBlank { context.getString(R.string.reminder_due) }, ("$id:$at").hashCode())
       }
       ReminderScheduler.schedule(context, medicine)

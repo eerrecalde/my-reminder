@@ -20,6 +20,7 @@ const words = {
     add: 'Add medicine',
     off: 'Reminders off',
     on: 'Reminders on',
+    unconfirmed: 'Unconfirmed dose',
     allowed: 'Allowed',
     notAllowed: 'Not allowed',
     enable: 'Enable reminders',
@@ -39,6 +40,7 @@ const words = {
     add: 'Agregar medicamento',
     off: 'Recordatorios desactivados',
     on: 'Recordatorios activados',
+    unconfirmed: 'Dosis sin confirmar',
     allowed: 'Permitido',
     notAllowed: 'No permitido',
     enable: 'Activar recordatorios',
@@ -142,6 +144,17 @@ export default function App() {
                       <Text style={styles.text}>
                         {medicine.times.join(', ')}
                       </Text>
+                      {state.todayDoses
+                        .filter(dose => dose.medicineId === medicine.id)
+                        .map(dose => (
+                          <Text key={dose.scheduledAt} style={styles.text}>
+                            {t.unconfirmed}:{' '}
+                            {new Date(dose.scheduledAt).toLocaleTimeString(
+                              language === 'es' ? 'es-MX' : 'en-GB',
+                              { hour: '2-digit', minute: '2-digit' },
+                            )}
+                          </Text>
+                        ))}
                     </View>
                   ))
                 )}

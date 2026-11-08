@@ -5,6 +5,11 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 object DailySchedule {
+  fun dueToday(times: List<String>, created: Instant, now: Instant, zone: ZoneId): List<Instant> {
+    val date = now.atZone(zone).toLocalDate()
+    return times.distinct().map { date.atTime(LocalTime.parse(it)).atZone(zone).toInstant() }
+      .filter { it > created && it <= now }.distinct().sorted()
+  }
   fun next(times: List<String>, after: Instant, zone: ZoneId): Instant {
     require(times.isNotEmpty())
     val localTimes = times.distinct().map(LocalTime::parse)

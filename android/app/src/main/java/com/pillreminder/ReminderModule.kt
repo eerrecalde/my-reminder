@@ -31,6 +31,15 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
         })
       } }
       result.putArray("medicines", medicines)
+      val today = java.time.LocalDate.now()
+      val zone = java.time.ZoneId.systemDefault()
+      val start = today.atStartOfDay(zone).toInstant().toEpochMilli()
+      val end = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+      val doses = Arguments.createArray()
+      MedicineRepository(reactContext).use { repo -> repo.todayDoses(start, end).forEach { (id, at) ->
+        doses.pushMap(Arguments.createMap().apply { putString("medicineId", id); putDouble("scheduledAt", at.toDouble()) })
+      } }
+      result.putArray("todayDoses", doses)
       promise.resolve(result)
     } catch (error: Exception) { promise.reject("state_failed", error) }
   }

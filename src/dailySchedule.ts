@@ -1,3 +1,7 @@
+export function isDailyTime(time: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
+}
+
 /** Future local clock-time occurrences, including daylight-saving adjustments. */
 export function nextDailyOccurrences(
   times: string[],
@@ -5,7 +9,7 @@ export function nextDailyOccurrences(
   count: number,
 ): Date[] {
   const clockTimes = [...new Set(times)].map(time => {
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+    if (!isDailyTime(time)) {
       throw new Error('Invalid daily time');
     }
     return time.split(':').map(Number);

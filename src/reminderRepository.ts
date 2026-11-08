@@ -8,6 +8,7 @@ export type ReminderState = {
   notifications: boolean;
   language: 'en' | 'es';
   medicines: Medicine[];
+  todayDoses: { medicineId: string; scheduledAt: number }[];
 };
 export interface ReminderRepository {
   state(): Promise<ReminderState>;

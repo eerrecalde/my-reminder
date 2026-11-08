@@ -17,8 +17,11 @@ class MedicineRepositoryTest {
     first.close()
     val reopened = MedicineRepository(context, "medicines-test.db")
     assertEquals(medicine, reopened.all().single())
-    assertTrue(reopened.recordDose(medicine.id, 2000))
+    reopened.recordDue(medicine.id, 2000)
+    assertEquals(listOf(medicine.id to 2000L), reopened.todayDoses(0, 3000))
     assertFalse(reopened.recordDose(medicine.id, 2000))
+    assertTrue(reopened.recordDose(medicine.id, 2500))
+    assertFalse(reopened.recordDose(medicine.id, 2500))
     reopened.close()
     context.deleteDatabase("medicines-test.db")
   }
