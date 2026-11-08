@@ -42,25 +42,24 @@ test('shows reminders off and offers an enable action when access is missing', a
       .findAllByType(Text)
       .some(text => text.props.children === 'Reminder access'),
   ).toBe(true);
+  await ReactTestRenderer.act(() => renderer.unmount());
 });
 
 test('shows a recovered dose as unconfirmed on Today', async () => {
   const repository = require('../src/reminderRepository');
   repository.reminderRepository = {
-    state: jest
-      .fn()
-      .mockResolvedValue({
-        enabled: true,
-        exactAlarms: true,
-        notifications: true,
-        language: 'en',
-        medicines: [
-          { id: 'a', name: 'Aspirin', instructions: '', times: ['09:00'] },
-        ],
-        todayDoses: [
-          { medicineId: 'a', scheduledAt: new Date(2026, 5, 1, 9).getTime() },
-        ],
-      }),
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      exactAlarms: true,
+      notifications: true,
+      language: 'en',
+      medicines: [
+        { id: 'a', name: 'Aspirin', instructions: '', times: ['09:00'] },
+      ],
+      todayDoses: [
+        { medicineId: 'a', scheduledAt: new Date(2026, 5, 1, 9).getTime() },
+      ],
+    }),
   };
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
@@ -73,4 +72,5 @@ test('shows a recovered dose as unconfirmed on Today', async () => {
         JSON.stringify(text.props.children).includes('Unconfirmed dose'),
       ),
   ).toBe(true);
+  await ReactTestRenderer.act(() => renderer.unmount());
 });

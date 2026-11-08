@@ -28,7 +28,13 @@ export function nextDailyOccurrences(
         ),
     );
     candidates.sort((a, b) => a.getTime() - b.getTime());
-    result.push(...candidates.filter(date => date.getTime() > after.getTime()));
+    result.push(
+      ...candidates.filter(
+        (date, index) =>
+          date.getTime() > after.getTime() &&
+          (index === 0 || date.getTime() !== candidates[index - 1].getTime()),
+      ),
+    );
   }
   return result.slice(0, count);
 }

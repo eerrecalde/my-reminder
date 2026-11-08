@@ -105,3 +105,36 @@ test('shows the schedule controls in Spanish', async () => {
       .some(text => text.props.children === 'Recordatorio: Notificación'),
   ).toBe(true);
 });
+
+test('ignores repeated saves until the first save completes', async () => {
+  let finish!: () => void;
+  const pending = new Promise<void>(resolve => {
+    finish = resolve;
+  });
+  const save = jest.fn().mockReturnValue(pending);
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    view = ReactTestRenderer.create(
+      <MedicineSetup language="en" onSave={save} />,
+    );
+  });
+  await ReactTestRenderer.act(() =>
+    view.root.findAllByType(TextInput)[0].props.onChangeText('Aspirin'),
+  );
+  const press = (title: string) =>
+    view.root
+      .findAllByType(Button)
+      .find(button => button.props.title === title)!
+      .props.onPress();
+  await ReactTestRenderer.act(() => press('Next'));
+  await ReactTestRenderer.act(() => press('Review'));
+  await ReactTestRenderer.act(() => {
+    press('Save medicine');
+    press('Save medicine');
+  });
+  expect(save).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(async () => {
+    finish();
+    await pending;
+  });
+});

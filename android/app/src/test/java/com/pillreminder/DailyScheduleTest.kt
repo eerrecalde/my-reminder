@@ -19,4 +19,13 @@ class DailyScheduleTest {
     val next = DailySchedule.next(listOf("01:30"), Instant.parse("2026-10-25T00:45:00Z"), ZoneId.of("Europe/London"))
     assertEquals(Instant.parse("2026-10-26T01:30:00Z"), next)
   }
+  @Test fun `changing time zone follows the new local clock`() {
+    val after = Instant.parse("2026-06-01T06:00:00Z")
+    assertEquals(Instant.parse("2026-06-01T08:00:00Z"), DailySchedule.next(listOf("09:00"), after, ZoneId.of("Europe/London")))
+    assertEquals(Instant.parse("2026-06-01T13:00:00Z"), DailySchedule.next(listOf("09:00"), after, ZoneId.of("America/New_York")))
+  }
+  @Test fun `coincident times in a daylight saving gap produce one occurrence`() {
+    val due = DailySchedule.dueToday(listOf("01:30", "02:30"), Instant.parse("2026-03-28T00:00:00Z"), Instant.parse("2026-03-29T02:00:00Z"), ZoneId.of("Europe/London"))
+    assertEquals(listOf(Instant.parse("2026-03-29T01:30:00Z")), due)
+  }
 }

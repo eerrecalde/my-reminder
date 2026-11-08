@@ -18,10 +18,11 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
 
   @ReactMethod fun state(promise: Promise) {
     try {
+      ReminderScheduler.rebuild(reactContext)
       val result = Arguments.createMap()
       result.putBoolean("enabled", ReminderScheduler.enabled(reactContext))
       result.putBoolean("exactAlarms", Build.VERSION.SDK_INT < 31 || reactContext.getSystemService(android.app.AlarmManager::class.java).canScheduleExactAlarms())
-      result.putBoolean("notifications", androidx.core.app.NotificationManagerCompat.from(reactContext).areNotificationsEnabled())
+      result.putBoolean("notifications", ReminderScheduler.notificationsEnabled(reactContext))
       result.putString("language", if (Locale.getDefault().language == "es") "es" else "en")
       val medicines = Arguments.createArray()
       MedicineRepository(reactContext).use { repo -> repo.all().forEach { medicine ->
@@ -61,7 +62,12 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
     }
   }
   @ReactMethod fun openNotificationSettings() {
-    reactContext.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, reactContext.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    val manager = reactContext.getSystemService(android.app.NotificationManager::class.java)
+    val channel = manager.getNotificationChannel("medicine_reminders")
+    val intent = if (channel != null && channel.importance == android.app.NotificationManager.IMPORTANCE_NONE) {
+      Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_CHANNEL_ID, "medicine_reminders")
+    } else Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+    reactContext.startActivity(intent.putExtra(Settings.EXTRA_APP_PACKAGE, reactContext.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
   }
   @ReactMethod fun selectTime(time: String, promise: Promise) {
     val current = try { java.time.LocalTime.parse(time) } catch (error: Exception) { promise.reject("invalid_time", error); return }

@@ -69,10 +69,14 @@ export default function App() {
   }, []);
   useEffect(() => {
     refresh();
+    const timer = setInterval(refresh, 30000);
     const listener = AppState.addEventListener('change', value => {
       if (value === 'active') refresh();
     });
-    return () => listener.remove();
+    return () => {
+      clearInterval(timer);
+      listener.remove();
+    };
   }, [refresh]);
   const language = state?.language ?? 'en';
   const t = words[language];
@@ -89,7 +93,11 @@ export default function App() {
       <SafeAreaView style={styles.screen}>
         {screen === 'setup' ? (
           <>
-            <Button title={t.cancel} onPress={() => setScreen('today')} />
+            <Button
+              color="#00535b"
+              title={t.cancel}
+              onPress={() => setScreen('today')}
+            />
             <MedicineSetup
               selectTime={time => reminderRepository.selectTime(time)}
               language={language}
@@ -130,6 +138,7 @@ export default function App() {
                       {t.off}
                     </Text>
                     <Button
+                      color="#00535b"
                       title={t.enable}
                       onPress={() => setScreen('access')}
                     />
@@ -159,9 +168,14 @@ export default function App() {
                     </View>
                   ))
                 )}
-                <Button title={t.add} onPress={() => setScreen('setup')} />
+                <Button
+                  color="#00535b"
+                  title={t.add}
+                  onPress={() => setScreen('setup')}
+                />
                 <View style={styles.spacer} />
                 <Button
+                  color="#00535b"
                   title={t.settings}
                   onPress={() => setScreen('access')}
                 />
@@ -173,22 +187,29 @@ export default function App() {
                   {t.notifications}:{' '}
                   {state.notifications ? t.allowed : t.notAllowed}
                 </Text>
-                <Button title={t.notifications} onPress={allowNotifications} />
+                <Button
+                  color="#00535b"
+                  title={t.notifications}
+                  onPress={allowNotifications}
+                />
                 <View style={styles.spacer} />
                 <Text style={styles.text}>
                   {t.exact}: {state.exactAlarms ? t.allowed : t.notAllowed}
                 </Text>
                 <Button
+                  color="#00535b"
                   title={t.exact}
                   onPress={() => reminderRepository.openAlarmSettings()}
                 />
                 <View style={styles.spacer} />
                 <Button
+                  color="#00535b"
                   title={t.test}
                   onPress={() => reminderRepository.testReminder()}
                 />
                 <View style={styles.spacer} />
                 <Button
+                  color="#00535b"
                   title={t.cancel}
                   onPress={() => {
                     refresh();

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Button,
   ScrollView,
@@ -17,7 +17,7 @@ export type DailyMedicineInput = {
 type Props = {
   language: 'en' | 'es';
   now?: Date;
-  onSave: (medicine: DailyMedicineInput) => void;
+  onSave: (medicine: DailyMedicineInput) => void | Promise<void>;
   selectTime?: (time: string) => Promise<string | null>;
 };
 
@@ -69,6 +69,8 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
   const [instructions, setInstructions] = useState('');
   const [times, setTimes] = useState(['09:00']);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const next = () => {
     if (step === 0 && !name.trim()) {
       setError(t.required);
@@ -113,6 +115,7 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
           {times.map((time, index) => (
             <View key={`${time}-${index}`} style={styles.timeRow}>
               <Button
+                color="#00535b"
                 title={`${t.changeTime}: ${time}`}
                 onPress={async () => {
                   const selected = await selectTime?.(time);
@@ -130,6 +133,7 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
               />
               {times.length > 1 && (
                 <Button
+                  color="#00535b"
                   title={`${t.removeTime}: ${time}`}
                   onPress={() =>
                     setTimes(current => current.filter((_, i) => i !== index))
@@ -139,6 +143,7 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
             </View>
           ))}
           <Button
+            color="#00535b"
             title={t.addTime}
             onPress={async () => {
               const selected = await selectTime?.('09:00');
@@ -182,6 +187,7 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
       <View style={styles.actions}>
         {step > 0 && (
           <Button
+            color="#00535b"
             title={t.back}
             onPress={() => {
               setError('');
@@ -190,17 +196,31 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
           />
         )}
         {step < 2 ? (
-          <Button title={step === 0 ? t.next : t.review} onPress={next} />
+          <Button
+            color="#00535b"
+            title={step === 0 ? t.next : t.review}
+            onPress={next}
+          />
         ) : (
           <Button
+            color="#00535b"
             title={t.save}
-            onPress={() =>
-              onSave({
-                name: name.trim(),
-                instructions: instructions.trim(),
-                times: [...new Set(times)],
-              })
-            }
+            disabled={saving}
+            onPress={async () => {
+              if (savingRef.current) return;
+              savingRef.current = true;
+              setSaving(true);
+              try {
+                await onSave({
+                  name: name.trim(),
+                  instructions: instructions.trim(),
+                  times: [...new Set(times)],
+                });
+              } finally {
+                savingRef.current = false;
+                setSaving(false);
+              }
+            }}
           />
         )}
       </View>

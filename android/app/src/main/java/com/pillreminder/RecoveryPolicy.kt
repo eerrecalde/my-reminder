@@ -1,7 +1,9 @@
 package com.pillreminder
 
 object RecoveryPolicy {
-  fun shouldRegister(alarm: MedicineRepository.Alarm, now: Long): Boolean = !alarm.registered || alarm.at > now
+  fun shouldInvalidate(recovery: Boolean, available: Boolean, wasAvailable: Boolean, bootChanged: Boolean, pending: Boolean): Boolean =
+    recovery || !available || !wasAvailable || bootChanged || pending
+  fun shouldRegister(alarm: MedicineRepository.Alarm, now: Long): Boolean = alarm.at > now
   fun bootChanged(previous: Int, current: Int): Boolean = previous >= 0 && current >= 0 && previous != current
-  fun needsRepair(alarm: MedicineRepository.Alarm?): Boolean = alarm == null || !alarm.registered
+  fun shouldRetry(alarm: MedicineRepository.Alarm, at: Long, token: String): Boolean = alarm.at == at && alarm.token == token
 }

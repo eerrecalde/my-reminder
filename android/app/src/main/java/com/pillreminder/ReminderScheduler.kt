@@ -18,11 +18,13 @@ import java.util.UUID
 object ReminderScheduler {
   private const val CHANNEL = "medicine_reminders"
   private fun alarmManager(context: Context) = context.getSystemService(AlarmManager::class.java)
+  fun notificationsEnabled(context: Context): Boolean {
+    val channel = context.getSystemService(NotificationManager::class.java).getNotificationChannel(CHANNEL)
+    return NotificationManagerCompat.from(context).areNotificationsEnabled() && (channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
+  }
   fun enabled(context: Context): Boolean {
     val alarms = Build.VERSION.SDK_INT < 31 || alarmManager(context).canScheduleExactAlarms()
-    val notifications = NotificationManagerCompat.from(context).areNotificationsEnabled()
-    val channel = context.getSystemService(NotificationManager::class.java).getNotificationChannel(CHANNEL)
-    return alarms && notifications && (channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
+    return alarms && notificationsEnabled(context)
   }
   fun ensureReconciliation(context: Context) {
     val intent = Intent(context, ReconciliationReceiver::class.java)
@@ -49,7 +51,7 @@ object ReminderScheduler {
   private fun register(context: Context, alarm: MedicineRepository.Alarm) {
     val show = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     // Register recovery first: if delivery is interrupted it can rebuild the next alarm.
-    alarmManager(context).setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarm.at + 60_000, watchdog(context, alarm))
+    alarmManager(context).setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, maxOf(alarm.at + 60_000, System.currentTimeMillis() + 60_000), watchdog(context, alarm))
     alarmManager(context).setAlarmClock(AlarmManager.AlarmClockInfo(alarm.at, show), pending(context, alarm))
   }
 
@@ -58,14 +60,18 @@ object ReminderScheduler {
     MedicineRepository(context).use { repo ->
       val old = repo.alarm(medicine.id)
       if (old != null) {
-        // Retrying an interrupted registration keeps its identity and a delayed delivery valid.
-        if (RecoveryPolicy.shouldRegister(old, after.toEpochMilli())) {
-          try {
-            register(context, old)
-            repo.markAlarmRegistered(medicine.id, old.token)
-          } catch (_: SecurityException) { repo.invalidateAlarm(medicine.id) }
+        if (!old.registered && old.at <= after.toEpochMilli()) {
+          repo.invalidateAlarm(medicine.id)
+          repo.recordDue(medicine.id, old.at)
+        } else {
+          if (RecoveryPolicy.shouldRegister(old, after.toEpochMilli())) {
+            try {
+              register(context, old)
+              repo.markAlarmRegistered(medicine.id, old.token)
+            } catch (_: SecurityException) { repo.invalidateAlarm(medicine.id) }
+          }
+          return
         }
-        return
       }
       val next = DailySchedule.next(medicine.times, after, ZoneId.systemDefault()).toEpochMilli()
       val alarm = MedicineRepository.Alarm(medicine.id, next, UUID.randomUUID().toString())
@@ -83,8 +89,8 @@ object ReminderScheduler {
     val wasAvailable = prefs.getBoolean("enabled", available)
     val boot = android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1)
     val previousBoot = prefs.getInt("boot", boot)
-    val invalidate = recovery || !available || !wasAvailable || RecoveryPolicy.bootChanged(previousBoot, boot)
-    prefs.edit().putBoolean("enabled", available).putInt("boot", boot).commit()
+    val invalidate = RecoveryPolicy.shouldInvalidate(recovery, available, wasAvailable, RecoveryPolicy.bootChanged(previousBoot, boot), prefs.getBoolean("recovery_pending", false))
+    if (invalidate) prefs.edit().putBoolean("recovery_pending", true).commit()
     MedicineRepository(context).use { repo ->
       val now = Instant.now()
       val zone = ZoneId.systemDefault()
@@ -107,27 +113,73 @@ object ReminderScheduler {
         if (available) schedule(context, medicine, now)
       }
     }
+    prefs.edit().putBoolean("enabled", available).putInt("boot", boot).putBoolean("recovery_pending", false).commit()
+  }
+
+  private fun recoveryPending(context: Context): Boolean {
+    val prefs = context.getSharedPreferences("reminder_access", Context.MODE_PRIVATE)
+    val boot = android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1)
+    return prefs.getBoolean("recovery_pending", false) ||
+      !prefs.getBoolean("enabled", enabled(context)) ||
+      RecoveryPolicy.bootChanged(prefs.getInt("boot", boot), boot)
   }
 
   @Synchronized fun deliver(context: Context, id: String, at: Long, token: String) {
-    if (!enabled(context)) { rebuild(context); return }
+    if (!enabled(context) || recoveryPending(context)) { rebuild(context, recovery = true); return }
     val now = System.currentTimeMillis()
     MedicineRepository(context).use { repo ->
       val medicine = repo.all().find { it.id == id } ?: return
+      val active = repo.alarm(id)
+      if (active != null && active.at == at && active.token == token && at <= now) {
+        val following = DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault())
+        if (!following.isAfter(Instant.ofEpochMilli(now))) {
+          repo.invalidateAlarm(id)
+          DailySchedule.dueToday(medicine.times, Instant.ofEpochMilli(medicine.createdAt), Instant.ofEpochMilli(now), ZoneId.systemDefault()).forEach { due -> repo.recordDue(id, due.toEpochMilli()) }
+          schedule(context, medicine, Instant.ofEpochMilli(now))
+          return
+        }
+      }
       if (at <= now && at > medicine.createdAt && repo.claimAlarm(id, at, token)) {
         notify(context, medicine.name, medicine.instructions.ifBlank { context.getString(R.string.reminder_due) }, ("$id:$at").hashCode())
         schedule(context, medicine)
       }
     }
   }
-  @Synchronized fun recoverInterruptedDelivery(context: Context, id: String, at: Long) {
+  @Synchronized fun recoverInterruptedDelivery(context: Context, id: String, at: Long, token: String) {
+    if (!enabled(context) || recoveryPending(context)) { rebuild(context, recovery = true); return }
     if (at > System.currentTimeMillis()) return
     MedicineRepository(context).use { repo ->
       val current = repo.alarm(id)
-      if (!RecoveryPolicy.needsRepair(current)) return
+      if (current != null && !RecoveryPolicy.shouldRetry(current, at, token)) {
+        if (current.registered) return
+      }
       val medicine = repo.all().find { it.id == id } ?: return
       if (current != null) {
-        schedule(context, medicine)
+        if (!current.registered && current.at <= System.currentTimeMillis()) {
+          repo.invalidateAlarm(id)
+          repo.recordDue(id, current.at)
+          schedule(context, medicine)
+          return
+        }
+        if (RecoveryPolicy.shouldRetry(current, at, token)) {
+          if (!enabled(context)) { rebuild(context); return }
+          val now = Instant.now()
+          val following = DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault())
+          if (!following.isAfter(now)) {
+            repo.invalidateAlarm(id)
+            DailySchedule.dueToday(medicine.times, Instant.ofEpochMilli(medicine.createdAt), now, ZoneId.systemDefault()).forEach { due ->
+              repo.recordDue(id, due.toEpochMilli())
+            }
+            schedule(context, medicine, now)
+            return
+          }
+          try {
+            register(context, current)
+            repo.markAlarmRegistered(id, current.token)
+          } catch (_: SecurityException) { repo.invalidateAlarm(id) }
+        } else {
+          schedule(context, medicine)
+        }
         return
       }
       val now = Instant.now()
@@ -170,7 +222,8 @@ class RecoveryReceiver : BroadcastReceiver() {
 class ReminderWatchdogReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     val id = intent.getStringExtra("medicineId") ?: return
-    ReminderScheduler.recoverInterruptedDelivery(context, id, intent.getLongExtra("scheduledAt", 0))
+    val token = intent.getStringExtra("token") ?: return
+    ReminderScheduler.recoverInterruptedDelivery(context, id, intent.getLongExtra("scheduledAt", 0), token)
   }
 }
 
