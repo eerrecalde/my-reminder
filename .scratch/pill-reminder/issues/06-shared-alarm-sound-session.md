@@ -6,4 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] Implement and verify the behaviour above against the [spec](../spec.md).
+**Completion:** complete
+
+- [x] Implement and verify the behaviour above against the [spec](../spec.md).
+
+## Comments
+
+2026-11-08: Verified simultaneous and closely spaced Android alarm delivery, separate occurrence actions, shared Stop sound, and supersession on the disposable emulator. The first superseded occurrence was seeded by a direct delivery call; its next occurrence was delivered by Android. Physical-device checks remain in ticket 06b.

@@ -312,6 +312,7 @@ class ReminderFoundationTest {
       assertNotNull("Alarm sound session should be running", session)
       assertEquals(1, notifications.activeNotifications.count { it.id == 119348 })
       val audio = context.getSystemService(android.media.AudioManager::class.java)
+      repeat(100) { if (audio.activePlaybackConfigurations.none { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION }) Thread.sleep(50) }
       assertTrue("Alarm audio should be playing", audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
       assertEquals(context.getString(R.string.stop_sound), session!!.actions.single().title.toString())
       val first = requireNotNull(notifications.activeNotifications.find { it.id == notificationIds[0] }).notification
@@ -335,15 +336,17 @@ class ReminderFoundationTest {
       repeat(100) { if (notifications.activeNotifications.any { it.id == 119348 }) Thread.sleep(50) }
       assertFalse("Acting on all occurrences should end the session", notifications.activeNotifications.any { it.id == 119348 })
 
-      // Start a fresh unresolved occurrence to check the separate Stop sound action.
-      val now = System.currentTimeMillis()
-      val item = MedicineRepository(context).use { it.save("Stop test", "", listOf(LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))), now - 10_000, "reminder", "alarm") }
-      ids.add(item.id)
-      val stopAt = now - 1000
-      dueTimes.add(stopAt)
-      notificationIds.add(("${item.id}:$stopAt").hashCode())
-      MedicineRepository(context).use { it.setAlarm(item.id, stopAt, "stop-test") }
-      ReminderScheduler.deliver(context, item.id, stopAt, "stop-test")
+      // Start two fresh unresolved occurrences to check the shared Stop sound action.
+      listOf("reminder", "medicine").forEachIndexed { index, type ->
+        val now = System.currentTimeMillis()
+        val item = MedicineRepository(context).use { it.save("Stop test", "", listOf(LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))), now - 10_000, type, "alarm") }
+        ids.add(item.id)
+        val stopAt = now - 1000
+        dueTimes.add(stopAt)
+        notificationIds.add(("${item.id}:$stopAt").hashCode())
+        MedicineRepository(context).use { it.setAlarm(item.id, stopAt, "stop-test-$index") }
+        ReminderScheduler.deliver(context, item.id, stopAt, "stop-test-$index")
+      }
       var stopSession: Notification? = null
       repeat(100) {
         if (stopSession == null) { Thread.sleep(50); stopSession = notifications.activeNotifications.find { it.id == 119348 }?.notification }
@@ -356,9 +359,12 @@ class ReminderFoundationTest {
       assertFalse(notifications.activeNotifications.any { it.id == 119348 })
       repeat(50) { if (audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION }) Thread.sleep(100) }
       assertFalse("Alarm audio should stop", audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
-      assertNull(MedicineRepository(context).use { it.outcome(ids[3], dueTimes[3]) })
+      listOf(3, 4).forEach { index ->
+        assertNull(MedicineRepository(context).use { it.outcome(ids[index], dueTimes[index]) })
+        assertTrue(notifications.activeNotifications.any { it.id == notificationIds[index] })
+      }
       MedicineRepository(context).use { repo ->
-        assertEquals(4, repo.todayDoses(0, System.currentTimeMillis() + 1000).count { it.first in ids })
+        assertEquals(5, repo.todayDoses(0, System.currentTimeMillis() + 1000).count { it.first in ids })
       }
     } finally {
       scheduledIntents.forEach { context.getSystemService(AlarmManager::class.java).cancel(it); it.cancel() }
@@ -378,7 +384,8 @@ class ReminderFoundationTest {
     assertTrue(ReminderScheduler.enabled(context))
     assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
     val now = System.currentTimeMillis()
-    val next = java.time.ZonedDateTime.now().plusMinutes(1).withSecond(0).withNano(0)
+    val candidate = java.time.ZonedDateTime.now().plusMinutes(1).withSecond(0).withNano(0)
+    val next = if (candidate.toInstant().toEpochMilli() - now < 10_000) candidate.plusMinutes(1) else candidate
     val nextAt = next.toInstant().toEpochMilli()
     val priorAt = now - 1000
     val time = next.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
