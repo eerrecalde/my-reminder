@@ -140,7 +140,8 @@ object ReminderScheduler {
         }
       }
       if (at <= now && at > medicine.createdAt && repo.claimAlarm(id, at, token)) {
-        notify(context, medicine.name, medicine.instructions.takeIf { medicine.type == "medicine" && it.isNotBlank() } ?: context.getString(if (medicine.type == "medicine") R.string.reminder_due else R.string.general_reminder_due), ("$id:$at").hashCode())
+        notify(context, medicine.name, medicine.instructions.takeIf { medicine.type == "medicine" && it.isNotBlank() } ?: context.getString(if (medicine.type == "medicine") R.string.reminder_due else R.string.general_reminder_due), ("$id:$at").hashCode(), medicine.mode == "alarm")
+        if (medicine.mode == "alarm") AlarmSoundService.start(context, id, at)
         schedule(context, medicine)
       }
     }
@@ -189,12 +190,12 @@ object ReminderScheduler {
       schedule(context, medicine, now)
     }
   }
-  fun notify(context: Context, title: String, text: String, id: Int) {
+  fun notify(context: Context, title: String, text: String, id: Int, silent: Boolean = false) {
     val manager = context.getSystemService(NotificationManager::class.java)
     manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.reminder_channel), NotificationManager.IMPORTANCE_HIGH).apply { enableVibration(true) })
     val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     val notification = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle(title).setContentText(text).setContentIntent(open).setAutoCancel(true).setPriority(NotificationCompat.PRIORITY_HIGH).build()
+      .setContentTitle(title).setContentText(text).setContentIntent(open).setAutoCancel(true).setSilent(silent).setPriority(NotificationCompat.PRIORITY_HIGH).build()
     try { NotificationManagerCompat.from(context).notify(id, notification) } catch (_: SecurityException) { }
   }
 }

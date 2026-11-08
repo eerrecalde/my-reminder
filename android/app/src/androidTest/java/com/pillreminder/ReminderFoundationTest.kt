@@ -80,4 +80,51 @@ class ReminderFoundationTest {
       }
     }
   }
+  @Test fun overlappingAlarmsShareSoundAndStopWithoutChangingOccurrences() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val ids = mutableListOf<String>()
+    val notificationIds = mutableListOf<Int>()
+    val notifications = context.getSystemService(NotificationManager::class.java)
+    try {
+      listOf("medicine", "reminder").forEach { type ->
+        val now = System.currentTimeMillis()
+        val time = LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))
+        val item = MedicineRepository(context).use { it.save("Alarm test", "", listOf(time), now - 10_000, type, "alarm") }
+        ids.add(item.id)
+        val due = now - 1000
+        MedicineRepository(context).use { it.setAlarm(item.id, due, "test-$type") }
+        ReminderScheduler.deliver(context, item.id, due, "test-$type")
+        notificationIds.add(("${item.id}:$due").hashCode())
+      }
+      var session: Notification? = null
+      repeat(50) {
+        if (session == null) { Thread.sleep(100); session = notifications.activeNotifications.find { it.id == 119348 }?.notification }
+      }
+      assertNotNull("Alarm sound session should be running", session)
+      assertEquals(1, notifications.activeNotifications.count { it.id == 119348 })
+      val audio = context.getSystemService(android.media.AudioManager::class.java)
+      assertTrue("Alarm audio should be playing", audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
+      assertEquals(context.getString(R.string.stop_sound), session!!.actions.single().title.toString())
+      session!!.actions.single().actionIntent.send()
+      repeat(50) {
+        if (notifications.activeNotifications.any { it.id == 119348 }) Thread.sleep(100)
+      }
+      assertFalse(notifications.activeNotifications.any { it.id == 119348 })
+      assertFalse("Alarm audio should stop", audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
+      MedicineRepository(context).use { repo ->
+        assertEquals(2, repo.todayDoses(0, System.currentTimeMillis() + 1000).count { it.first in ids })
+      }
+    } finally {
+      context.stopService(Intent(context, AlarmSoundService::class.java))
+      notificationIds.forEach { notifications.cancel(it) }
+      MedicineRepository(context).use { repo -> ids.forEach { id ->
+        repo.alarm(id)?.let { cancel(context, it) }
+        repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(id))
+        repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(id))
+      } }
+    }
+  }
 }

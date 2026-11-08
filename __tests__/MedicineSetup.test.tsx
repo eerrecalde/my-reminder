@@ -43,6 +43,7 @@ test('requires a name and previews three daily reminders before saving', async (
   await press('Save medicine');
   expect(save).toHaveBeenCalledWith({
     type: 'medicine',
+    mode: 'notification',
     name: 'Aspirin',
     instructions: '',
     times: ['09:00'],
@@ -76,6 +77,7 @@ test('lets the user add a second daily time using the time selector', async () =
   await press('Save medicine');
   expect(save).toHaveBeenCalledWith({
     type: 'medicine',
+    mode: 'notification',
     name: 'Aspirin',
     instructions: '',
     times: ['09:00', '21:30'],
@@ -186,8 +188,46 @@ test('creates a reminder without medicine instructions', async () => {
   await press('Save reminder');
   expect(save).toHaveBeenCalledWith({
     type: 'reminder',
+    mode: 'notification',
     name: 'Water',
     instructions: '',
     times: ['09:00'],
   });
 });
+
+test.each(['Reminder', 'Medicine'])(
+  'selects and reviews alarm for %s',
+  async type => {
+    const save = jest.fn();
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(() => {
+      view = ReactTestRenderer.create(
+        <MedicineSetup language="en" onSave={save} />,
+      );
+    });
+    const press = async (title: string) => {
+      await ReactTestRenderer.act(() =>
+        view.root
+          .findAllByType(Button)
+          .find(b => b.props.title === title)!
+          .props.onPress(),
+      );
+    };
+    await press(type);
+    await ReactTestRenderer.act(() =>
+      view.root.findAllByType(TextInput)[0].props.onChangeText('Test'),
+    );
+    await press('Next');
+    await press('Alarm');
+    await press('Review');
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(t => t.props.children === 'Reminder: Alarm'),
+    ).toBe(true);
+    await press(type === 'Medicine' ? 'Save medicine' : 'Save reminder');
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'alarm' }),
+    );
+  },
+);

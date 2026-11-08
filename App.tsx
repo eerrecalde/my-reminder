@@ -116,6 +116,7 @@ export default function App() {
                     medicine.name,
                     medicine.instructions,
                     medicine.times,
+                    medicine.mode,
                   );
                   await refresh();
                   setScreen('today');

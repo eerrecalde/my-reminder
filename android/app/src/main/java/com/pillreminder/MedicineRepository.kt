@@ -7,29 +7,30 @@ import android.database.sqlite.SQLiteOpenHelper
 import org.json.JSONArray
 import java.util.UUID
 
-data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine")
+data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification")
 
 /** Shared by the React Native bridge and Android receivers. */
-class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 5) {
+class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 6) {
   override fun onCreate(db: SQLiteDatabase) {
-    db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine')")
+    db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification')")
     db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0)")
   }
   override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+    if (oldVersion < 6) db.execSQL("ALTER TABLE medicines ADD COLUMN mode TEXT NOT NULL DEFAULT 'notification'")
     if (oldVersion < 5) db.execSQL("ALTER TABLE medicines ADD COLUMN type TEXT NOT NULL DEFAULT 'medicine'")
     if (oldVersion < 3) db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
     else if (oldVersion < 4) db.execSQL("ALTER TABLE alarms ADD COLUMN registered INTEGER NOT NULL DEFAULT 1")
     if (oldVersion < 2) db.execSQL("ALTER TABLE doses ADD COLUMN alerted INTEGER NOT NULL DEFAULT 1")
   }
 
-  fun save(name: String, instructions: String, times: List<String>, now: Long, type: String = "medicine"): Medicine {
-    require(name.isNotBlank() && times.isNotEmpty() && type in listOf("medicine", "reminder"))
+  fun save(name: String, instructions: String, times: List<String>, now: Long, type: String = "medicine", mode: String = "notification"): Medicine {
+    require(name.isNotBlank() && times.isNotEmpty() && type in listOf("medicine", "reminder") && mode in listOf("notification", "alarm"))
     times.forEach { java.time.LocalTime.parse(it) }
-    val medicine = Medicine(UUID.randomUUID().toString(), name.trim(), instructions.trim(), times.distinct(), now, type)
+    val medicine = Medicine(UUID.randomUUID().toString(), name.trim(), instructions.trim(), times.distinct(), now, type, mode)
     val values = ContentValues().apply {
       put("id", medicine.id); put("name", medicine.name); put("instructions", medicine.instructions)
-      put("type", medicine.type); put("times", JSONArray(medicine.times).toString()); put("created_at", medicine.createdAt)
+      put("type", medicine.type); put("mode", medicine.mode); put("times", JSONArray(medicine.times).toString()); put("created_at", medicine.createdAt)
     }
     writableDatabase.insertOrThrow("medicines", null, values)
     return medicine
@@ -37,10 +38,10 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
 
   fun all(): List<Medicine> {
     val medicines = mutableListOf<Medicine>()
-    readableDatabase.rawQuery("SELECT id, name, instructions, times, created_at, type FROM medicines ORDER BY created_at", null).use { cursor ->
+    readableDatabase.rawQuery("SELECT id, name, instructions, times, created_at, type, mode FROM medicines ORDER BY created_at", null).use { cursor ->
       while (cursor.moveToNext()) {
         val array = JSONArray(cursor.getString(3))
-        medicines.add(Medicine(cursor.getString(0), cursor.getString(1), cursor.getString(2), (0 until array.length()).map { array.getString(it) }, cursor.getLong(4), cursor.getString(5)))
+        medicines.add(Medicine(cursor.getString(0), cursor.getString(1), cursor.getString(2), (0 until array.length()).map { array.getString(it) }, cursor.getLong(4), cursor.getString(5), cursor.getString(6)))
       }
     }
     return medicines

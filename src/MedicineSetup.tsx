@@ -12,6 +12,7 @@ import type { ReminderType } from './reminderRepository';
 
 export type DailyMedicineInput = {
   type: ReminderType;
+  mode: 'notification' | 'alarm';
   name: string;
   instructions: string;
   times: string[];
@@ -42,6 +43,9 @@ const copy = {
     removeTime: 'Remove time',
     invalid: 'Enter one or more times, for example 09:00, 21:00',
     mode: 'Reminder: Notification',
+    alarmMode: 'Reminder: Alarm',
+    notification: 'Notification',
+    alarm: 'Alarm',
     review: 'Review',
     nextThree: 'Next three reminders',
     everyDay: 'Every day at',
@@ -66,6 +70,9 @@ const copy = {
     removeTime: 'Quitar hora',
     invalid: 'Escribe una o más horas, por ejemplo 09:00, 21:00',
     mode: 'Recordatorio: Notificación',
+    alarmMode: 'Recordatorio: Alarma',
+    notification: 'Notificación',
+    alarm: 'Alarma',
     review: 'Revisar',
     nextThree: 'Próximos tres recordatorios',
     everyDay: 'Todos los días a las',
@@ -78,6 +85,7 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
   const t = copy[language];
   const [step, setStep] = useState(0);
   const [type, setType] = useState<ReminderType>('reminder');
+  const [mode, setMode] = useState<'notification' | 'alarm'>('notification');
   const [name, setName] = useState('');
   const [instructions, setInstructions] = useState('');
   const [times, setTimes] = useState(['09:00']);
@@ -199,7 +207,19 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
                 );
             }}
           />
-          <Text style={styles.label}>{t.mode}</Text>
+          <Text accessibilityLiveRegion="polite" style={styles.label}>
+            {mode === 'alarm' ? t.alarmMode : t.mode}
+          </Text>
+          <Button
+            title={t.notification}
+            color="#00535b"
+            onPress={() => setMode('notification')}
+          />
+          <Button
+            title={t.alarm}
+            color="#00535b"
+            onPress={() => setMode('alarm')}
+          />
         </>
       )}
       {step === 3 && (
@@ -211,7 +231,9 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
           {type === 'medicine' && !!instructions.trim() && (
             <Text style={styles.label}>{instructions.trim()}</Text>
           )}
-          <Text style={styles.label}>{t.mode}</Text>
+          <Text style={styles.label}>
+            {mode === 'alarm' ? t.alarmMode : t.mode}
+          </Text>
           <Text style={styles.label}>
             {t.everyDay} {times.join(', ')}
           </Text>
@@ -262,6 +284,7 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
               try {
                 await onSave({
                   type,
+                  mode,
                   name: name.trim(),
                   instructions: type === 'medicine' ? instructions.trim() : '',
                   times: [...new Set(times)],

@@ -5,4 +5,7 @@
     <string name="general_reminder_due">Your reminder is due</string>
     <string name="test_reminder">Test reminder</string>
     <string name="test_reminder_body">Your reminders are working</string>
+    <string name="alarm_channel">Alarm sound</string>
+    <string name="alarm_playing">Alarm sounding</string>
+    <string name="stop_sound">Stop sound</string>
 </resources>

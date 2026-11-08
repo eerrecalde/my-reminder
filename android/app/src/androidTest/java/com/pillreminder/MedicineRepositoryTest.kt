@@ -26,9 +26,12 @@ class MedicineRepositoryTest {
       assertEquals(Medicine("old", "Aspirin", "one tablet", listOf("09:00"), 1000, "medicine"), repo.all().single())
       assertEquals(MedicineRepository.Alarm("old", 2000, "token", true), repo.alarm("old"))
       assertEquals(listOf("old" to 1500L), repo.todayDoses(0, 2000))
-      repo.save("Water", "", listOf("10:00"), 3000, "reminder")
+      repo.save("Water", "", listOf("10:00"), 3000, "reminder", "alarm")
     }
-    MedicineRepository(context, name).use { assertEquals(listOf("medicine", "reminder"), it.all().map { item -> item.type }) }
+    MedicineRepository(context, name).use {
+      assertEquals(listOf("medicine", "reminder"), it.all().map { item -> item.type })
+      assertEquals(listOf("notification", "alarm"), it.all().map { item -> item.mode })
+    }
     context.deleteDatabase(name)
   }
 
