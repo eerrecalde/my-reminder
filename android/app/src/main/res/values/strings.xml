@@ -13,4 +13,5 @@
     <string name="skip">Skip</string>
     <string name="skipped">Skipped</string>
     <string name="undo">Undo</string>
+    <string name="snooze_ten">Snooze 10 minutes</string>
 </resources>

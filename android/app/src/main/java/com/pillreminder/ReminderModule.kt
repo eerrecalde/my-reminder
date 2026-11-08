@@ -34,7 +34,6 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       result.putArray("medicines", medicines)
       val today = java.time.LocalDate.now()
       val zone = java.time.ZoneId.systemDefault()
-      val start = today.atStartOfDay(zone).toInstant().toEpochMilli()
       val end = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
       val doses = Arguments.createArray()
       val history = Arguments.createArray()
@@ -44,12 +43,10 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
         val medicinesById = repo.all().associateBy { it.id }
         repo.occurrences(includeCleared = true).forEach { occurrence ->
           fun occurrenceMap() = Arguments.createMap().apply {
-            putString("medicineId", occurrence.medicineId); putDouble("scheduledAt", occurrence.at.toDouble()); putString("outcome", occurrence.outcome)
+            putString("medicineId", occurrence.medicineId); putDouble("scheduledAt", occurrence.at.toDouble()); putString("outcome", occurrence.outcome); putBoolean("outstanding", occurrence.outstanding); putBoolean("snoozed", repo.snooze(occurrence.medicineId, occurrence.at) != null)
           }
           val medicine = medicinesById[occurrence.medicineId]
-          val previousOutstanding = occurrence.at < start && !occurrence.cleared && occurrence.outcome == null && medicine != null &&
-            DailySchedule.next(medicine.times, java.time.Instant.ofEpochMilli(occurrence.at), zone) > now
-          if (occurrence.at in start until end || previousOutstanding) doses.pushMap(occurrenceMap())
+          if (TodayPolicy.includes(occurrence, medicine, now, zone)) doses.pushMap(occurrenceMap())
           if (!occurrence.cleared && occurrence.outcome != null) history.pushMap(occurrenceMap())
         }
         medicinesById.values.forEach { medicine ->
@@ -66,6 +63,10 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       result.putArray("upcoming", upcoming)
       promise.resolve(result)
     } catch (error: Exception) { promise.reject("state_failed", error) }
+  }
+  @ReactMethod fun snooze(id: String, at: Double, minutes: Int, promise: Promise) {
+    try { check(ReminderScheduler.snooze(reactContext, id, at.toLong(), minutes)) { "Unable to snooze occurrence" }; promise.resolve(null) }
+    catch (error: Exception) { promise.reject("snooze_failed", error) }
   }
   @ReactMethod fun setOutcome(id: String, at: Double, outcome: String?, promise: Promise) {
     try {

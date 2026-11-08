@@ -20,6 +20,7 @@
       android:supportsRtl="true">
       <service android:name=".AlarmSoundService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
       <receiver android:name=".ReminderReceiver" android:exported="false" />
+      <receiver android:name=".SnoozeReceiver" android:exported="false" />
       <receiver android:name=".OutcomeReceiver" android:exported="false" />
       <receiver android:name=".ReminderWatchdogReceiver" android:exported="false" />
       <receiver android:name=".ReconciliationReceiver" android:exported="false" />

@@ -12,4 +12,5 @@
     <string name="skip">Omitir</string>
     <string name="skipped">Omitido</string>
     <string name="undo">Deshacer</string>
+    <string name="snooze_ten">Posponer 10 minutos</string>
 </resources>

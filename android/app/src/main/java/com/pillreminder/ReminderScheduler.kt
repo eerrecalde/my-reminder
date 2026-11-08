@@ -20,8 +20,65 @@ object ReminderScheduler {
   private fun alarmManager(context: Context) = context.getSystemService(AlarmManager::class.java)
   private fun notificationId(id: String, at: Long) = ("$id:$at").hashCode()
   private fun dismissOccurrence(context: Context, id: String, at: Long) {
+    cancelSnooze(context, id, at)
+    MedicineRepository(context).use { it.setOutstanding(id, at, false) }
     NotificationManagerCompat.from(context).cancel(notificationId(id, at))
     AlarmSoundService.stopOccurrence(context, id, at)
+  }
+
+  private fun snoozeIntent(context: Context, item: MedicineRepository.Snooze, watchdog: Boolean = false): PendingIntent {
+    val intent = Intent(context, SnoozeReceiver::class.java)
+      .setData(Uri.parse("pillreminder://${if (watchdog) "snooze-watchdog" else "snooze"}/${item.medicineId}/${item.at}/${item.token}"))
+      .putExtra("id", item.medicineId).putExtra("at", item.at).putExtra("token", item.token)
+    return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+  }
+  private fun registerSnooze(context: Context, item: MedicineRepository.Snooze) {
+    val show = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    alarmManager(context).setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, maxOf(item.alertAt + 60_000, System.currentTimeMillis() + 60_000), snoozeIntent(context, item, true))
+    alarmManager(context).setAlarmClock(AlarmManager.AlarmClockInfo(item.alertAt, show), snoozeIntent(context, item))
+  }
+  private fun cancelSnooze(context: Context, id: String, at: Long) {
+    MedicineRepository(context).use { repo ->
+      repo.snooze(id, at)?.let { item ->
+        listOf(false, true).forEach { watchdog ->
+          val operation = snoozeIntent(context, item, watchdog)
+          alarmManager(context).cancel(operation)
+          operation.cancel()
+        }
+      }
+      repo.removeSnooze(id, at)
+    }
+  }
+  @Synchronized fun snooze(context: Context, id: String, at: Long, minutes: Int): Boolean {
+    require(minutes in listOf(5, 10, 15))
+    if (!enabled(context)) return false
+    val item = MedicineRepository.Snooze(id, at, System.currentTimeMillis() + minutes * 60_000L, UUID.randomUUID().toString())
+    MedicineRepository(context).use { repo ->
+      val medicine = repo.all().find { it.id == id } ?: return false
+      val occurrence = repo.occurrences().find { it.medicineId == id && it.at == at } ?: return false
+      if (!occurrence.outstanding || occurrence.outcome != null || DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault()) <= Instant.now()) return false
+      if (!repo.saveSnooze(item)) return true
+      try { registerSnooze(context, item) }
+      catch (_: SecurityException) { repo.removeSnooze(id, at); return false }
+    }
+    NotificationManagerCompat.from(context).cancel(notificationId(id, at))
+    AlarmSoundService.stopOccurrence(context, id, at)
+    return true
+  }
+  @Synchronized fun deliverSnooze(context: Context, id: String, at: Long, token: String) {
+    MedicineRepository(context).use { repo ->
+      val item = repo.snooze(id, at) ?: return
+      if (item.token != token || item.alertAt > System.currentTimeMillis()) return
+      val medicine = repo.all().find { it.id == id }
+      val occurrence = repo.occurrences().find { it.medicineId == id && it.at == at }
+      if (medicine == null || occurrence == null || !enabled(context) || recoveryPending(context) || occurrence.outcome != null || DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault()) <= Instant.now()) {
+        cancelSnooze(context, id, at)
+        return
+      }
+      notifyOccurrence(context, medicine, at)
+      if (medicine.mode == "alarm") AlarmSoundService.start(context, id, at)
+      cancelSnooze(context, id, at)
+    }
   }
 
   private fun reconcileOccurrences(context: Context, repo: MedicineRepository, medicine: Medicine, now: Instant, zone: ZoneId) {
@@ -117,6 +174,11 @@ object ReminderScheduler {
       val zone = ZoneId.systemDefault()
       val medicines = repo.all()
       if (medicines.isNotEmpty()) ensureReconciliation(context)
+      repo.snoozes().forEach { item ->
+        if (available && (item.alertAt > now.toEpochMilli() || !invalidate)) {
+          try { registerSnooze(context, item) } catch (_: SecurityException) { cancelSnooze(context, item.medicineId, item.at) }
+        } else if (item.alertAt <= now.toEpochMilli() && invalidate) cancelSnooze(context, item.medicineId, item.at)
+      }
       medicines.forEach { medicine ->
         if (invalidate) {
           val legacyIntent = Intent(context, ReminderReceiver::class.java).setData(Uri.parse("pillreminder://medicine/${medicine.id}"))
@@ -163,6 +225,7 @@ object ReminderScheduler {
         }
       }
       if (at <= now && at > medicine.createdAt && repo.claimAlarm(id, at, token)) {
+        repo.setOutstanding(id, at, true)
         notifyOccurrence(context, medicine, at)
         if (medicine.mode == "alarm") AlarmSoundService.start(context, id, at)
         schedule(context, medicine)
@@ -195,6 +258,7 @@ object ReminderScheduler {
   }
 
   @Synchronized fun notificationOutcome(context: Context, id: String, at: Long, outcome: String) {
+    if (outcome == "snooze") { snooze(context, id, at, 10); return }
     if (outcome.startsWith("undo_")) {
       val revision = outcome.removePrefix("undo_").toLongOrNull() ?: return
       undoOutcome(context, id, at, null, revision)
@@ -227,6 +291,7 @@ object ReminderScheduler {
       .setCategory(NotificationCompat.CATEGORY_REMINDER).setSilent(medicine.mode == "alarm").setPriority(NotificationCompat.PRIORITY_HIGH)
       .addAction(0, context.getString(if (medicine.type == "medicine") R.string.taken else R.string.completed), outcomeIntent(context, medicine.id, at, "completed"))
       .addAction(0, context.getString(R.string.skip), outcomeIntent(context, medicine.id, at, "skipped"))
+      .addAction(0, context.getString(R.string.snooze_ten), outcomeIntent(context, medicine.id, at, "snooze"))
       .build()
     try { NotificationManagerCompat.from(context).notify(notificationId(medicine.id, at), notification) } catch (_: SecurityException) { }
   }
@@ -322,4 +387,12 @@ class ReminderWatchdogReceiver : BroadcastReceiver() {
 
 class ReconciliationReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) { ReminderScheduler.rebuild(context) }
+}
+
+class SnoozeReceiver : BroadcastReceiver() {
+  override fun onReceive(context: Context, intent: Intent) {
+    val id = intent.getStringExtra("id") ?: return
+    val token = intent.getStringExtra("token") ?: return
+    ReminderScheduler.deliverSnooze(context, id, intent.getLongExtra("at", 0), token)
+  }
 }

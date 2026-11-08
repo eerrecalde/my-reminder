@@ -60,6 +60,9 @@ const words = {
     clear: 'Clear',
     noHistory: 'No history yet.',
     actionError: 'Could not update the occurrence. Please try again.',
+    snooze: 'Snooze',
+    snoozed: 'Snoozed',
+    minutes: 'minutes',
   },
   es: {
     today: 'Hoy',
@@ -100,6 +103,9 @@ const words = {
     clear: 'Borrar',
     noHistory: 'Aún no hay historial.',
     actionError: 'No se pudo actualizar. Inténtalo de nuevo.',
+    snooze: 'Posponer',
+    snoozed: 'Pospuesto',
+    minutes: 'minutos',
   },
 };
 export default function App() {
@@ -219,6 +225,24 @@ export default function App() {
           accessibilityLabel={`${t.skip}, ${context}`}
           onPress={() => changeOutcome(occurrence, 'skipped')}
         />
+        {occurrence.snoozed && <Text style={styles.text}>{t.snoozed}</Text>}
+        {occurrence.outstanding && !occurrence.snoozed && occurrence.outcome == null && [10, 5, 15].map(minutes => (
+          <Button
+            key={minutes}
+            color="#00535b"
+            title={`${t.snooze} ${minutes} ${t.minutes}`}
+            accessibilityLabel={`${t.snooze} ${minutes} ${t.minutes}, ${context}`}
+            onPress={async () => {
+              try {
+                await reminderRepository.snooze(occurrence.medicineId, occurrence.scheduledAt, minutes);
+                setError('');
+                await refresh();
+              } catch {
+                setError(t.actionError);
+              }
+            }}
+          />
+        ))}
         {occurrence.outcome != null && (
           <Button
             color="#00535b"

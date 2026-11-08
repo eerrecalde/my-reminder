@@ -251,3 +251,29 @@ test.each([
     await ReactTestRenderer.act(() => renderer.unmount());
   },
 );
+
+test.each([
+  ['en', 'Snooze', 'minutes'],
+  ['es', 'Posponer', 'minutos'],
+])('offers accessible snooze choices in %s', async (language, snoozeText, minutesText) => {
+  const repository = require('../src/reminderRepository');
+  const snooze = jest.fn().mockResolvedValue(undefined);
+  repository.reminderRepository = {
+    snooze,
+    state: jest.fn().mockResolvedValue({
+      enabled: true, language, medicines: [
+        { id: 'r', type: 'reminder', name: 'Water', instructions: '', times: ['23:59'] },
+      ], todayDoses: [{ medicineId: 'r', scheduledAt: 2000, outstanding: true }], upcoming: [], history: [],
+    }),
+  };
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<App />); });
+  const buttons = renderer.root.findAllByType(Button);
+  for (const duration of [5, 10, 15]) {
+    const button = buttons.find(item => item.props.title === `${snoozeText} ${duration} ${minutesText}`)!;
+    expect(button.props.accessibilityLabel).toContain('Water');
+    await ReactTestRenderer.act(async () => { await button.props.onPress(); });
+    expect(snooze).toHaveBeenLastCalledWith('r', 2000, duration);
+  }
+  await ReactTestRenderer.act(() => renderer.unmount());
+});

@@ -8,6 +8,8 @@ export type Occurrence = {
   medicineId: string;
   scheduledAt: number;
   outcome?: Outcome | null;
+  outstanding?: boolean;
+  snoozed?: boolean;
 };
 export type ReminderState = {
   enabled: boolean;
@@ -21,6 +23,7 @@ export type ReminderState = {
 };
 export interface ReminderRepository {
   state(): Promise<ReminderState>;
+  snooze(id: string, at: number, minutes: number): Promise<void>;
   setOutcome(
     id: string,
     at: number,
