@@ -46,6 +46,7 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
   @ReactMethod fun save(name: String, instructions: String, times: ReadableArray, promise: Promise) {
     try {
       val clockTimes = (0 until times.size()).map { requireNotNull(times.getString(it)) }
+      ReminderScheduler.ensureReconciliation(reactContext)
       MedicineRepository(reactContext).use { repo ->
         val medicine = repo.save(name, instructions, clockTimes, System.currentTimeMillis())
         ReminderScheduler.schedule(reactContext, medicine)
