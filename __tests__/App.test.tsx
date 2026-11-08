@@ -263,7 +263,7 @@ test.each([
     state: jest.fn().mockResolvedValue({
       enabled: true, language, medicines: [
         { id: 'r', type: 'reminder', name: 'Water', instructions: '', times: ['23:59'] },
-      ], todayDoses: [{ medicineId: 'r', scheduledAt: 2000 }], upcoming: [], history: [],
+      ], todayDoses: [{ medicineId: 'r', scheduledAt: 2000, outstanding: true }], upcoming: [], history: [],
     }),
   };
   let renderer!: ReactTestRenderer.ReactTestRenderer;
