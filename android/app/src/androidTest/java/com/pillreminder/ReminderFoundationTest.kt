@@ -228,7 +228,6 @@ class ReminderFoundationTest {
     assertTrue("Run this test only on a disposable installation with no reminders", MedicineRepository(context).use { it.all().isEmpty() })
     val ids = mutableListOf<String>()
     val notificationIds = mutableListOf<Int>()
-    val dueTimes = mutableListOf<Long>()
     val notifications = context.getSystemService(NotificationManager::class.java)
     try {
       listOf("medicine", "reminder").forEach { type ->
@@ -282,19 +281,30 @@ class ReminderFoundationTest {
     val ids = mutableListOf<String>()
     val notificationIds = mutableListOf<Int>()
     val dueTimes = mutableListOf<Long>()
+    val scheduledIntents = mutableListOf<PendingIntent>()
+    val due = System.currentTimeMillis() + 5000
     val notifications = context.getSystemService(NotificationManager::class.java)
     try {
-      listOf("medicine", "reminder").forEach { type ->
+      listOf("medicine", "reminder", "reminder").forEachIndexed { index, type ->
         val now = System.currentTimeMillis()
         val time = LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))
         val item = MedicineRepository(context).use { it.save("Alarm test", "", listOf(time), now - 10_000, type, "alarm") }
         ids.add(item.id)
-        val due = now - 1000
-        dueTimes.add(due)
-        MedicineRepository(context).use { it.setAlarm(item.id, due, "test-$type") }
-        ReminderScheduler.deliver(context, item.id, due, "test-$type")
-        notificationIds.add(("${item.id}:$due").hashCode())
+        val at = due + if (index == 2) 1000 else 0
+        val token = "test-$index"
+        dueTimes.add(at)
+        MedicineRepository(context).use { it.setAlarm(item.id, at, token) }
+        val intent = Intent(context, ReminderReceiver::class.java)
+          .setData(Uri.parse("pillreminder://test/${item.id}/$token"))
+          .putExtra("medicineId", item.id).putExtra("scheduledAt", at).putExtra("token", token)
+        val operation = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        scheduledIntents.add(operation)
+        val show = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at, show), operation)
+        notificationIds.add(("${item.id}:$at").hashCode())
       }
+      repeat(150) { if (notificationIds.any { id -> notifications.activeNotifications.none { it.id == id } }) Thread.sleep(100) }
+      assertTrue("All scheduled alarms should be delivered", notificationIds.all { id -> notifications.activeNotifications.any { it.id == id } })
       var session: Notification? = null
       repeat(50) {
         if (session == null) { Thread.sleep(100); session = notifications.activeNotifications.find { it.id == 119348 }?.notification }
@@ -309,18 +319,28 @@ class ReminderFoundationTest {
       repeat(50) { if (MedicineRepository(context).use { it.outcome(ids[0], dueTimes[0]) } != "completed") Thread.sleep(50) }
       assertEquals("completed", MedicineRepository(context).use { it.outcome(ids[0], dueTimes[0]) })
       assertNull(MedicineRepository(context).use { it.outcome(ids[1], dueTimes[1]) })
+      Thread.sleep(500) // Allow the occurrence-stop broadcast to reach the sound service.
       assertTrue("The other occurrence should keep the session running", notifications.activeNotifications.any { it.id == 119348 })
       assertTrue("The other occurrence should keep sound playing", audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
+      val second = requireNotNull(notifications.activeNotifications.find { it.id == notificationIds[1] }).notification
+      second.actions[1].actionIntent.send()
+      repeat(50) { if (MedicineRepository(context).use { it.outcome(ids[1], dueTimes[1]) } != "skipped") Thread.sleep(50) }
+      assertEquals("skipped", MedicineRepository(context).use { it.outcome(ids[1], dueTimes[1]) })
+      Thread.sleep(500)
+      assertTrue("The remaining occurrence should keep sound playing", audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
       session!!.actions.single().actionIntent.send()
       repeat(50) {
         if (notifications.activeNotifications.any { it.id == 119348 }) Thread.sleep(100)
       }
       assertFalse(notifications.activeNotifications.any { it.id == 119348 })
+      repeat(50) { if (audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION }) Thread.sleep(100) }
       assertFalse("Alarm audio should stop", audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
+      assertNull(MedicineRepository(context).use { it.outcome(ids[2], dueTimes[2]) })
       MedicineRepository(context).use { repo ->
-        assertEquals(2, repo.todayDoses(0, System.currentTimeMillis() + 1000).count { it.first in ids })
+        assertEquals(3, repo.todayDoses(0, System.currentTimeMillis() + 1000).count { it.first in ids })
       }
     } finally {
+      scheduledIntents.forEach { context.getSystemService(AlarmManager::class.java).cancel(it); it.cancel() }
       context.stopService(Intent(context, AlarmSoundService::class.java))
       notificationIds.forEach { notifications.cancel(it) }
       MedicineRepository(context).use { repo -> ids.forEach { id ->
