@@ -36,7 +36,6 @@ class ReminderFoundationTest {
       assertEquals("missed", occurrences.find { it.at == at }?.outcome)
       assertFalse(context.getSystemService(NotificationManager::class.java).activeNotifications.any { it.id == ("${item.id}:$at").hashCode() })
     } finally {
-      runCatching { ReminderScheduler.recordOutcome(context, item.id, due, "skipped") }
       MedicineRepository(context).use { repo ->
         repo.alarm(item.id)?.let { cancel(context, it) }
         repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
@@ -133,6 +132,7 @@ class ReminderFoundationTest {
       assertFalse(ReminderScheduler.snooze(context, item.id, due, 10))
       assertNull(MedicineRepository(context).use { it.snooze(item.id, due) })
     } finally {
+      runCatching { ReminderScheduler.recordOutcome(context, item.id, due, "skipped") }
       MedicineRepository(context).use { repo ->
         repo.alarm(item.id)?.let { cancel(context, it) }
         repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
