@@ -10,12 +10,14 @@ import java.util.UUID
 data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long)
 
 /** Shared by the React Native bridge and Android receivers. */
-class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 2) {
+class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 3) {
   override fun onCreate(db: SQLiteDatabase) {
     db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL)")
+    db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL)")
     db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0)")
   }
   override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+    if (oldVersion < 3) db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL)")
     if (oldVersion < 2) db.execSQL("ALTER TABLE doses ADD COLUMN alerted INTEGER NOT NULL DEFAULT 1")
   }
 
@@ -42,7 +44,36 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     return medicines
   }
 
+  data class Alarm(val medicineId: String, val at: Long, val token: String)
+
+  fun alarm(medicineId: String): Alarm? {
+    readableDatabase.rawQuery("SELECT scheduled_at, token FROM alarms WHERE medicine_id = ?", arrayOf(medicineId)).use { cursor ->
+      return if (cursor.moveToFirst()) Alarm(medicineId, cursor.getLong(0), cursor.getString(1)) else null
+    }
+  }
+
+  fun setAlarm(medicineId: String, at: Long, token: String) {
+    val values = ContentValues().apply { put("medicine_id", medicineId); put("scheduled_at", at); put("token", token) }
+    writableDatabase.insertWithOnConflict("alarms", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+  }
+
+  fun invalidateAlarm(medicineId: String) {
+    writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(medicineId))
+  }
+
+  fun claimAlarm(medicineId: String, at: Long, token: String): Boolean {
+    val db = writableDatabase
+    db.beginTransaction()
+    try {
+      val removed = db.delete("alarms", "medicine_id = ? AND scheduled_at = ? AND token = ?", arrayOf(medicineId, at.toString(), token)) == 1
+      val claimed = removed && recordDose(medicineId, at)
+      db.setTransactionSuccessful()
+      return claimed
+    } finally { db.endTransaction() }
+  }
+
   fun recordDue(medicineId: String, at: Long) {
+    if (alarm(medicineId)?.at == at) return
     val values = ContentValues().apply { put("id", "$medicineId:$at"); put("medicine_id", medicineId); put("scheduled_at", at); put("alerted", 1) }
     writableDatabase.insertWithOnConflict("doses", null, values, SQLiteDatabase.CONFLICT_IGNORE)
   }

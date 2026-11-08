@@ -46,3 +46,34 @@ test('requires a name and previews three daily reminders before saving', async (
     times: ['09:00'],
   });
 });
+
+test('lets the user add a second daily time using the time selector', async () => {
+  const save = jest.fn();
+  const selectTime = jest.fn().mockResolvedValue('21:30');
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    view = ReactTestRenderer.create(
+      <MedicineSetup language="en" onSave={save} selectTime={selectTime} />,
+    );
+  });
+  const press = async (title: string) => {
+    await ReactTestRenderer.act(async () => {
+      await view.root
+        .findAllByType(Button)
+        .find(button => button.props.title === title)!
+        .props.onPress();
+    });
+  };
+  await ReactTestRenderer.act(() =>
+    view.root.findAllByType(TextInput)[0].props.onChangeText('Aspirin'),
+  );
+  await press('Next');
+  await press('Add a time');
+  await press('Review');
+  await press('Save medicine');
+  expect(save).toHaveBeenCalledWith({
+    name: 'Aspirin',
+    instructions: '',
+    times: ['09:00', '21:30'],
+  });
+});

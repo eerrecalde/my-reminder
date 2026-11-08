@@ -16,6 +16,7 @@ export interface ReminderRepository {
   openAlarmSettings(): void;
   openNotificationSettings(): void;
   testReminder(): void;
+  selectTime(time: string): Promise<string | null>;
 }
 export const reminderRepository: ReminderRepository =
   NativeModules.ReminderRepository;

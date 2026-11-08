@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { isDailyTime, nextDailyOccurrences } from './dailySchedule';
+import { nextDailyOccurrences } from './dailySchedule';
 
 export type DailyMedicineInput = {
   name: string;
@@ -18,6 +18,7 @@ type Props = {
   language: 'en' | 'es';
   now?: Date;
   onSave: (medicine: DailyMedicineInput) => void;
+  selectTime?: (time: string) => Promise<string | null>;
 };
 
 const copy = {
@@ -28,7 +29,10 @@ const copy = {
     next: 'Next',
     required: 'Enter a medicine name',
     schedule: 'Schedule',
-    times: 'Daily times (24-hour, separated by commas)',
+    times: 'Daily times',
+    addTime: 'Add a time',
+    changeTime: 'Change time',
+    removeTime: 'Remove time',
     invalid: 'Enter one or more times, for example 09:00, 21:00',
     mode: 'Reminder: Notification',
     review: 'Review',
@@ -44,7 +48,10 @@ const copy = {
     next: 'Continuar',
     required: 'Escribe el nombre del medicamento',
     schedule: 'Horario',
-    times: 'Horas diarias (formato de 24 horas, separadas por comas)',
+    times: 'Horas diarias',
+    addTime: 'Agregar una hora',
+    changeTime: 'Cambiar hora',
+    removeTime: 'Quitar hora',
     invalid: 'Escribe una o más horas, por ejemplo 09:00, 21:00',
     mode: 'Recordatorio: Notificación',
     review: 'Revisar',
@@ -55,23 +62,19 @@ const copy = {
   },
 };
 
-export function MedicineSetup({ language, now, onSave }: Props) {
+export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
   const t = copy[language];
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [instructions, setInstructions] = useState('');
-  const [timeText, setTimeText] = useState('09:00');
+  const [times, setTimes] = useState(['09:00']);
   const [error, setError] = useState('');
-  const times = timeText.split(',').map(time => time.trim());
   const next = () => {
     if (step === 0 && !name.trim()) {
       setError(t.required);
       return;
     }
-    if (
-      step === 1 &&
-      (!times.length || times.some(time => !isDailyTime(time)))
-    ) {
+    if (step === 1 && !times.length) {
       setError(t.invalid);
       return;
     }
@@ -107,11 +110,43 @@ export function MedicineSetup({ language, now, onSave }: Props) {
       {step === 1 && (
         <>
           <Text style={styles.label}>{t.times}</Text>
-          <TextInput
-            accessibilityLabel={t.times}
-            style={styles.input}
-            value={timeText}
-            onChangeText={setTimeText}
+          {times.map((time, index) => (
+            <View key={`${time}-${index}`} style={styles.timeRow}>
+              <Button
+                title={`${t.changeTime}: ${time}`}
+                onPress={async () => {
+                  const selected = await selectTime?.(time);
+                  if (selected)
+                    setTimes(current =>
+                      [
+                        ...new Set(
+                          current.map((value, i) =>
+                            i === index ? selected : value,
+                          ),
+                        ),
+                      ].sort(),
+                    );
+                }}
+              />
+              {times.length > 1 && (
+                <Button
+                  title={`${t.removeTime}: ${time}`}
+                  onPress={() =>
+                    setTimes(current => current.filter((_, i) => i !== index))
+                  }
+                />
+              )}
+            </View>
+          ))}
+          <Button
+            title={t.addTime}
+            onPress={async () => {
+              const selected = await selectTime?.('09:00');
+              if (selected)
+                setTimes(current =>
+                  [...new Set([...current, selected])].sort(),
+                );
+            }}
           />
           <Text style={styles.label}>{t.mode}</Text>
         </>
@@ -192,4 +227,5 @@ const styles = StyleSheet.create({
   },
   error: { color: '#a01818', fontSize: 18, marginVertical: 12 },
   actions: { gap: 12, marginTop: 24 },
+  timeRow: { gap: 8, marginVertical: 8 },
 });

@@ -91,6 +91,7 @@ export default function App() {
           <>
             <Button title={t.cancel} onPress={() => setScreen('today')} />
             <MedicineSetup
+              selectTime={time => reminderRepository.selectTime(time)}
               language={language}
               onSave={async medicine => {
                 try {
