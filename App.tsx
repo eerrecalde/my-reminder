@@ -308,20 +308,23 @@ export default function App() {
             <MedicineSetup
               initial={editing}
               selectTime={time => reminderRepository.selectTime(time)}
+              selectDate={date => reminderRepository.selectDate(date)}
               language={language}
               onSave={async medicine => {
                 try {
                   await (editing
-                    ? reminderRepository.edit.bind(
+                    ? reminderRepository.editDated.bind(
                         reminderRepository,
                         editing.id,
                       )
-                    : reminderRepository.saveTyped.bind(reminderRepository))(
+                    : reminderRepository.saveDated.bind(reminderRepository))(
                     medicine.type,
                     medicine.name,
                     medicine.instructions,
                     medicine.times,
                     medicine.mode,
+                    medicine.startDate!,
+                    medicine.endDate ?? null,
                   );
                   await refresh();
                   setEditing(undefined);

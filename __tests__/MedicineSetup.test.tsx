@@ -41,13 +41,15 @@ test('requires a name and previews three daily reminders before saving', async (
       .some(text => text.props.children === 'Next three reminders'),
   ).toBe(true);
   await press('Save medicine');
-  expect(save).toHaveBeenCalledWith({
-    type: 'medicine',
-    mode: 'notification',
-    name: 'Aspirin',
-    instructions: '',
-    times: ['09:00'],
-  });
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      type: 'medicine',
+      mode: 'notification',
+      name: 'Aspirin',
+      instructions: '',
+      times: ['09:00'],
+    }),
+  );
 });
 
 test('lets the user add a second daily time using the time selector', async () => {
@@ -75,13 +77,15 @@ test('lets the user add a second daily time using the time selector', async () =
   await press('Add a time');
   await press('Review');
   await press('Save medicine');
-  expect(save).toHaveBeenCalledWith({
-    type: 'medicine',
-    mode: 'notification',
-    name: 'Aspirin',
-    instructions: '',
-    times: ['09:00', '21:30'],
-  });
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      type: 'medicine',
+      mode: 'notification',
+      name: 'Aspirin',
+      instructions: '',
+      times: ['09:00', '21:30'],
+    }),
+  );
 });
 
 test('shows the schedule controls in Spanish', async () => {
@@ -199,13 +203,15 @@ test('creates a reminder without medicine instructions', async () => {
       .some(text => text.props.children === 'Reminder'),
   ).toBe(true);
   await press('Save reminder');
-  expect(save).toHaveBeenCalledWith({
-    type: 'reminder',
-    mode: 'notification',
-    name: 'Water',
-    instructions: '',
-    times: ['09:00'],
-  });
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      type: 'reminder',
+      mode: 'notification',
+      name: 'Water',
+      instructions: '',
+      times: ['09:00'],
+    }),
+  );
 });
 
 test.each(['Reminder', 'Medicine'])(
@@ -289,11 +295,13 @@ test('editing preserves dosage instructions when changing medicine to reminder',
   await press('Next');
   await press('Review');
   await press('Save reminder');
-  expect(save).toHaveBeenCalledWith({
-    type: 'reminder',
-    name: 'Aspirin',
-    instructions: 'With food',
-    times: ['09:00'],
-    mode: 'alarm',
-  });
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      type: 'reminder',
+      name: 'Aspirin',
+      instructions: 'With food',
+      times: ['09:00'],
+      mode: 'alarm',
+    }),
+  );
 });

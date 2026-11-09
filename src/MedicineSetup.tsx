@@ -8,7 +8,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { nextDailyOccurrences } from './dailySchedule';
+import {
+  finalDailyOccurrence,
+  localDateString,
+  nextDailyOccurrences,
+} from './dailySchedule';
 import type { ReminderType } from './reminderRepository';
 
 export type DailyMedicineInput = {
@@ -17,12 +21,15 @@ export type DailyMedicineInput = {
   name: string;
   instructions: string;
   times: string[];
+  startDate?: string | null;
+  endDate?: string | null;
 };
 type Props = {
   language: 'en' | 'es';
   initial?: DailyMedicineInput;
   now?: Date;
   onSave: (medicine: DailyMedicineInput) => void | Promise<void>;
+  selectDate?: (date: string) => Promise<string | null>;
   selectTime?: (time: string) => Promise<string | null>;
 };
 
@@ -50,6 +57,13 @@ const copy = {
     alarm: 'Alarm',
     review: 'Review',
     nextThree: 'Next three reminders',
+    startDate: 'Start date',
+    endDate: 'End date (optional)',
+    setEnd: 'Set end date',
+    clearEnd: 'Remove end date',
+    invalidDates: 'End date must be on or after start date',
+    final: 'Final reminder',
+    none: 'No future reminders',
     everyDay: 'Every day at',
     save: 'Save medicine',
     back: 'Back',
@@ -77,6 +91,13 @@ const copy = {
     alarm: 'Alarma',
     review: 'Revisar',
     nextThree: 'Próximos tres recordatorios',
+    startDate: 'Fecha de inicio',
+    endDate: 'Fecha de fin (opcional)',
+    setEnd: 'Elegir fecha de fin',
+    clearEnd: 'Quitar fecha de fin',
+    invalidDates: 'La fecha de fin debe ser igual o posterior a la de inicio',
+    final: 'Último recordatorio',
+    none: 'No hay recordatorios futuros',
     everyDay: 'Todos los días a las',
     save: 'Guardar medicamento',
     back: 'Volver',
@@ -89,6 +110,7 @@ export function MedicineSetup({
   now,
   onSave,
   selectTime,
+  selectDate,
 }: Props) {
   const t = copy[language];
   const [step, setStep] = useState(0);
@@ -99,6 +121,12 @@ export function MedicineSetup({
   const [name, setName] = useState(initial?.name ?? '');
   const [instructions, setInstructions] = useState(initial?.instructions ?? '');
   const [times, setTimes] = useState(initial?.times ?? ['09:00']);
+  const [startDate, setStartDate] = useState(
+    initial?.startDate ?? localDateString(now ?? new Date()),
+  );
+  const [endDate, setEndDate] = useState<string | null>(
+    initial?.endDate ?? null,
+  );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -109,6 +137,10 @@ export function MedicineSetup({
     }
     if (step === 2 && !times.length) {
       setError(t.invalid);
+      return;
+    }
+    if (step === 2 && endDate && endDate < startDate) {
+      setError(t.invalidDates);
       return;
     }
     setError('');
@@ -175,6 +207,36 @@ export function MedicineSetup({
       )}
       {step === 2 && (
         <>
+          <Text style={styles.label}>
+            {t.startDate}: {startDate}
+          </Text>
+          <Button
+            color="#00535b"
+            title={t.startDate}
+            onPress={async () => {
+              const value = await selectDate?.(startDate);
+              if (value) setStartDate(value);
+            }}
+          />
+          <Text style={styles.label}>
+            {t.endDate}
+            {endDate ? `: ${endDate}` : ''}
+          </Text>
+          <Button
+            color="#00535b"
+            title={t.setEnd}
+            onPress={async () => {
+              const value = await selectDate?.(endDate ?? startDate);
+              if (value) setEndDate(value);
+            }}
+          />
+          {endDate && (
+            <Button
+              color="#00535b"
+              title={t.clearEnd}
+              onPress={() => setEndDate(null)}
+            />
+          )}
           <Text style={styles.label}>{t.times}</Text>
           {times.map((time, index) => (
             <View key={`${time}-${index}`} style={styles.timeRow}>
@@ -257,7 +319,13 @@ export function MedicineSetup({
           <Text accessibilityRole="header" style={styles.label}>
             {t.nextThree}
           </Text>
-          {nextDailyOccurrences(times, now ?? new Date(), 3).map(date => (
+          {nextDailyOccurrences(
+            times,
+            now ?? new Date(),
+            3,
+            startDate,
+            endDate,
+          ).map(date => (
             <Text key={date.toISOString()} style={styles.label}>
               {date.toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
                 dateStyle: 'full',
@@ -265,6 +333,21 @@ export function MedicineSetup({
               })}
             </Text>
           ))}
+          {nextDailyOccurrences(times, now ?? new Date(), 3, startDate, endDate)
+            .length === 0 && <Text style={styles.label}>{t.none}</Text>}
+          {endDate && (
+            <>
+              <Text accessibilityRole="header" style={styles.label}>
+                {t.final}
+              </Text>
+              <Text style={styles.label}>
+                {finalDailyOccurrence(times, endDate)?.toLocaleString(
+                  language === 'es' ? 'es-MX' : 'en-GB',
+                  { dateStyle: 'full', timeStyle: 'short' },
+                )}
+              </Text>
+            </>
+          )}
         </>
       )}
       {!!error && (
@@ -305,6 +388,8 @@ export function MedicineSetup({
                   name: name.trim(),
                   instructions: instructions.trim(),
                   times: [...new Set(times)],
+                  startDate,
+                  endDate,
                 });
               } finally {
                 savingRef.current = false;

@@ -19,6 +19,8 @@ class MedicineRepositoryTest {
       repo.setOutcome(saved.id, 2000, "completed")
       repo.setAlarm(saved.id, 3000, "future")
       repo.markAlarmRegistered(saved.id, "future")
+      repo.writableDatabase.execSQL("ALTER TABLE medicines DROP COLUMN start_date")
+      repo.writableDatabase.execSQL("ALTER TABLE medicines DROP COLUMN end_date")
       repo.writableDatabase.execSQL("DROP TABLE reminder_transitions")
       repo.writableDatabase.version = 12
       saved

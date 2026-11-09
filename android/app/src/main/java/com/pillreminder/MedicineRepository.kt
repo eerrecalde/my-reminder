@@ -7,12 +7,12 @@ import android.database.sqlite.SQLiteOpenHelper
 import org.json.JSONArray
 import java.util.UUID
 
-data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification", val status: String = "active", val changedAt: Long = 0)
+data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification", val status: String = "active", val changedAt: Long = 0, val startDate: String? = null, val endDate: String? = null)
 
 /** Shared by the React Native bridge and Android receivers. */
-class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 13) {
+class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 14) {
   override fun onCreate(db: SQLiteDatabase) {
-    db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification', status TEXT NOT NULL DEFAULT 'active', changed_at INTEGER NOT NULL DEFAULT 0)")
+    db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification', status TEXT NOT NULL DEFAULT 'active', changed_at INTEGER NOT NULL DEFAULT 0, start_date TEXT, end_date TEXT)")
     db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0, outcome TEXT, cleared INTEGER NOT NULL DEFAULT 0, missed_acknowledged INTEGER NOT NULL DEFAULT 0, silenced INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0, outstanding INTEGER NOT NULL DEFAULT 0, name TEXT, instructions TEXT, type TEXT, mode TEXT, times TEXT, retained INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE snoozes (medicine_id TEXT NOT NULL, occurrence_at INTEGER NOT NULL, alert_at INTEGER NOT NULL, token TEXT NOT NULL, PRIMARY KEY (medicine_id, occurrence_at))")
@@ -20,6 +20,10 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     db.execSQL("CREATE TABLE occurrence_tracking (medicine_id TEXT PRIMARY KEY, starts_after INTEGER NOT NULL)")
   }
   override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+    if (oldVersion < 14) {
+      db.execSQL("ALTER TABLE medicines ADD COLUMN start_date TEXT")
+      db.execSQL("ALTER TABLE medicines ADD COLUMN end_date TEXT")
+    }
     if (oldVersion < 13) db.execSQL("CREATE TABLE reminder_transitions (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER, token TEXT, registered INTEGER, changed_at INTEGER NOT NULL, committed INTEGER NOT NULL DEFAULT 0)")
     if (oldVersion < 10) {
       db.execSQL("CREATE TABLE snoozes (medicine_id TEXT NOT NULL, occurrence_at INTEGER NOT NULL, alert_at INTEGER NOT NULL, token TEXT NOT NULL, PRIMARY KEY (medicine_id, occurrence_at))")
@@ -148,13 +152,14 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     }
   }
 
-  fun save(name: String, instructions: String, times: List<String>, now: Long, type: String = "medicine", mode: String = "notification"): Medicine {
+  fun save(name: String, instructions: String, times: List<String>, now: Long, type: String = "medicine", mode: String = "notification", startDate: String? = null, endDate: String? = null): Medicine {
     require(name.isNotBlank() && times.isNotEmpty() && type in listOf("medicine", "reminder") && mode in listOf("notification", "alarm"))
     times.forEach { java.time.LocalTime.parse(it) }
-    val medicine = Medicine(UUID.randomUUID().toString(), name.trim(), instructions.trim(), times.distinct(), now, type, mode)
+    validateDates(startDate, endDate)
+    val medicine = Medicine(UUID.randomUUID().toString(), name.trim(), instructions.trim(), times.distinct(), now, type, mode, startDate = startDate, endDate = endDate)
     val values = ContentValues().apply {
       put("id", medicine.id); put("name", medicine.name); put("instructions", medicine.instructions)
-      put("type", medicine.type); put("mode", medicine.mode); put("times", JSONArray(medicine.times).toString()); put("created_at", medicine.createdAt)
+      put("start_date", startDate); put("end_date", endDate); put("type", medicine.type); put("mode", medicine.mode); put("times", JSONArray(medicine.times).toString()); put("created_at", medicine.createdAt)
     }
     val db = writableDatabase
     db.beginTransaction()
@@ -168,10 +173,10 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
 
   fun all(): List<Medicine> {
     val medicines = mutableListOf<Medicine>()
-    readableDatabase.rawQuery("SELECT id, name, instructions, times, created_at, type, mode, status, changed_at FROM medicines ORDER BY created_at", null).use { cursor ->
+    readableDatabase.rawQuery("SELECT id, name, instructions, times, created_at, type, mode, status, changed_at, start_date, end_date FROM medicines ORDER BY created_at", null).use { cursor ->
       while (cursor.moveToNext()) {
         val array = JSONArray(cursor.getString(3))
-        medicines.add(Medicine(cursor.getString(0), cursor.getString(1), cursor.getString(2), (0 until array.length()).map { array.getString(it) }, cursor.getLong(4), cursor.getString(5), cursor.getString(6), cursor.getString(7), cursor.getLong(8)))
+        medicines.add(Medicine(cursor.getString(0), cursor.getString(1), cursor.getString(2), (0 until array.length()).map { array.getString(it) }, cursor.getLong(4), cursor.getString(5), cursor.getString(6), cursor.getString(7), cursor.getLong(8), cursor.getString(9), cursor.getString(10)))
       }
     }
     return medicines
@@ -266,10 +271,18 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     }
   }
 
-  fun edit(id: String, name: String, instructions: String, times: List<String>, type: String, mode: String, now: Long? = null) {
+  private fun validateDates(startDate: String?, endDate: String?) {
+    val start = startDate?.let(java.time.LocalDate::parse)
+    val end = endDate?.let(java.time.LocalDate::parse)
+    require(start == null || end == null || end >= start)
+  }
+
+  fun edit(id: String, name: String, instructions: String, times: List<String>, type: String, mode: String, now: Long? = null, startDate: String? = null, endDate: String? = null) {
     require(name.isNotBlank() && times.isNotEmpty() && type in listOf("medicine", "reminder") && mode in listOf("notification", "alarm"))
     times.forEach { java.time.LocalTime.parse(it) }
+    validateDates(startDate, endDate)
     val values = ContentValues().apply {
+      put("start_date", startDate); put("end_date", endDate)
       put("name", name.trim()); put("instructions", instructions.trim()); put("times", JSONArray(times.distinct()).toString()); put("type", type); put("mode", mode)
     }
     val db = writableDatabase

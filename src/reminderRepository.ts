@@ -68,6 +68,26 @@ export interface ReminderRepository {
   openAlarmSettings(): void;
   openNotificationSettings(): void;
   testReminder(): void;
+  saveDated(
+    type: ReminderType,
+    name: string,
+    instructions: string,
+    times: string[],
+    mode: 'notification' | 'alarm',
+    startDate: string,
+    endDate: string | null,
+  ): Promise<void>;
+  editDated(
+    id: string,
+    type: ReminderType,
+    name: string,
+    instructions: string,
+    times: string[],
+    mode: 'notification' | 'alarm',
+    startDate: string,
+    endDate: string | null,
+  ): Promise<void>;
+  selectDate(date: string): Promise<string | null>;
   selectTime(time: string): Promise<string | null>;
 }
 export const reminderRepository: ReminderRepository =

@@ -1,4 +1,7 @@
-import { nextDailyOccurrences } from '../src/dailySchedule';
+import {
+  finalDailyOccurrence,
+  nextDailyOccurrences,
+} from '../src/dailySchedule';
 
 test('returns the next three future occurrences across midnight', () => {
   const result = nextDailyOccurrences(
@@ -31,3 +34,29 @@ const isLondon =
     ]);
   },
 );
+
+test('honours start and inclusive end dates with multiple times', () => {
+  const next = nextDailyOccurrences(
+    ['09:00', '21:00'],
+    new Date(2026, 5, 1, 12),
+    3,
+    '2026-06-03',
+    '2026-06-03',
+  );
+  expect(next.map(date => [date.getDate(), date.getHours()])).toEqual([
+    [3, 9],
+    [3, 21],
+  ]);
+  expect(
+    finalDailyOccurrence(['09:00', '21:00'], '2026-06-03')?.getHours(),
+  ).toBe(21);
+  expect(
+    nextDailyOccurrences(
+      ['09:00'],
+      new Date(2026, 5, 4),
+      3,
+      '2026-06-03',
+      '2026-06-03',
+    ),
+  ).toEqual([]);
+});

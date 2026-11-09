@@ -7,6 +7,8 @@ export function nextDailyOccurrences(
   times: string[],
   after: Date,
   count: number,
+  startDate?: string | null,
+  endDate?: string | null,
 ): Date[] {
   const clockTimes = [...new Set(times)].map(time => {
     if (!isDailyTime(time)) {
@@ -16,13 +18,33 @@ export function nextDailyOccurrences(
   });
   if (clockTimes.length === 0 || count <= 0) return [];
   const result: Date[] = [];
+  const start = startDate
+    ? localDate(startDate)
+    : new Date(after.getFullYear(), after.getMonth(), after.getDate());
+  const end = endDate ? localDate(endDate) : null;
+  const first = new Date(
+    Math.max(
+      start.getTime(),
+      new Date(
+        after.getFullYear(),
+        after.getMonth(),
+        after.getDate(),
+      ).getTime(),
+    ),
+  );
   for (let day = 0; result.length < count; day++) {
+    const current = new Date(
+      first.getFullYear(),
+      first.getMonth(),
+      first.getDate() + day,
+    );
+    if (end && current > end) break;
     const candidates = clockTimes.map(
       ([hour, minute]) =>
         new Date(
-          after.getFullYear(),
-          after.getMonth(),
-          after.getDate() + day,
+          current.getFullYear(),
+          current.getMonth(),
+          current.getDate(),
           hour,
           minute,
         ),
@@ -37,4 +59,36 @@ export function nextDailyOccurrences(
     );
   }
   return result.slice(0, count);
+}
+
+export function localDate(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+export function localDateString(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+export function finalDailyOccurrence(
+  times: string[],
+  endDate: string,
+): Date | undefined {
+  const day = localDate(endDate);
+  return times
+    .map(time => {
+      const [hour, minute] = time.split(':').map(Number);
+      return new Date(
+        day.getFullYear(),
+        day.getMonth(),
+        day.getDate(),
+        hour,
+        minute,
+      );
+    })
+    .sort((a, b) => b.getTime() - a.getTime())[0];
 }
