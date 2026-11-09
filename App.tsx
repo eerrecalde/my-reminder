@@ -138,11 +138,13 @@ export function PillAction({
   accessibilityLabel,
   onPress,
   secondary = false,
+  showPlus = false,
 }: {
   title: string;
   accessibilityLabel?: string;
   onPress: () => void;
   secondary?: boolean;
+  showPlus?: boolean;
 }) {
   return (
     <Pressable
@@ -152,6 +154,7 @@ export function PillAction({
       style={[styles.pillAction, secondary && styles.pillSecondary]}
     >
       <Text style={[styles.pillLabel, secondary && styles.pillSecondaryLabel]}>
+        {showPlus && <Text style={styles.plusIcon}>＋ </Text>}
         {title}
       </Text>
     </Pressable>
@@ -421,6 +424,26 @@ export default function App() {
         ) : (
           <>
             <ScrollView contentContainerStyle={styles.content}>
+              {screen === 'today' && (
+                <View style={styles.brandRow}>
+                  <View style={styles.brandName}>
+                    <Image
+                      source={require('./assets/today-leaf.png')}
+                      style={styles.brandLeaf}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.brandText}>Pill Reminder</Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t.settings}
+                    onPress={() => setScreen('access')}
+                    hitSlop={12}
+                  >
+                    <Text style={styles.moreIcon}>⋮</Text>
+                  </Pressable>
+                </View>
+              )}
               {screen === 'today' ? (
                 <View style={styles.headerArt}>
                   <View style={styles.headerCopy}>
@@ -493,6 +516,7 @@ export default function App() {
                         <Text style={styles.emptyHelp}>{t.emptyHelp}</Text>
                         <View style={styles.emptyAction}>
                           <PillAction
+                            showPlus
                             title={t.add}
                             onPress={() => setScreen('setup')}
                           />
@@ -826,9 +850,20 @@ export default function App() {
                       screen === tab && styles.navSelected,
                     ]}
                   >
-                    <Text accessible={false} style={styles.navIcon}>
-                      {tab === 'today' ? '⌂' : tab === 'reminders' ? '☷' : '◷'}
-                    </Text>
+                    <View accessible={false} style={styles.navIconBox}>
+                      {tab === 'today' ? (
+                        <View style={styles.calendarIcon}>
+                          <View style={styles.calendarTop} />
+                          <Text style={styles.calendarNumber}>·</Text>
+                        </View>
+                      ) : tab === 'reminders' ? (
+                        <Text style={styles.listIcon}>☷</Text>
+                      ) : (
+                        <View style={styles.clockIcon}>
+                          <View style={styles.clockHand} />
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.navText}>{t[tab]}</Text>
                   </Pressable>
                 ))}
@@ -867,19 +902,70 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   navSelected: { backgroundColor: '#e0e9c7' },
-  navIcon: { fontSize: 24, lineHeight: 27, color: '#263c26' },
+  navIconBox: {
+    width: 25,
+    height: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarIcon: {
+    width: 17,
+    height: 17,
+    borderWidth: 1.8,
+    borderColor: '#12251a',
+    borderRadius: 2,
+  },
+  calendarTop: {
+    height: 5,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#12251a',
+  },
+  calendarNumber: {
+    color: '#12251a',
+    textAlign: 'center',
+    lineHeight: 8,
+    fontWeight: '700',
+  },
+  listIcon: { fontSize: 24, lineHeight: 27, color: '#12251a' },
+  clockIcon: {
+    width: 19,
+    height: 19,
+    borderWidth: 1.8,
+    borderColor: '#12251a',
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  clockHand: {
+    width: 5,
+    height: 7,
+    borderLeftWidth: 1.5,
+    borderBottomWidth: 1.5,
+    borderColor: '#12251a',
+    marginTop: 2,
+  },
   navText: {
     textAlign: 'center',
     color: '#253b29',
     fontSize: 12,
     fontWeight: '600',
   },
+  brandRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 36,
+    marginBottom: 8,
+  },
+  brandName: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  brandLeaf: { width: 34, height: 30 },
+  brandText: { color: '#17231a', fontSize: 17, fontWeight: '700' },
+  moreIcon: { color: '#142219', fontSize: 27, lineHeight: 32 },
   headerArt: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 100,
-    marginBottom: 2,
+    minHeight: 76,
+    marginBottom: 0,
   },
   headerCopy: { flex: 1, zIndex: 1 },
   todayTitle: {
@@ -941,14 +1027,14 @@ const styles = StyleSheet.create({
   compactCard: { backgroundColor: '#fffdf7', borderRadius: 14, padding: 14 },
   emptyCard: {
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingTop: 28,
-    paddingBottom: 20,
+    paddingHorizontal: 0,
+    paddingTop: 32,
+    paddingBottom: 12,
   },
-  emptyLeaf: { width: 220, height: 145, marginBottom: 8 },
+  emptyLeaf: { width: 210, height: 140, marginBottom: 4 },
   emptyTitle: {
     color: '#17291b',
-    fontSize: 25,
+    fontSize: 22,
     textAlign: 'center',
     fontWeight: '700',
   },
@@ -982,6 +1068,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   pillSecondaryLabel: { color: '#36542b' },
+  plusIcon: { fontSize: 22, fontWeight: '400' },
   accessLink: {
     alignSelf: 'center',
     paddingVertical: 12,
