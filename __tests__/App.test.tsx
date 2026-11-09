@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import { Alert, Button, NativeModules, Text } from 'react-native';
-import App from '../App';
+import App, { PillAction } from '../App';
 
 test('records and undoes a reminder outcome from Today', async () => {
   const repo = require('../src/reminderRepository');
@@ -40,7 +40,7 @@ test('records and undoes a reminder outcome from Today', async () => {
   });
   await ReactTestRenderer.act(async () => {
     await renderer.root
-      .findAllByType(Button)
+      .findAllByType(PillAction)
       .find(button => button.props.title === 'Done')!
       .props.onPress();
   });
@@ -138,7 +138,7 @@ test('shows reminders off and offers an enable action when access is missing', a
   ).toBe(true);
   await ReactTestRenderer.act(() =>
     renderer.root
-      .findAllByType(Button)
+      .findAllByType(PillAction)
       .find(button => button.props.title === 'Enable reminders')!
       .props.onPress(),
   );
@@ -278,7 +278,7 @@ test.each([
     await ReactTestRenderer.act(async () => {
       renderer = ReactTestRenderer.create(<App />);
     });
-    const buttons = renderer.root.findAllByType(Button);
+    const buttons = renderer.root.findAllByType(PillAction);
     const snoozeButtons = buttons.filter(item =>
       item.props.title.startsWith(snoozeText),
     );
@@ -390,13 +390,13 @@ test('shows and corrects a deleted reminder occurrence using its saved details',
   ).toBe(true);
   await ReactTestRenderer.act(() => {
     view.root
-      .findAllByType(Button)
+      .findAllByType(PillAction)
       .find(b => b.props.title === 'Change outcome')!
       .props.onPress();
   });
   await ReactTestRenderer.act(async () => {
     await view.root
-      .findAllByType(Button)
+      .findAllByType(PillAction)
       .find(b => b.props.title === 'Skip')!
       .props.onPress();
   });
