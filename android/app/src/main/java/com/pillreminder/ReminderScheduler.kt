@@ -403,10 +403,7 @@ object ReminderScheduler {
           val following = DailySchedule.next(medicine, Instant.ofEpochMilli(at), ZoneId.systemDefault())
           if (following != null && !following.isAfter(now)) {
             repo.invalidateAlarm(id)
-            DailySchedule.dueToday(medicine.times, Instant.ofEpochMilli(medicine.createdAt), now, ZoneId.systemDefault()).filter { due ->
-              val date = due.atZone(ZoneId.systemDefault()).toLocalDate()
-              (medicine.startDate == null || date >= java.time.LocalDate.parse(medicine.startDate)) && (medicine.endDate == null || date <= java.time.LocalDate.parse(medicine.endDate))
-            }.forEach { due ->
+            DailySchedule.dueToday(medicine, now, ZoneId.systemDefault()).forEach { due ->
               repo.recordDue(id, due.toEpochMilli())
             }
             schedule(context, medicine, now)
@@ -422,10 +419,7 @@ object ReminderScheduler {
         return
       }
       val now = Instant.now()
-      DailySchedule.dueToday(medicine.times, Instant.ofEpochMilli(medicine.createdAt), now, ZoneId.systemDefault()).filter { due ->
-              val date = due.atZone(ZoneId.systemDefault()).toLocalDate()
-              (medicine.startDate == null || date >= java.time.LocalDate.parse(medicine.startDate)) && (medicine.endDate == null || date <= java.time.LocalDate.parse(medicine.endDate))
-            }.forEach { due ->
+      DailySchedule.dueToday(medicine, now, ZoneId.systemDefault()).forEach { due ->
         repo.recordDue(id, due.toEpochMilli())
       }
       schedule(context, medicine, now)

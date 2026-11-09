@@ -20,6 +20,12 @@ object DailySchedule {
     }
     return null
   }
+  fun dueToday(medicine: Medicine, now: Instant, zone: ZoneId): List<Instant> {
+    val date = now.atZone(zone).toLocalDate()
+    if (medicine.startDate != null && date < LocalDate.parse(medicine.startDate)) return emptyList()
+    if (medicine.endDate != null && date > LocalDate.parse(medicine.endDate)) return emptyList()
+    return dueToday(medicine.times, Instant.ofEpochMilli(maxOf(medicine.createdAt, medicine.changedAt)), now, zone)
+  }
   fun dueToday(times: List<String>, created: Instant, now: Instant, zone: ZoneId): List<Instant> {
     val date = now.atZone(zone).toLocalDate()
     return times.distinct().map { date.atTime(LocalTime.parse(it)).atZone(zone).toInstant() }

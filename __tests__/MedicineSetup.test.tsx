@@ -305,3 +305,67 @@ test('editing preserves dosage instructions when changing medicine to reminder',
     }),
   );
 });
+
+test.each([
+  [
+    'en',
+    'Reminder',
+    'Next',
+    'Set end date',
+    'Review',
+    'Final reminder',
+    'Save reminder',
+  ],
+  [
+    'es',
+    'Medicamento',
+    'Continuar',
+    'Elegir fecha de fin',
+    'Revisar',
+    'Último recordatorio',
+    'Guardar medicamento',
+  ],
+] as const)(
+  'selects and previews an inclusive end date in %s',
+  async (language, type, next, setEnd, review, finalLabel, saveLabel) => {
+    const save = jest.fn();
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(() => {
+      view = ReactTestRenderer.create(
+        <MedicineSetup
+          language={language}
+          now={new Date(2026, 5, 1, 12)}
+          onSave={save}
+          selectDate={async () => '2026-06-03'}
+        />,
+      );
+    });
+    const press = async (title: string) => {
+      await ReactTestRenderer.act(async () => {
+        await view.root
+          .findAllByType(Button)
+          .find(button => button.props.title === title)!
+          .props.onPress();
+      });
+    };
+    await press(type);
+    await ReactTestRenderer.act(() =>
+      view.root.findAllByType(TextInput)[0].props.onChangeText('Example'),
+    );
+    await press(next);
+    await press(setEnd);
+    await press(review);
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(text => text.props.children === finalLabel),
+    ).toBe(true);
+    await press(saveLabel);
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startDate: '2026-06-01',
+        endDate: '2026-06-03',
+      }),
+    );
+  },
+);

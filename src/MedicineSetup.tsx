@@ -335,19 +335,26 @@ export function MedicineSetup({
           ))}
           {nextDailyOccurrences(times, now ?? new Date(), 3, startDate, endDate)
             .length === 0 && <Text style={styles.label}>{t.none}</Text>}
-          {endDate && (
-            <>
-              <Text accessibilityRole="header" style={styles.label}>
-                {t.final}
-              </Text>
-              <Text style={styles.label}>
-                {finalDailyOccurrence(times, endDate)?.toLocaleString(
-                  language === 'es' ? 'es-MX' : 'en-GB',
-                  { dateStyle: 'full', timeStyle: 'short' },
-                )}
-              </Text>
-            </>
-          )}
+          {endDate &&
+            nextDailyOccurrences(
+              times,
+              now ?? new Date(),
+              1,
+              startDate,
+              endDate,
+            ).length > 0 && (
+              <>
+                <Text accessibilityRole="header" style={styles.label}>
+                  {t.final}
+                </Text>
+                <Text style={styles.label}>
+                  {finalDailyOccurrence(times, endDate)?.toLocaleString(
+                    language === 'es' ? 'es-MX' : 'en-GB',
+                    { dateStyle: 'full', timeStyle: 'short' },
+                  )}
+                </Text>
+              </>
+            )}
         </>
       )}
       {!!error && (

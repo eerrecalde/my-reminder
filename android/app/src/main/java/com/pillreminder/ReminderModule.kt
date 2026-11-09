@@ -88,24 +88,12 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
     catch (error: Exception) { promise.reject("history_failed", error) }
   }
   @ReactMethod fun save(name: String, instructions: String, times: ReadableArray, promise: Promise) {
-    saveWithMode("medicine", name, instructions, times, "notification", promise)
+    saveWithMode("medicine", name, instructions, times, "notification", null, null, promise)
   }
   @ReactMethod fun saveTyped(type: String, name: String, instructions: String, times: ReadableArray, mode: String, promise: Promise) {
-    saveWithMode(type, name, instructions, times, mode, promise)
+    saveWithMode(type, name, instructions, times, mode, null, null, promise)
   }
-  private fun saveWithMode(type: String, name: String, instructions: String, times: ReadableArray, mode: String, promise: Promise) {
-    try {
-      val clockTimes = (0 until times.size()).map { requireNotNull(times.getString(it)) }
-      ReminderScheduler.rebuild(reactContext)
-      ReminderScheduler.ensureReconciliation(reactContext)
-      MedicineRepository(reactContext).use { repo ->
-        val medicine = repo.save(name, instructions, clockTimes, System.currentTimeMillis(), type, mode)
-        ReminderScheduler.schedule(reactContext, medicine)
-      }
-      promise.resolve(null)
-    } catch (error: Exception) { promise.reject("save_failed", error) }
-  }
-  @ReactMethod fun saveDated(type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, promise: Promise) {
+  private fun saveWithMode(type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String?, endDate: String?, promise: Promise) {
     try {
       val clockTimes = (0 until times.size()).map { requireNotNull(times.getString(it)) }
       ReminderScheduler.rebuild(reactContext)
@@ -116,6 +104,9 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       }
       promise.resolve(null)
     } catch (error: Exception) { promise.reject("save_failed", error) }
+  }
+  @ReactMethod fun saveDated(type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, promise: Promise) {
+    saveWithMode(type, name, instructions, times, mode, startDate, endDate, promise)
   }
   @ReactMethod fun editDated(id: String, type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, promise: Promise) {
     try {
