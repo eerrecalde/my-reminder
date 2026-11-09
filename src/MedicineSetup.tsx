@@ -674,9 +674,14 @@ export function MedicineSetup({
                   type,
                   scheduleKind,
                   weekdays,
-                  intervalHours: Number(intervalHours),
-                  intervalAnchor: anchor.getTime(),
-                  monthlyDay: monthlyDay === 'last' ? null : Number(monthlyDay),
+                  intervalHours:
+                    scheduleKind === 'interval' ? Number(intervalHours) : null,
+                  intervalAnchor:
+                    scheduleKind === 'interval' ? anchor.getTime() : null,
+                  monthlyDay:
+                    scheduleKind === 'monthly' && monthlyDay !== 'last'
+                      ? Number(monthlyDay)
+                      : null,
                   shortMonthPolicy,
                   mode,
                   name: name.trim(),

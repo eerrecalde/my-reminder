@@ -96,3 +96,68 @@ test.each([
     );
   },
 );
+
+test('discarding invalid interval and monthly settings allows another schedule to be saved', async () => {
+  const save = jest.fn();
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    view = ReactTestRenderer.create(
+      <MedicineSetup language="en" now={new Date(2026, 0, 1)} onSave={save} />,
+    );
+  });
+  const button = async (title: string) =>
+    ReactTestRenderer.act(async () => {
+      await view.root
+        .findAllByType(Button)
+        .find(b => b.props.title === title)!
+        .props.onPress();
+    });
+  const choose = async (label: string) =>
+    ReactTestRenderer.act(() =>
+      view.root
+        .findAll(
+          node =>
+            node.props.accessibilityRole === 'radio' &&
+            node
+              .findAllByType(Text)
+              .some(
+                t =>
+                  Array.isArray(t.props.children) &&
+                  t.props.children.includes(label),
+              ),
+        )[0]
+        .props.onPress(),
+    );
+  await button('Reminder');
+  await ReactTestRenderer.act(() =>
+    view.root.findAllByType(TextInput)[0].props.onChangeText('Water'),
+  );
+  await button('Next');
+  await choose('Every X hours');
+  await ReactTestRenderer.act(() =>
+    view.root
+      .findAllByType(TextInput)
+      .find(
+        input => input.props.accessibilityLabel === 'Hours between reminders',
+      )!
+      .props.onChangeText(''),
+  );
+  await choose('Monthly');
+  await ReactTestRenderer.act(() =>
+    view.root
+      .findAllByType(TextInput)
+      .find(input => input.props.accessibilityLabel === 'Day of month (1–31)')!
+      .props.onChangeText('99'),
+  );
+  await choose('Every day');
+  await button('Review');
+  await button('Save reminder');
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      scheduleKind: 'daily',
+      intervalHours: null,
+      intervalAnchor: null,
+      monthlyDay: null,
+    }),
+  );
+});
