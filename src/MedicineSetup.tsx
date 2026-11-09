@@ -13,10 +13,28 @@ import {
   localDateString,
   nextDailyOccurrences,
 } from './dailySchedule';
+import {
+  nextWeekdayOccurrences,
+  finalWeekdayOccurrence,
+} from './weekdaySchedule';
+import {
+  nextIntervalOccurrences,
+  finalIntervalOccurrence,
+} from './intervalSchedule';
+import {
+  nextMonthlyOccurrences,
+  finalMonthlyOccurrence,
+} from './monthlySchedule';
 import type { ReminderType } from './reminderRepository';
 
 export type DailyMedicineInput = {
   type: ReminderType;
+  scheduleKind?: 'daily' | 'weekday' | 'interval' | 'monthly';
+  weekdays?: number[];
+  intervalHours?: number | null;
+  intervalAnchor?: number | null;
+  monthlyDay?: number | null;
+  shortMonthPolicy?: 'last' | 'skip';
   mode: 'notification' | 'alarm';
   name: string;
   instructions: string;
@@ -35,6 +53,27 @@ type Props = {
 
 const copy = {
   en: {
+    daily: 'Every day',
+    weekday: 'Selected weekdays',
+    interval: 'Every X hours',
+    monthly: 'Monthly',
+    weekdays: [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ],
+    hours: 'Hours between reminders',
+    monthDay: 'Day of month (1–31)',
+    lastDay: 'Last day of month',
+    shortMonth: 'When the day is unavailable',
+    useLast: 'Use last day',
+    skipMonth: 'Skip month',
+    invalidSchedule: 'Choose valid schedule settings',
+    first: 'First reminder date and time',
     medicine: 'Medicine',
     reminder: 'Reminder',
     choose: 'Choose a type',
@@ -69,6 +108,27 @@ const copy = {
     back: 'Back',
   },
   es: {
+    daily: 'Todos los días',
+    weekday: 'Días de la semana',
+    interval: 'Cada X horas',
+    monthly: 'Mensual',
+    weekdays: [
+      'Lunes',
+      'Martes',
+      'Miércoles',
+      'Jueves',
+      'Viernes',
+      'Sábado',
+      'Domingo',
+    ],
+    hours: 'Horas entre recordatorios',
+    monthDay: 'Día del mes (1–31)',
+    lastDay: 'Último día del mes',
+    shortMonth: 'Cuando no exista el día',
+    useLast: 'Usar el último día',
+    skipMonth: 'Omitir el mes',
+    invalidSchedule: 'Elige una programación válida',
+    first: 'Fecha y hora del primer recordatorio',
     medicine: 'Medicamento',
     reminder: 'Recordatorio',
     choose: 'Elige un tipo',
@@ -127,6 +187,52 @@ export function MedicineSetup({
   const [endDate, setEndDate] = useState<string | null>(
     initial?.endDate ?? null,
   );
+  const [scheduleKind, setScheduleKind] = useState<
+    NonNullable<DailyMedicineInput['scheduleKind']>
+  >(initial?.scheduleKind ?? 'daily');
+  const [weekdays, setWeekdays] = useState<number[]>(initial?.weekdays ?? [1]);
+  const [intervalHours, setIntervalHours] = useState(
+    String(initial?.intervalHours ?? 8),
+  );
+  const [anchorDate, setAnchorDate] = useState(
+    localDateString(
+      initial?.intervalAnchor
+        ? new Date(initial.intervalAnchor)
+        : now ?? new Date(),
+    ),
+  );
+  const [anchorTime, setAnchorTime] = useState(
+    initial?.intervalAnchor
+      ? `${String(new Date(initial.intervalAnchor).getHours()).padStart(
+          2,
+          '0',
+        )}:${String(new Date(initial.intervalAnchor).getMinutes()).padStart(
+          2,
+          '0',
+        )}`
+      : '09:00',
+  );
+  const [monthlyDay, setMonthlyDay] = useState(
+    initial?.monthlyDay == null && initial?.scheduleKind === 'monthly'
+      ? 'last'
+      : String(initial?.monthlyDay ?? 1),
+  );
+  const [shortMonthPolicy, setShortMonthPolicy] = useState<'last' | 'skip'>(
+    initial?.shortMonthPolicy ?? 'last',
+  );
+  const originalAnchor =
+    initial?.intervalAnchor != null ? new Date(initial.intervalAnchor) : null;
+  const originalTime = originalAnchor
+    ? `${String(originalAnchor.getHours()).padStart(2, '0')}:${String(
+        originalAnchor.getMinutes(),
+      ).padStart(2, '0')}`
+    : null;
+  const anchor =
+    originalAnchor &&
+    anchorDate === localDateString(originalAnchor) &&
+    anchorTime === originalTime
+      ? originalAnchor
+      : new Date(`${anchorDate}T${anchorTime}:00`);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -139,6 +245,22 @@ export function MedicineSetup({
       setError(t.invalid);
       return;
     }
+    if (
+      step === 2 &&
+      ((scheduleKind === 'weekday' && !weekdays.length) ||
+        (scheduleKind === 'interval' &&
+          (!Number.isSafeInteger(Number(intervalHours)) ||
+            Number(intervalHours) < 1 ||
+            !Number.isFinite(anchor.getTime()))) ||
+        (scheduleKind === 'monthly' &&
+          monthlyDay !== 'last' &&
+          (!Number.isInteger(Number(monthlyDay)) ||
+            Number(monthlyDay) < 1 ||
+            Number(monthlyDay) > 31)))
+    ) {
+      setError(t.invalidSchedule);
+      return;
+    }
     if (step === 2 && endDate && endDate < startDate) {
       setError(t.invalidDates);
       return;
@@ -146,6 +268,58 @@ export function MedicineSetup({
     setError('');
     setStep(step + 1);
   };
+  const preview =
+    step !== 3
+      ? []
+      : scheduleKind === 'weekday'
+      ? nextWeekdayOccurrences(
+          times,
+          weekdays,
+          now ?? new Date(),
+          3,
+          startDate,
+          endDate,
+        )
+      : scheduleKind === 'interval'
+      ? nextIntervalOccurrences(
+          anchor,
+          Number(intervalHours),
+          new Date(
+            Math.max(
+              (now ?? new Date()).getTime(),
+              new Date(`${startDate}T00:00:00`).getTime() - 1,
+            ),
+          ),
+          3,
+          endDate,
+        )
+      : scheduleKind === 'monthly'
+      ? nextMonthlyOccurrences(
+          times,
+          monthlyDay === 'last' ? 'last' : Number(monthlyDay),
+          shortMonthPolicy,
+          now ?? new Date(),
+          3,
+          startDate,
+          endDate,
+        )
+      : nextDailyOccurrences(times, now ?? new Date(), 3, startDate, endDate);
+  const final =
+    step === 3 && endDate
+      ? scheduleKind === 'weekday'
+        ? finalWeekdayOccurrence(times, weekdays, endDate)
+        : scheduleKind === 'interval'
+        ? finalIntervalOccurrence(anchor, Number(intervalHours), endDate)
+        : scheduleKind === 'monthly'
+        ? finalMonthlyOccurrence(
+            times,
+            monthlyDay === 'last' ? 'last' : Number(monthlyDay),
+            shortMonthPolicy,
+            startDate,
+            endDate,
+          )
+        : finalDailyOccurrence(times, endDate)
+      : undefined;
   return (
     <ScrollView
       contentContainerStyle={styles.content}
@@ -207,6 +381,118 @@ export function MedicineSetup({
       )}
       {step === 2 && (
         <>
+          <View accessibilityRole="radiogroup">
+            {(['daily', 'weekday', 'interval', 'monthly'] as const).map(
+              kind => (
+                <Pressable
+                  key={kind}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: scheduleKind === kind }}
+                  onPress={() => setScheduleKind(kind)}
+                  style={styles.modeOption}
+                >
+                  <Text style={styles.modeText}>
+                    {scheduleKind === kind ? '● ' : '○ '}
+                    {t[kind]}
+                  </Text>
+                </Pressable>
+              ),
+            )}
+          </View>
+          {scheduleKind === 'weekday' &&
+            t.weekdays.map((label, index) => (
+              <Pressable
+                key={label}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: weekdays.includes(index + 1) }}
+                onPress={() =>
+                  setWeekdays(current =>
+                    current.includes(index + 1)
+                      ? current.filter(day => day !== index + 1)
+                      : [...current, index + 1],
+                  )
+                }
+                style={styles.modeOption}
+              >
+                <Text style={styles.modeText}>
+                  {weekdays.includes(index + 1) ? '☑ ' : '□ '}
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          {scheduleKind === 'interval' && (
+            <>
+              <Text style={styles.label}>{t.hours}</Text>
+              <TextInput
+                accessibilityLabel={t.hours}
+                style={styles.input}
+                keyboardType="number-pad"
+                value={intervalHours}
+                onChangeText={setIntervalHours}
+              />
+              <Text style={styles.label}>
+                {t.first}: {anchorDate} {anchorTime}
+              </Text>
+              <Button
+                title={t.startDate}
+                onPress={async () => {
+                  const value = await selectDate?.(anchorDate);
+                  if (value) setAnchorDate(value);
+                }}
+              />
+              <Button
+                title={t.changeTime}
+                onPress={async () => {
+                  const value = await selectTime?.(anchorTime);
+                  if (value) setAnchorTime(value);
+                }}
+              />
+            </>
+          )}
+          {scheduleKind === 'monthly' && (
+            <>
+              <Text style={styles.label}>{t.monthDay}</Text>
+              <TextInput
+                accessibilityLabel={t.monthDay}
+                style={styles.input}
+                keyboardType="number-pad"
+                value={monthlyDay === 'last' ? '' : monthlyDay}
+                onChangeText={setMonthlyDay}
+              />
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: monthlyDay === 'last' }}
+                onPress={() => setMonthlyDay('last')}
+                style={styles.modeOption}
+              >
+                <Text style={styles.modeText}>
+                  {monthlyDay === 'last' ? '● ' : '○ '}
+                  {t.lastDay}
+                </Text>
+              </Pressable>
+              {Number(monthlyDay) >= 29 && monthlyDay !== 'last' && (
+                <>
+                  <Text style={styles.label}>{t.shortMonth}</Text>
+                  {(['last', 'skip'] as const).map(policy => (
+                    <Pressable
+                      key={policy}
+                      accessibilityRole="radio"
+                      accessibilityState={{
+                        checked: shortMonthPolicy === policy,
+                      }}
+                      onPress={() => setShortMonthPolicy(policy)}
+                      style={styles.modeOption}
+                    >
+                      <Text style={styles.modeText}>
+                        {shortMonthPolicy === policy ? '● ' : '○ '}
+                        {policy === 'last' ? t.useLast : t.skipMonth}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </>
+              )}
+            </>
+          )}
           <Text style={styles.label}>
             {t.startDate}: {startDate}
           </Text>
@@ -237,48 +523,54 @@ export function MedicineSetup({
               onPress={() => setEndDate(null)}
             />
           )}
-          <Text style={styles.label}>{t.times}</Text>
-          {times.map((time, index) => (
-            <View key={`${time}-${index}`} style={styles.timeRow}>
+          {scheduleKind !== 'interval' && (
+            <>
+              <Text style={styles.label}>{t.times}</Text>
+              {times.map((time, index) => (
+                <View key={`${time}-${index}`} style={styles.timeRow}>
+                  <Button
+                    color="#00535b"
+                    title={`${t.changeTime}: ${time}`}
+                    onPress={async () => {
+                      const selected = await selectTime?.(time);
+                      if (selected)
+                        setTimes(current =>
+                          [
+                            ...new Set(
+                              current.map((value, i) =>
+                                i === index ? selected : value,
+                              ),
+                            ),
+                          ].sort(),
+                        );
+                    }}
+                  />
+                  {times.length > 1 && (
+                    <Button
+                      color="#00535b"
+                      title={`${t.removeTime}: ${time}`}
+                      onPress={() =>
+                        setTimes(current =>
+                          current.filter((_, i) => i !== index),
+                        )
+                      }
+                    />
+                  )}
+                </View>
+              ))}
               <Button
                 color="#00535b"
-                title={`${t.changeTime}: ${time}`}
+                title={t.addTime}
                 onPress={async () => {
-                  const selected = await selectTime?.(time);
+                  const selected = await selectTime?.('09:00');
                   if (selected)
                     setTimes(current =>
-                      [
-                        ...new Set(
-                          current.map((value, i) =>
-                            i === index ? selected : value,
-                          ),
-                        ),
-                      ].sort(),
+                      [...new Set([...current, selected])].sort(),
                     );
                 }}
               />
-              {times.length > 1 && (
-                <Button
-                  color="#00535b"
-                  title={`${t.removeTime}: ${time}`}
-                  onPress={() =>
-                    setTimes(current => current.filter((_, i) => i !== index))
-                  }
-                />
-              )}
-            </View>
-          ))}
-          <Button
-            color="#00535b"
-            title={t.addTime}
-            onPress={async () => {
-              const selected = await selectTime?.('09:00');
-              if (selected)
-                setTimes(current =>
-                  [...new Set([...current, selected])].sort(),
-                );
-            }}
-          />
+            </>
+          )}
           <Text accessibilityLiveRegion="polite" style={styles.label}>
             {mode === 'alarm' ? t.alarmMode : t.mode}
           </Text>
@@ -314,18 +606,15 @@ export function MedicineSetup({
             {mode === 'alarm' ? t.alarmMode : t.mode}
           </Text>
           <Text style={styles.label}>
-            {t.everyDay} {times.join(', ')}
+            {t[scheduleKind]}
+            {scheduleKind !== 'interval'
+              ? `: ${times.join(', ')}`
+              : `: ${intervalHours}h`}
           </Text>
           <Text accessibilityRole="header" style={styles.label}>
             {t.nextThree}
           </Text>
-          {nextDailyOccurrences(
-            times,
-            now ?? new Date(),
-            3,
-            startDate,
-            endDate,
-          ).map(date => (
+          {preview.map(date => (
             <Text key={date.toISOString()} style={styles.label}>
               {date.toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
                 dateStyle: 'full',
@@ -333,28 +622,20 @@ export function MedicineSetup({
               })}
             </Text>
           ))}
-          {nextDailyOccurrences(times, now ?? new Date(), 3, startDate, endDate)
-            .length === 0 && <Text style={styles.label}>{t.none}</Text>}
-          {endDate &&
-            nextDailyOccurrences(
-              times,
-              now ?? new Date(),
-              1,
-              startDate,
-              endDate,
-            ).length > 0 && (
-              <>
-                <Text accessibilityRole="header" style={styles.label}>
-                  {t.final}
-                </Text>
-                <Text style={styles.label}>
-                  {finalDailyOccurrence(times, endDate)?.toLocaleString(
-                    language === 'es' ? 'es-MX' : 'en-GB',
-                    { dateStyle: 'full', timeStyle: 'short' },
-                  )}
-                </Text>
-              </>
-            )}
+          {preview.length === 0 && <Text style={styles.label}>{t.none}</Text>}
+          {preview.length > 0 && final && (
+            <>
+              <Text accessibilityRole="header" style={styles.label}>
+                {t.final}
+              </Text>
+              <Text style={styles.label}>
+                {final.toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
+                  dateStyle: 'full',
+                  timeStyle: 'short',
+                })}
+              </Text>
+            </>
+          )}
         </>
       )}
       {!!error && (
@@ -391,6 +672,17 @@ export function MedicineSetup({
               try {
                 await onSave({
                   type,
+                  scheduleKind,
+                  weekdays,
+                  intervalHours:
+                    scheduleKind === 'interval' ? Number(intervalHours) : null,
+                  intervalAnchor:
+                    scheduleKind === 'interval' ? anchor.getTime() : null,
+                  monthlyDay:
+                    scheduleKind === 'monthly' && monthlyDay !== 'last'
+                      ? Number(monthlyDay)
+                      : null,
+                  shortMonthPolicy,
                   mode,
                   name: name.trim(),
                   instructions: instructions.trim(),

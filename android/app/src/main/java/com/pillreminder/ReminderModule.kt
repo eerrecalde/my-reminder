@@ -29,6 +29,12 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
         medicines.pushMap(Arguments.createMap().apply {
           putString("id", medicine.id); putString("status", medicine.status); putString("type", medicine.type); putString("mode", medicine.mode); putString("name", medicine.name); putString("instructions", medicine.instructions)
           putString("startDate", medicine.startDate); putString("endDate", medicine.endDate)
+          putString("scheduleKind", medicine.scheduleKind)
+          putArray("weekdays", Arguments.createArray().apply { medicine.weekdays.forEach { pushInt(it) } })
+          if (medicine.intervalHours == null) putNull("intervalHours") else putInt("intervalHours", medicine.intervalHours)
+          if (medicine.intervalAnchor == null) putNull("intervalAnchor") else putDouble("intervalAnchor", medicine.intervalAnchor.toDouble())
+          if (medicine.monthlyDay == null) putNull("monthlyDay") else putInt("monthlyDay", medicine.monthlyDay)
+          putString("shortMonthPolicy", medicine.shortMonthPolicy)
           putArray("times", Arguments.createArray().apply { medicine.times.forEach { pushString(it) } })
         })
       } }
@@ -107,6 +113,31 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
   }
   @ReactMethod fun saveDated(type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, promise: Promise) {
     saveWithMode(type, name, instructions, times, mode, startDate, endDate, promise)
+  }
+  @ReactMethod fun saveScheduled(type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, scheduleKind: String, weekdays: ReadableArray, intervalHours: Double?, intervalAnchor: Double?, monthlyDay: Double?, shortMonthPolicy: String, promise: Promise) {
+    try {
+      require(intervalHours == null || (intervalHours.isFinite() && intervalHours > 0 && intervalHours <= Int.MAX_VALUE && intervalHours % 1.0 == 0.0))
+      require(monthlyDay == null || (monthlyDay.isFinite() && monthlyDay % 1.0 == 0.0 && monthlyDay in 1.0..31.0))
+      require(intervalAnchor == null || (intervalAnchor.isFinite() && intervalAnchor % 1.0 == 0.0))
+      val clockTimes = (0 until times.size()).map { requireNotNull(times.getString(it)) }
+      val days = (0 until weekdays.size()).map { weekdays.getInt(it) }
+      ReminderScheduler.rebuild(reactContext)
+      ReminderScheduler.ensureReconciliation(reactContext)
+      MedicineRepository(reactContext).use { repo ->
+        val medicine = repo.save(name, instructions, clockTimes, System.currentTimeMillis(), type, mode, startDate, endDate, scheduleKind, days, intervalHours?.toInt(), intervalAnchor?.toLong(), monthlyDay?.toInt(), shortMonthPolicy)
+        ReminderScheduler.schedule(reactContext, medicine)
+      }
+      promise.resolve(null)
+    } catch (error: Exception) { promise.reject("save_failed", error) }
+  }
+  @ReactMethod fun editScheduled(id: String, type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, scheduleKind: String, weekdays: ReadableArray, intervalHours: Double?, intervalAnchor: Double?, monthlyDay: Double?, shortMonthPolicy: String, promise: Promise) {
+    try {
+      require(intervalHours == null || (intervalHours.isFinite() && intervalHours > 0 && intervalHours <= Int.MAX_VALUE && intervalHours % 1.0 == 0.0))
+      require(monthlyDay == null || (monthlyDay.isFinite() && monthlyDay % 1.0 == 0.0 && monthlyDay in 1.0..31.0))
+      require(intervalAnchor == null || (intervalAnchor.isFinite() && intervalAnchor % 1.0 == 0.0))
+      ReminderScheduler.edit(reactContext, id, name, instructions, (0 until times.size()).map { requireNotNull(times.getString(it)) }, type, mode, startDate, endDate, scheduleKind, (0 until weekdays.size()).map { weekdays.getInt(it) }, intervalHours?.toInt(), intervalAnchor?.toLong(), monthlyDay?.toInt(), shortMonthPolicy)
+      promise.resolve(null)
+    } catch (error: Exception) { promise.reject("edit_failed", error) }
   }
   @ReactMethod fun editDated(id: String, type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, promise: Promise) {
     try {

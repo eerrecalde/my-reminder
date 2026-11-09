@@ -279,13 +279,13 @@ object ReminderScheduler {
     }
   }
 
-  @Synchronized fun edit(context: Context, id: String, name: String, instructions: String, times: List<String>, type: String, mode: String, startDate: String? = null, endDate: String? = null) {
+  @Synchronized fun edit(context: Context, id: String, name: String, instructions: String, times: List<String>, type: String, mode: String, startDate: String? = null, endDate: String? = null, scheduleKind: String = "daily", weekdays: List<Int> = emptyList(), intervalHours: Int? = null, intervalAnchor: Long? = null, monthlyDay: Int? = null, shortMonthPolicy: String = "last") {
     rebuild(context)
     MedicineRepository(context).use { repo ->
       val old = requireNotNull(repo.all().find { it.id == id && it.status != "deleted" })
       try {
         beginTransition(context, repo, id)
-        repo.edit(id, name, instructions, times, type, mode, startDate = startDate, endDate = endDate)
+        repo.edit(id, name, instructions, times, type, mode, startDate = startDate, endDate = endDate, scheduleKind = scheduleKind, weekdays = weekdays, intervalHours = intervalHours, intervalAnchor = intervalAnchor, monthlyDay = monthlyDay, shortMonthPolicy = shortMonthPolicy)
         if (old.status == "active") schedule(context, requireNotNull(repo.all().find { it.id == id }))
         repo.transition(id)?.let { finishTransition(context, repo, it) }
       } catch (error: Exception) {

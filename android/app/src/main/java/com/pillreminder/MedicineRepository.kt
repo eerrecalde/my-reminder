@@ -7,12 +7,12 @@ import android.database.sqlite.SQLiteOpenHelper
 import org.json.JSONArray
 import java.util.UUID
 
-data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification", val status: String = "active", val changedAt: Long = 0, val startDate: String? = null, val endDate: String? = null)
+data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification", val status: String = "active", val changedAt: Long = 0, val startDate: String? = null, val endDate: String? = null, val scheduleKind: String = "daily", val weekdays: List<Int> = emptyList(), val intervalHours: Int? = null, val intervalAnchor: Long? = null, val monthlyDay: Int? = null, val shortMonthPolicy: String = "last")
 
 /** Shared by the React Native bridge and Android receivers. */
-class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 14) {
+class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 15) {
   override fun onCreate(db: SQLiteDatabase) {
-    db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification', status TEXT NOT NULL DEFAULT 'active', changed_at INTEGER NOT NULL DEFAULT 0, start_date TEXT, end_date TEXT)")
+    db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification', status TEXT NOT NULL DEFAULT 'active', changed_at INTEGER NOT NULL DEFAULT 0, start_date TEXT, end_date TEXT, schedule_kind TEXT NOT NULL DEFAULT 'daily', weekdays TEXT NOT NULL DEFAULT '[]', interval_hours INTEGER, interval_anchor INTEGER, monthly_day INTEGER, short_month_policy TEXT NOT NULL DEFAULT 'last')")
     db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0, outcome TEXT, cleared INTEGER NOT NULL DEFAULT 0, missed_acknowledged INTEGER NOT NULL DEFAULT 0, silenced INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0, outstanding INTEGER NOT NULL DEFAULT 0, name TEXT, instructions TEXT, type TEXT, mode TEXT, times TEXT, retained INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE snoozes (medicine_id TEXT NOT NULL, occurrence_at INTEGER NOT NULL, alert_at INTEGER NOT NULL, token TEXT NOT NULL, PRIMARY KEY (medicine_id, occurrence_at))")
@@ -20,6 +20,14 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     db.execSQL("CREATE TABLE occurrence_tracking (medicine_id TEXT PRIMARY KEY, starts_after INTEGER NOT NULL)")
   }
   override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+    if (oldVersion < 15) {
+      db.execSQL("ALTER TABLE medicines ADD COLUMN schedule_kind TEXT NOT NULL DEFAULT 'daily'")
+      db.execSQL("ALTER TABLE medicines ADD COLUMN weekdays TEXT NOT NULL DEFAULT '[]'")
+      db.execSQL("ALTER TABLE medicines ADD COLUMN interval_hours INTEGER")
+      db.execSQL("ALTER TABLE medicines ADD COLUMN interval_anchor INTEGER")
+      db.execSQL("ALTER TABLE medicines ADD COLUMN monthly_day INTEGER")
+      db.execSQL("ALTER TABLE medicines ADD COLUMN short_month_policy TEXT NOT NULL DEFAULT 'last'")
+    }
     if (oldVersion < 14) {
       db.execSQL("ALTER TABLE medicines ADD COLUMN start_date TEXT")
       db.execSQL("ALTER TABLE medicines ADD COLUMN end_date TEXT")
@@ -152,12 +160,14 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     }
   }
 
-  fun save(name: String, instructions: String, times: List<String>, now: Long, type: String = "medicine", mode: String = "notification", startDate: String? = null, endDate: String? = null): Medicine {
+  fun save(name: String, instructions: String, times: List<String>, now: Long, type: String = "medicine", mode: String = "notification", startDate: String? = null, endDate: String? = null, scheduleKind: String = "daily", weekdays: List<Int> = emptyList(), intervalHours: Int? = null, intervalAnchor: Long? = null, monthlyDay: Int? = null, shortMonthPolicy: String = "last"): Medicine {
     require(name.isNotBlank() && times.isNotEmpty() && type in listOf("medicine", "reminder") && mode in listOf("notification", "alarm"))
     times.forEach { java.time.LocalTime.parse(it) }
     validateDates(startDate, endDate)
-    val medicine = Medicine(UUID.randomUUID().toString(), name.trim(), instructions.trim(), times.distinct(), now, type, mode, startDate = startDate, endDate = endDate)
+    validateSchedule(scheduleKind, weekdays, intervalHours, intervalAnchor, monthlyDay, shortMonthPolicy)
+    val medicine = Medicine(UUID.randomUUID().toString(), name.trim(), instructions.trim(), times.distinct(), now, type, mode, startDate = startDate, endDate = endDate, scheduleKind = scheduleKind, weekdays = weekdays, intervalHours = intervalHours, intervalAnchor = intervalAnchor, monthlyDay = monthlyDay, shortMonthPolicy = shortMonthPolicy)
     val values = ContentValues().apply {
+      putSchedule(scheduleKind, weekdays, intervalHours, intervalAnchor, monthlyDay, shortMonthPolicy)
       put("id", medicine.id); put("name", medicine.name); put("instructions", medicine.instructions)
       put("start_date", startDate); put("end_date", endDate); put("type", medicine.type); put("mode", medicine.mode); put("times", JSONArray(medicine.times).toString()); put("created_at", medicine.createdAt)
     }
@@ -173,10 +183,10 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
 
   fun all(): List<Medicine> {
     val medicines = mutableListOf<Medicine>()
-    readableDatabase.rawQuery("SELECT id, name, instructions, times, created_at, type, mode, status, changed_at, start_date, end_date FROM medicines ORDER BY created_at", null).use { cursor ->
+    readableDatabase.rawQuery("SELECT id, name, instructions, times, created_at, type, mode, status, changed_at, start_date, end_date, schedule_kind, weekdays, interval_hours, interval_anchor, monthly_day, short_month_policy FROM medicines ORDER BY created_at", null).use { cursor ->
       while (cursor.moveToNext()) {
         val array = JSONArray(cursor.getString(3))
-        medicines.add(Medicine(cursor.getString(0), cursor.getString(1), cursor.getString(2), (0 until array.length()).map { array.getString(it) }, cursor.getLong(4), cursor.getString(5), cursor.getString(6), cursor.getString(7), cursor.getLong(8), cursor.getString(9), cursor.getString(10)))
+        medicines.add(Medicine(cursor.getString(0), cursor.getString(1), cursor.getString(2), (0 until array.length()).map { array.getString(it) }, cursor.getLong(4), cursor.getString(5), cursor.getString(6), cursor.getString(7), cursor.getLong(8), cursor.getString(9), cursor.getString(10), cursor.getString(11), JSONArray(cursor.getString(12)).let { a -> (0 until a.length()).map { a.getInt(it) } }, if (cursor.isNull(13)) null else cursor.getInt(13), if (cursor.isNull(14)) null else cursor.getLong(14), if (cursor.isNull(15)) null else cursor.getInt(15), cursor.getString(16)))
       }
     }
     return medicines
@@ -271,17 +281,33 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     }
   }
 
+  private fun validateSchedule(kind: String, weekdays: List<Int>, hours: Int?, anchor: Long?, day: Int?, policy: String) {
+    require(kind in listOf("daily", "weekday", "interval", "monthly"))
+    require(policy in listOf("last", "skip"))
+    require(day == null || day in 1..31)
+    require(weekdays.all { it in 1..7 })
+    if (kind == "weekday") require(weekdays.isNotEmpty())
+    if (kind == "interval") require(hours != null && hours > 0 && anchor != null)
+  }
+
+  private fun ContentValues.putSchedule(kind: String, weekdays: List<Int>, hours: Int?, anchor: Long?, day: Int?, policy: String) {
+    put("schedule_kind", kind); put("weekdays", JSONArray(weekdays.distinct()).toString())
+    put("interval_hours", hours); put("interval_anchor", anchor); put("monthly_day", day); put("short_month_policy", policy)
+  }
+
   private fun validateDates(startDate: String?, endDate: String?) {
     val start = startDate?.let(java.time.LocalDate::parse)
     val end = endDate?.let(java.time.LocalDate::parse)
     require(start == null || end == null || end >= start)
   }
 
-  fun edit(id: String, name: String, instructions: String, times: List<String>, type: String, mode: String, now: Long? = null, startDate: String? = null, endDate: String? = null) {
+  fun edit(id: String, name: String, instructions: String, times: List<String>, type: String, mode: String, now: Long? = null, startDate: String? = null, endDate: String? = null, scheduleKind: String = "daily", weekdays: List<Int> = emptyList(), intervalHours: Int? = null, intervalAnchor: Long? = null, monthlyDay: Int? = null, shortMonthPolicy: String = "last") {
     require(name.isNotBlank() && times.isNotEmpty() && type in listOf("medicine", "reminder") && mode in listOf("notification", "alarm"))
     times.forEach { java.time.LocalTime.parse(it) }
     validateDates(startDate, endDate)
+    validateSchedule(scheduleKind, weekdays, intervalHours, intervalAnchor, monthlyDay, shortMonthPolicy)
     val values = ContentValues().apply {
+      putSchedule(scheduleKind, weekdays, intervalHours, intervalAnchor, monthlyDay, shortMonthPolicy)
       put("start_date", startDate); put("end_date", endDate)
       put("name", name.trim()); put("instructions", instructions.trim()); put("times", JSONArray(times.distinct()).toString()); put("type", type); put("mode", mode)
     }
