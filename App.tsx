@@ -47,7 +47,8 @@ const words = {
     explanation:
       'Reminders resume after you unlock your phone for the first time after a restart.',
     cancel: 'Cancel',
-    empty: 'No reminders added yet.',
+    empty: 'No reminders added yet',
+    emptyHelp: 'Add a reminder for a task, an event, or a medicine.',
     error: 'Could not save. Please try again.',
     loading: 'Loading reminders…',
     loadError: 'Unable to load reminders',
@@ -99,7 +100,9 @@ const words = {
     explanation:
       'Los recordatorios se reanudan después de desbloquear el teléfono por primera vez tras reiniciarlo.',
     cancel: 'Cancelar',
-    empty: 'Aún no hay recordatorios.',
+    empty: 'Aún no hay recordatorios',
+    emptyHelp:
+      'Agrega un recordatorio para una tarea, un evento o un medicamento.',
     error: 'No se pudo guardar. Inténtalo de nuevo.',
     loading: 'Cargando recordatorios…',
     loadError: 'No se pudieron cargar los recordatorios',
@@ -130,6 +133,30 @@ const words = {
     deleteQuestion: '¿Eliminar este recordatorio?',
   },
 };
+export function PillAction({
+  title,
+  accessibilityLabel,
+  onPress,
+  secondary = false,
+}: {
+  title: string;
+  accessibilityLabel?: string;
+  onPress: () => void;
+  secondary?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? title}
+      onPress={onPress}
+      style={[styles.pillAction, secondary && styles.pillSecondary]}
+    >
+      <Text style={[styles.pillLabel, secondary && styles.pillSecondaryLabel]}>
+        {title}
+      </Text>
+    </Pressable>
+  );
+}
 export default function App() {
   const [state, setState] = useState<ReminderState>();
   const [screen, setScreen] = useState<
@@ -246,21 +273,30 @@ export default function App() {
     return (
       <View
         key={`${occurrence.medicineId}:${occurrence.scheduledAt}`}
-        style={styles.occurrence}
+        style={[styles.occurrence, compact && styles.occurrenceCompact]}
       >
-        <Text style={styles.text}>
-          {medicine.name}
-          {medicine.type === 'medicine' && medicine.instructions
-            ? ` — ${medicine.instructions}`
-            : ''}
-        </Text>
-        <Text style={styles.text}>
-          {medicine.type === 'reminder' ? t.reminder : t.medicine} · {label}:{' '}
-          {timeLabel(occurrence.scheduledAt)}
-        </Text>
+        <View style={styles.occurrenceHeading}>
+          <View style={styles.iconCircle}>
+            <Text style={styles.iconText}>
+              {medicine.type === 'medicine' ? '✚' : '◷'}
+            </Text>
+          </View>
+          <View style={styles.occurrenceCopy}>
+            <Text style={styles.itemName}>
+              {medicine.name}
+              {medicine.type === 'medicine' && medicine.instructions
+                ? ` — ${medicine.instructions}`
+                : ''}
+            </Text>
+            <Text style={styles.text}>
+              {medicine.type === 'reminder' ? t.reminder : t.medicine} · {label}
+              : {timeLabel(occurrence.scheduledAt)}
+            </Text>
+          </View>
+        </View>
         {compact && (
-          <Button
-            color="#527457"
+          <PillAction
+            secondary
             title={t.change}
             accessibilityLabel={`${t.change}, ${context}`}
             onPress={() => setExpanded(expanded === key ? null : key)}
@@ -268,16 +304,15 @@ export default function App() {
         )}
         {showActions && (
           <>
-            <Button
-              color="#527457"
+            <PillAction
               title={medicine.type === 'reminder' ? t.done : t.taken}
               accessibilityLabel={`${
                 medicine.type === 'reminder' ? t.done : t.taken
               }, ${context}`}
               onPress={() => changeOutcome(occurrence, 'completed')}
             />
-            <Button
-              color="#527457"
+            <PillAction
+              secondary
               title={t.skip}
               accessibilityLabel={`${t.skip}, ${context}`}
               onPress={() => changeOutcome(occurrence, 'skipped')}
@@ -286,8 +321,8 @@ export default function App() {
             {occurrence.outstanding &&
               !occurrence.snoozed &&
               occurrence.outcome == null && (
-                <Button
-                  color="#527457"
+                <PillAction
+                  secondary
                   title={`${t.snooze} 10 ${t.minutes}`}
                   accessibilityLabel={`${t.snooze} 10 ${t.minutes}, ${context}`}
                   onPress={async () => {
@@ -306,8 +341,8 @@ export default function App() {
                 />
               )}
             {occurrence.outcome != null && (
-              <Button
-                color="#527457"
+              <PillAction
+                secondary
                 title={t.unconfirm}
                 accessibilityLabel={`${t.unconfirm}, ${context}`}
                 onPress={() => changeOutcome(occurrence, null)}
@@ -386,27 +421,49 @@ export default function App() {
         ) : (
           <>
             <ScrollView contentContainerStyle={styles.content}>
-              <Text accessibilityRole="header" style={styles.title}>
-                {screen === 'today'
-                  ? t.today
-                  : screen === 'reminders'
-                  ? t.reminders
-                  : screen === 'history'
-                  ? t.history
-                  : t.settings}
-              </Text>
+              {screen === 'today' ? (
+                <View style={styles.headerArt}>
+                  <View style={styles.headerCopy}>
+                    <Text accessibilityRole="header" style={styles.todayTitle}>
+                      {t.today}
+                    </Text>
+                    <Text style={styles.date}>
+                      {new Date().toLocaleDateString(
+                        language === 'es' ? 'es-MX' : 'en-GB',
+                        { weekday: 'long', day: 'numeric', month: 'long' },
+                      )}
+                    </Text>
+                  </View>
+                  {(!state ||
+                    state.medicines.length > 0 ||
+                    state.todayDoses.length > 0) && (
+                    <Image
+                      source={require('./assets/today-leaf.png')}
+                      style={styles.leaf}
+                      resizeMode="contain"
+                      accessibilityIgnoresInvertColors
+                    />
+                  )}
+                </View>
+              ) : (
+                <Text accessibilityRole="header" style={styles.title}>
+                  {screen === 'reminders'
+                    ? t.reminders
+                    : screen === 'history'
+                    ? t.history
+                    : t.settings}
+                </Text>
+              )}
               {!state ? (
                 <Text style={styles.text}>{t.loading}</Text>
               ) : screen === 'today' ? (
                 <>
-                  {state.enabled && <Text style={styles.text}>{t.on}</Text>}
                   {!state.enabled && (
                     <View style={styles.warning}>
                       <Text accessibilityRole="alert" style={styles.title}>
                         {t.off}
                       </Text>
-                      <Button
-                        color="#527457"
+                      <PillAction
                         title={t.enable}
                         onPress={() => setScreen('access')}
                       />
@@ -419,30 +476,27 @@ export default function App() {
                       onPress={undoChange}
                     />
                   )}
-                  <View style={styles.headerArt}>
-                    <View style={styles.headerCopy}>
-                      <Text style={styles.date}>
-                        {new Date().toLocaleDateString(
-                          language === 'es' ? 'es-MX' : 'en-GB',
-                          { weekday: 'long', day: 'numeric', month: 'long' },
-                        )}
-                      </Text>
-                    </View>
-                    <Image
-                      source={require('./assets/today-leaf.png')}
-                      style={styles.leaf}
-                      accessibilityIgnoresInvertColors
-                    />
-                  </View>
                   {state.medicines.length === 0 &&
                     state.todayDoses.length === 0 && (
                       <View style={styles.emptyCard}>
-                        <Text style={styles.text}>{t.empty}</Text>
-                        <Button
-                          color="#527457"
-                          title={t.add}
-                          onPress={() => setScreen('setup')}
+                        <Image
+                          source={require('./assets/today-leaf.png')}
+                          style={styles.emptyLeaf}
+                          resizeMode="contain"
                         />
+                        <Text
+                          accessibilityRole="header"
+                          style={styles.emptyTitle}
+                        >
+                          {t.empty}
+                        </Text>
+                        <Text style={styles.emptyHelp}>{t.emptyHelp}</Text>
+                        <View style={styles.emptyAction}>
+                          <PillAction
+                            title={t.add}
+                            onPress={() => setScreen('setup')}
+                          />
+                        </View>
                       </View>
                     )}
                   {state.todayDoses.some(item => item.outcome == null) && (
@@ -478,14 +532,24 @@ export default function App() {
                         <View style={styles.nextCard}>
                           <Text
                             accessibilityRole="header"
-                            style={styles.sectionTitle}
+                            style={styles.sectionBand}
                           >
                             {t.next}
                           </Text>
-                          <Text style={styles.itemName}>{medicine.name}</Text>
-                          <Text style={styles.text}>
-                            {t.upcoming}: {timeLabel(nextUpcoming.scheduledAt)}
-                          </Text>
+                          <View style={styles.nextBody}>
+                            <View style={styles.iconCircle}>
+                              <Text style={styles.iconText}>◷</Text>
+                            </View>
+                            <View style={styles.occurrenceCopy}>
+                              <Text style={styles.itemName}>
+                                {medicine.name}
+                              </Text>
+                              <Text style={styles.metaText}>
+                                {t.upcoming}:{' '}
+                                {timeLabel(nextUpcoming.scheduledAt)}
+                              </Text>
+                            </View>
+                          </View>
                         </View>
                       ) : null;
                     })()}
@@ -537,11 +601,14 @@ export default function App() {
                         true,
                       ),
                     )}
-                  <Button
-                    color="#527457"
-                    title={t.settings}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t.settings}
                     onPress={() => setScreen('access')}
-                  />
+                    style={styles.accessLink}
+                  >
+                    <Text style={styles.accessLinkText}>{t.settings} ›</Text>
+                  </Pressable>
                 </>
               ) : screen === 'reminders' ? (
                 <>
@@ -759,6 +826,9 @@ export default function App() {
                       screen === tab && styles.navSelected,
                     ]}
                   >
+                    <Text accessible={false} style={styles.navIcon}>
+                      {tab === 'today' ? '⌂' : tab === 'reminders' ? '☷' : '◷'}
+                    </Text>
                     <Text style={styles.navText}>{t[tab]}</Text>
                   </Pressable>
                 ))}
@@ -771,37 +841,55 @@ export default function App() {
   );
 }
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#faf8f0' },
-  content: { padding: 22, gap: 12, paddingBottom: 32 },
+  screen: { flex: 1, backgroundColor: '#fbf6eb' },
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    gap: 12,
+    paddingBottom: 32,
+    flexGrow: 1,
+  },
   navigation: {
     flexDirection: 'row',
     justifyContent: 'space-evenly',
-    backgroundColor: '#e7eddf',
-    paddingVertical: 8,
+    backgroundColor: '#fbf6eb',
+    borderTopWidth: 1,
+    borderTopColor: '#e7dfcd',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
   },
   navItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 52,
+    minHeight: 58,
     paddingHorizontal: 4,
     borderRadius: 14,
   },
-  navSelected: { backgroundColor: '#d6e4c2' },
+  navSelected: { backgroundColor: '#e0e9c7' },
+  navIcon: { fontSize: 24, lineHeight: 27, color: '#263c26' },
   navText: {
     textAlign: 'center',
     color: '#253b29',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
   },
   headerArt: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 100,
+    marginBottom: 2,
   },
-  headerCopy: { flex: 1 },
-  leaf: { width: 72, height: 72 },
-  date: { fontSize: 17, color: '#5b6d5b' },
+  headerCopy: { flex: 1, zIndex: 1 },
+  todayTitle: {
+    color: '#1f271a',
+    fontSize: 38,
+    lineHeight: 44,
+    fontWeight: '700',
+  },
+  leaf: { width: 104, height: 90, marginRight: -8 },
+  date: { fontSize: 17, color: '#302e25', marginTop: 4 },
   sectionTitle: {
     color: '#314e37',
     fontSize: 20,
@@ -814,27 +902,112 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flexShrink: 1,
   },
-  nextCard: { backgroundColor: '#e4eddd', borderRadius: 18, padding: 16 },
+  sectionBand: {
+    backgroundColor: '#e3e8c9',
+    color: '#202d1b',
+    fontSize: 18,
+    fontWeight: '700',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    overflow: 'hidden',
+  },
+  nextCard: {
+    backgroundColor: '#fffaf1',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e5e1cf',
+    overflow: 'hidden',
+  },
+  nextBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 12,
+  },
+  iconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#eef0d8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconText: { fontSize: 25, color: '#4d6d38', fontWeight: '600' },
+  occurrenceCopy: { flex: 1 },
+  occurrenceHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  metaText: { color: '#383b31', fontSize: 15, marginTop: 3 },
   compactCard: { backgroundColor: '#fffdf7', borderRadius: 14, padding: 14 },
   emptyCard: {
-    backgroundColor: '#edf2e7',
-    borderRadius: 18,
-    padding: 18,
-    gap: 8,
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingTop: 28,
+    paddingBottom: 20,
   },
+  emptyLeaf: { width: 220, height: 145, marginBottom: 8 },
+  emptyTitle: {
+    color: '#17291b',
+    fontSize: 25,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  emptyHelp: {
+    fontSize: 17,
+    lineHeight: 24,
+    color: '#3f4239',
+    textAlign: 'center',
+    maxWidth: 260,
+    marginTop: 12,
+  },
+  emptyAction: { marginTop: 24, minWidth: 220, maxWidth: '100%' },
+  pillAction: {
+    minHeight: 44,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 24,
+    backgroundColor: '#4b6f3d',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#789063',
+  },
+  pillLabel: {
+    color: '#fffdf4',
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  pillSecondaryLabel: { color: '#36542b' },
+  accessLink: {
+    alignSelf: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  accessLinkText: { color: '#526d40', fontSize: 15, fontWeight: '600' },
   title: { color: '#162524', fontSize: 26, fontWeight: '700' },
   text: { color: '#162524', fontSize: 18, marginVertical: 8 },
-  warning: { borderWidth: 2, borderColor: '#a01818', padding: 16, gap: 12 },
+  warning: {
+    backgroundColor: '#fff0dc',
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
   medicine: { borderWidth: 1, borderColor: '#324b49', padding: 16 },
   occurrence: {
-    gap: 8,
-    marginVertical: 4,
+    gap: 9,
+    marginTop: 0,
     padding: 16,
-    borderRadius: 16,
-    backgroundColor: '#fffdf7',
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    backgroundColor: '#fffaf1',
     borderWidth: 1,
-    borderColor: '#dbe4d5',
+    borderColor: '#e5e1cf',
   },
+  occurrenceCompact: { marginTop: 0, borderRadius: 14 },
   spacer: { height: 12 },
   error: { color: '#a01818', fontSize: 18 },
 });
