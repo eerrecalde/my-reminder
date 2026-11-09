@@ -6,4 +6,5 @@
 
 **Status:** ready-for-agent
 
+- [ ] Complete the deferred 06b checks: delivery during deep device idle, a scheduled Reminder alarm offline with the phone locked and app normally closed, and alarm output at zero notification volume in normal ringer mode. Record the device, Android version, build, results and any follow-up work. See [06b](06b-daily-use-device-checkpoint.md) for the checks already performed and their limitations.
 - [ ] Implement and verify the behaviour above against the [spec](../spec.md).
