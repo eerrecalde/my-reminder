@@ -26,4 +26,4 @@ Added reminder type storage and migration, preserving existing medicine data, al
 
 ### 2026-11-08 — Foundation verification
 
-Pixel 9a (Android 17): migration and recovery tests passed. Temporary Medicine and Reminder alarms were delivered after closing the app process, and each scheduled its next occurrence; test records and alarms were removed. British English and Latin American Spanish Today wording is covered by UI tests. Full private-test device and accessibility checks remain in ticket 12.
+Pixel 9a (Android 17): migration and recovery tests passed. Temporary Medicine and Reminder alarms were delivered after closing the app process, and each scheduled its next occurrence; test records and alarms were removed. British English and Latin American Spanish Today wording is covered by UI tests. Full private-test device and accessibility checks remain in ticket 15.

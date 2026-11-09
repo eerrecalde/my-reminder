@@ -6,14 +6,14 @@
 
 **Status:** ready-for-agent
 
-**Deferred:** The remaining checks are carried forward to ticket 12 at the user's request. This checkpoint is incomplete but no longer blocks ticket 07.
+**Deferred:** The remaining checks are carried forward to ticket 15 at the user's request. This checkpoint is incomplete but no longer blocks ticket 07.
 
 - [ ] Record the phone model, Android version, build and results. Use a disposable app installation; protect any existing local data.
 - [ ] Verify both reminder types, notification and alarm delivery with the screen locked, app normally closed and offline; check restart and first unlock, and record device-idle results. Distinguish normal closure from force-stop.
 - [ ] Verify audible sound and vibration, muted channels and zero volume; stop sound, snooze, completion, skip, overlapping alarms and closely spaced occurrences.
 - [ ] Check notification and exact-alarm permission denial and restoration, both languages. Record failures and create follow-up work before proceeding to ticket 07.
 
-This checkpoint does not replace the broader private-test acceptance in ticket 12.
+This checkpoint does not replace the broader private-test acceptance in ticket 15.
 
 ## Comments
 
