@@ -5,14 +5,12 @@ import App from '../App';
 
 test('records and undoes a reminder outcome from Today', async () => {
   const repo = require('../src/reminderRepository');
-  const setOutcome = jest
-    .fn()
-    .mockResolvedValue({
-      previous: null,
-      revision: 1,
-      previousCleared: false,
-      changed: true,
-    });
+  const setOutcome = jest.fn().mockResolvedValue({
+    previous: null,
+    revision: 1,
+    previousCleared: false,
+    changed: true,
+  });
   const undoOutcome = jest.fn().mockResolvedValue(undefined);
   repo.reminderRepository = {
     state: jest.fn().mockResolvedValue({
@@ -255,26 +253,149 @@ test.each([
 test.each([
   ['en', 'Snooze', 'minutes'],
   ['es', 'Posponer', 'minutos'],
-])('offers one accessible ten-minute snooze in %s', async (language, snoozeText, minutesText) => {
-  const repository = require('../src/reminderRepository');
-  const snooze = jest.fn().mockResolvedValue(undefined);
-  repository.reminderRepository = {
-    snooze,
-    state: jest.fn().mockResolvedValue({
-      enabled: true, language, medicines: [
-        { id: 'r', type: 'reminder', name: 'Water', instructions: '', times: ['23:59'] },
-      ], todayDoses: [{ medicineId: 'r', scheduledAt: 2000, outstanding: true }], upcoming: [], history: [],
-    }),
+])(
+  'offers one accessible ten-minute snooze in %s',
+  async (language, snoozeText, minutesText) => {
+    const repository = require('../src/reminderRepository');
+    const snooze = jest.fn().mockResolvedValue(undefined);
+    repository.reminderRepository = {
+      snooze,
+      state: jest.fn().mockResolvedValue({
+        enabled: true,
+        language,
+        medicines: [
+          {
+            id: 'r',
+            type: 'reminder',
+            name: 'Water',
+            instructions: '',
+            times: ['23:59'],
+          },
+        ],
+        todayDoses: [{ medicineId: 'r', scheduledAt: 2000, outstanding: true }],
+        upcoming: [],
+        history: [],
+      }),
+    };
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(<App />);
+    });
+    const buttons = renderer.root.findAllByType(Button);
+    const snoozeButtons = buttons.filter(item =>
+      item.props.title.startsWith(snoozeText),
+    );
+    expect(snoozeButtons).toHaveLength(1);
+    const button = snoozeButtons[0];
+    expect(button.props.title).toBe(`${snoozeText} 10 ${minutesText}`);
+    expect(button.props.accessibilityLabel).toContain('Water');
+    await ReactTestRenderer.act(async () => {
+      await button.props.onPress();
+    });
+    expect(snooze).toHaveBeenCalledWith('r', 2000, 10);
+    await ReactTestRenderer.act(() => renderer.unmount());
+  },
+);
+
+test.each([
+  ['en', 'Pause', 'Resume', 'Edit'],
+  ['es', 'Pausar', 'Reanudar', 'Editar'],
+])('manages reminders in %s', async (language, pause, resume, edit) => {
+  const repo = require('../src/reminderRepository');
+  const item = {
+    id: 'm',
+    type: 'medicine',
+    name: 'Aspirin',
+    instructions: 'With food',
+    times: ['09:00'],
+    mode: 'alarm',
+    status: 'active',
   };
-  let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<App />); });
-  const buttons = renderer.root.findAllByType(Button);
-  const snoozeButtons = buttons.filter(item => item.props.title.startsWith(snoozeText));
-  expect(snoozeButtons).toHaveLength(1);
-  const button = snoozeButtons[0];
-  expect(button.props.title).toBe(`${snoozeText} 10 ${minutesText}`);
-  expect(button.props.accessibilityLabel).toContain('Water');
-  await ReactTestRenderer.act(async () => { await button.props.onPress(); });
-  expect(snooze).toHaveBeenCalledWith('r', 2000, 10);
-  await ReactTestRenderer.act(() => renderer.unmount());
+  const state = {
+    enabled: true,
+    exactAlarms: true,
+    notifications: true,
+    language,
+    medicines: [item],
+    todayDoses: [],
+    history: [],
+    upcoming: [],
+  };
+  const setStatus = jest.fn(async (_id, status) => {
+    item.status = status;
+  });
+  repo.reminderRepository = {
+    state: jest.fn(async () => ({ ...state, medicines: [{ ...item }] })),
+    setStatus,
+  };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    view = ReactTestRenderer.create(<App />);
+  });
+  const press = async (title: string) =>
+    ReactTestRenderer.act(async () => {
+      await view.root
+        .findAllByType(Button)
+        .find(b => b.props.title === title)!
+        .props.onPress();
+    });
+  await press(pause);
+  expect(setStatus).toHaveBeenCalledWith('m', 'paused');
+  await press(resume);
+  expect(setStatus).toHaveBeenCalledWith('m', 'active');
+  await press(edit);
+  expect(
+    view.root
+      .findAllByType(Button)
+      .some(
+        b => b.props.title === (language === 'en' ? 'Medicine' : 'Medicamento'),
+      ),
+  ).toBe(true);
+  await ReactTestRenderer.act(() => view.unmount());
+});
+
+test('shows and corrects a deleted reminder occurrence using its saved details', async () => {
+  const repo = require('../src/reminderRepository');
+  const setOutcome = jest
+    .fn()
+    .mockResolvedValue({ previous: 'completed', revision: 2, changed: true });
+  repo.reminderRepository = {
+    state: jest
+      .fn()
+      .mockResolvedValue({
+        enabled: true,
+        language: 'en',
+        medicines: [],
+        todayDoses: [
+          {
+            medicineId: 'm',
+            scheduledAt: 2000,
+            name: 'Aspirin',
+            type: 'medicine',
+            instructions: 'With food',
+            outcome: 'completed',
+          },
+        ],
+        history: [],
+        upcoming: [],
+      }),
+    setOutcome,
+  };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    view = ReactTestRenderer.create(<App />);
+  });
+  expect(
+    view.root
+      .findAllByType(Text)
+      .some(t => JSON.stringify(t.props.children).includes('Aspirin')),
+  ).toBe(true);
+  await ReactTestRenderer.act(async () => {
+    await view.root
+      .findAllByType(Button)
+      .find(b => b.props.title === 'Skip')!
+      .props.onPress();
+  });
+  expect(setOutcome).toHaveBeenCalledWith('m', 2000, 'skipped');
+  await ReactTestRenderer.act(() => view.unmount());
 });

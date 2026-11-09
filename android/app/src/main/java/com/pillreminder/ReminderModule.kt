@@ -25,9 +25,9 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       result.putBoolean("notifications", ReminderScheduler.notificationsEnabled(reactContext))
       result.putString("language", if (Locale.getDefault().language == "es") "es" else "en")
       val medicines = Arguments.createArray()
-      MedicineRepository(reactContext).use { repo -> repo.all().forEach { medicine ->
+      MedicineRepository(reactContext).use { repo -> repo.all().filter { it.status != "deleted" }.forEach { medicine ->
         medicines.pushMap(Arguments.createMap().apply {
-          putString("id", medicine.id); putString("type", medicine.type); putString("mode", medicine.mode); putString("name", medicine.name); putString("instructions", medicine.instructions)
+          putString("id", medicine.id); putString("status", medicine.status); putString("type", medicine.type); putString("mode", medicine.mode); putString("name", medicine.name); putString("instructions", medicine.instructions)
           putArray("times", Arguments.createArray().apply { medicine.times.forEach { pushString(it) } })
         })
       } }
@@ -43,13 +43,13 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
         val medicinesById = repo.all().associateBy { it.id }
         repo.occurrences(includeCleared = true).forEach { occurrence ->
           fun occurrenceMap() = Arguments.createMap().apply {
-            putString("medicineId", occurrence.medicineId); putDouble("scheduledAt", occurrence.at.toDouble()); putString("outcome", occurrence.outcome); putBoolean("outstanding", occurrence.outstanding); putBoolean("snoozed", repo.snooze(occurrence.medicineId, occurrence.at) != null)
+            putString("name", occurrence.name); putString("instructions", occurrence.instructions); putString("type", occurrence.type); putString("medicineId", occurrence.medicineId); putDouble("scheduledAt", occurrence.at.toDouble()); putString("outcome", occurrence.outcome); putBoolean("outstanding", occurrence.outstanding); putBoolean("snoozed", repo.snooze(occurrence.medicineId, occurrence.at) != null)
           }
           val medicine = medicinesById[occurrence.medicineId]
           if (TodayPolicy.includes(occurrence, medicine, now, zone)) doses.pushMap(occurrenceMap())
           if (!occurrence.cleared && occurrence.outcome != null) history.pushMap(occurrenceMap())
         }
-        medicinesById.values.forEach { medicine ->
+        medicinesById.values.filter { it.status == "active" }.forEach { medicine ->
           var next = DailySchedule.next(medicine.times, now, zone)
           // Include the next occurrence even when it is tomorrow, plus all of today's upcoming occurrences.
           do {
@@ -102,6 +102,16 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       }
       promise.resolve(null)
     } catch (error: Exception) { promise.reject("save_failed", error) }
+  }
+  @ReactMethod fun edit(id: String, type: String, name: String, instructions: String, times: ReadableArray, mode: String, promise: Promise) {
+    try {
+      ReminderScheduler.edit(reactContext, id, name, instructions, (0 until times.size()).map { requireNotNull(times.getString(it)) }, type, mode)
+      promise.resolve(null)
+    } catch (error: Exception) { promise.reject("edit_failed", error) }
+  }
+  @ReactMethod fun setStatus(id: String, status: String, promise: Promise) {
+    try { ReminderScheduler.setStatus(reactContext, id, status); promise.resolve(null) }
+    catch (error: Exception) { promise.reject("status_failed", error) }
   }
   @ReactMethod fun openAlarmSettings() {
     if (Build.VERSION.SDK_INT >= 31) {

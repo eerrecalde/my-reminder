@@ -90,7 +90,7 @@ object ReminderScheduler {
       cursor = next
     }
     repo.occurrences().filter { it.medicineId == medicine.id && it.outcome == null }.forEach { occurrence ->
-      val next = DailySchedule.next(medicine.times, Instant.ofEpochMilli(occurrence.at), zone)
+      val next = DailySchedule.next(medicine.times, Instant.ofEpochMilli(maxOf(occurrence.at, medicine.changedAt)), zone)
       if (next <= now && repo.markMissed(medicine.id, occurrence.at)) {
         dismissOccurrence(context, medicine.id, occurrence.at)
       }
@@ -134,7 +134,7 @@ object ReminderScheduler {
   }
 
   @Synchronized fun schedule(context: Context, medicine: Medicine, after: Instant = Instant.now()) {
-    if (!enabled(context)) return
+    if (!enabled(context) || medicine.status != "active") return
     MedicineRepository(context).use { repo ->
       val old = repo.alarm(medicine.id)
       if (old != null) {
@@ -179,7 +179,7 @@ object ReminderScheduler {
           try { registerSnooze(context, item) } catch (_: SecurityException) { cancelSnooze(context, item.medicineId, item.at) }
         } else if (item.alertAt <= now.toEpochMilli() && invalidate) cancelSnooze(context, item.medicineId, item.at)
       }
-      medicines.forEach { medicine ->
+      medicines.filter { it.status == "active" }.forEach { medicine ->
         if (invalidate) {
           val legacyIntent = Intent(context, ReminderReceiver::class.java).setData(Uri.parse("pillreminder://medicine/${medicine.id}"))
           val legacy = PendingIntent.getBroadcast(context, 0, legacyIntent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
@@ -211,7 +211,7 @@ object ReminderScheduler {
     if (!enabled(context) || recoveryPending(context)) { rebuild(context, recovery = true); return }
     val now = System.currentTimeMillis()
     MedicineRepository(context).use { repo ->
-      val medicine = repo.all().find { it.id == id } ?: return
+      val medicine = repo.all().find { it.id == id && it.status == "active" } ?: return
       reconcileOccurrences(context, repo, medicine, Instant.ofEpochMilli(now), ZoneId.systemDefault())
       val active = repo.alarm(id)
       if (active != null && active.at == at && active.token == token && at <= now) {
@@ -232,6 +232,44 @@ object ReminderScheduler {
       }
     }
   }
+  private fun cancelFuture(context: Context, repo: MedicineRepository, id: String) {
+    repo.alarm(id)?.let { alarm ->
+      listOf(pending(context, alarm), watchdog(context, alarm)).forEach { operation ->
+        alarmManager(context).cancel(operation); operation.cancel()
+      }
+    }
+    val due = repo.alarm(id)?.at
+    repo.invalidateAlarm(id)
+    if (due != null && due <= System.currentTimeMillis()) repo.recordDue(id, due)
+  }
+
+  @Synchronized fun edit(context: Context, id: String, name: String, instructions: String, times: List<String>, type: String, mode: String) {
+    rebuild(context)
+    MedicineRepository(context).use { repo ->
+      val old = requireNotNull(repo.all().find { it.id == id && it.status != "deleted" })
+      val now = Instant.now()
+      cancelFuture(context, repo, id)
+      repo.edit(id, name, instructions, times, type, mode, now.toEpochMilli())
+      if (old.status == "active") schedule(context, requireNotNull(repo.all().find { it.id == id }), now)
+    }
+  }
+
+  @Synchronized fun setStatus(context: Context, id: String, status: String) {
+    require(status in listOf("active", "paused", "deleted"))
+    rebuild(context)
+    MedicineRepository(context).use { repo ->
+      requireNotNull(repo.all().find { it.id == id && it.status != "deleted" })
+      val now = Instant.now()
+      cancelFuture(context, repo, id)
+      if (status != "active") {
+        repo.occurrences(includeCleared = true).filter { it.medicineId == id }.forEach { dismissOccurrence(context, id, it.at) }
+        repo.snoozes().filter { it.medicineId == id }.forEach { cancelSnooze(context, id, it.at) }
+      }
+      repo.setStatus(id, status, now.toEpochMilli())
+      if (status == "active") schedule(context, requireNotNull(repo.all().find { it.id == id }), now)
+    }
+  }
+
   @Synchronized fun recordOutcome(context: Context, id: String, at: Long, outcome: String?, onlyUnconfirmed: Boolean = false): MedicineRepository.OutcomeChange? {
     val changed = MedicineRepository(context).use { repo ->
       if (onlyUnconfirmed) {
@@ -239,7 +277,7 @@ object ReminderScheduler {
       }
       else {
         val medicine = requireNotNull(repo.all().find { it.id == id })
-        val next = DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault())
+        val next = DailySchedule.next(medicine.times, Instant.ofEpochMilli(maxOf(at, medicine.changedAt)), ZoneId.systemDefault())
         repo.setOutcome(id, at, outcome, outcome == null && next <= Instant.now())
       }
     }
@@ -250,7 +288,7 @@ object ReminderScheduler {
   @Synchronized fun undoOutcome(context: Context, id: String, at: Long, previous: String?, revision: Long, previousCleared: Boolean = false): Boolean {
     val undone = MedicineRepository(context).use { repo ->
       val medicine = repo.all().find { it.id == id } ?: return false
-      val next = DailySchedule.next(medicine.times, Instant.ofEpochMilli(at), ZoneId.systemDefault())
+      val next = DailySchedule.next(medicine.times, Instant.ofEpochMilli(maxOf(at, medicine.changedAt)), ZoneId.systemDefault())
       repo.undoOutcome(id, at, revision, previous, previous == null && next <= Instant.now(), previousCleared)
     }
     if (undone) dismissOccurrence(context, id, at)
@@ -303,7 +341,7 @@ object ReminderScheduler {
       if (current != null && !RecoveryPolicy.shouldRetry(current, at, token)) {
         if (current.registered) return
       }
-      val medicine = repo.all().find { it.id == id } ?: return
+      val medicine = repo.all().find { it.id == id && it.status == "active" } ?: return
       if (current != null) {
         if (!current.registered && current.at <= System.currentTimeMillis()) {
           repo.invalidateAlarm(id)

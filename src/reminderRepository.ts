@@ -2,10 +2,16 @@ import { NativeModules } from 'react-native';
 import type { DailyMedicineInput } from './MedicineSetup';
 
 export type ReminderType = 'medicine' | 'reminder';
-export type Medicine = DailyMedicineInput & { id: string };
+export type Medicine = DailyMedicineInput & {
+  id: string;
+  status?: 'active' | 'paused';
+};
 export type Outcome = 'completed' | 'skipped' | 'missed';
 export type Occurrence = {
   medicineId: string;
+  name?: string;
+  instructions?: string;
+  type?: ReminderType;
   scheduledAt: number;
   outcome?: Outcome | null;
   outstanding?: boolean;
@@ -50,6 +56,15 @@ export interface ReminderRepository {
     times: string[],
     mode: 'notification' | 'alarm',
   ): Promise<void>;
+  edit(
+    id: string,
+    type: ReminderType,
+    name: string,
+    instructions: string,
+    times: string[],
+    mode: 'notification' | 'alarm',
+  ): Promise<void>;
+  setStatus(id: string, status: 'active' | 'paused' | 'deleted'): Promise<void>;
   openAlarmSettings(): void;
   openNotificationSettings(): void;
   testReminder(): void;

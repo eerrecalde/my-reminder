@@ -63,6 +63,12 @@ const words = {
     snooze: 'Snooze',
     snoozed: 'Snoozed',
     minutes: 'minutes',
+    edit: 'Edit',
+    pause: 'Pause',
+    resume: 'Resume',
+    delete: 'Delete',
+    paused: 'Paused',
+    deleteQuestion: 'Delete this reminder?',
   },
   es: {
     today: 'Hoy',
@@ -106,6 +112,12 @@ const words = {
     snooze: 'Posponer',
     snoozed: 'Pospuesto',
     minutes: 'minutos',
+    edit: 'Editar',
+    pause: 'Pausar',
+    resume: 'Reanudar',
+    delete: 'Eliminar',
+    paused: 'Pausado',
+    deleteQuestion: '¿Eliminar este recordatorio?',
   },
 };
 export default function App() {
@@ -114,6 +126,7 @@ export default function App() {
     'today' | 'setup' | 'access' | 'history'
   >('today');
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState<Medicine>();
   const [undo, setUndo] = useState<{
     occurrence: Occurrence;
     previous: Outcome | null;
@@ -190,6 +203,12 @@ export default function App() {
       minute: '2-digit',
     });
   const occurrenceView = (occurrence: Occurrence, medicine: Medicine) => {
+    medicine = {
+      ...medicine,
+      name: occurrence.name ?? medicine.name,
+      instructions: occurrence.instructions ?? medicine.instructions,
+      type: occurrence.type ?? medicine.type,
+    };
     const label =
       occurrence.outcome === 'completed'
         ? medicine.type === 'reminder'
@@ -209,6 +228,12 @@ export default function App() {
         style={styles.occurrence}
       >
         <Text style={styles.text}>
+          {medicine.name}
+          {medicine.type === 'medicine' && medicine.instructions
+            ? ` — ${medicine.instructions}`
+            : ''}
+        </Text>
+        <Text style={styles.text}>
           {label}: {timeLabel(occurrence.scheduledAt)}
         </Text>
         <Button
@@ -226,22 +251,28 @@ export default function App() {
           onPress={() => changeOutcome(occurrence, 'skipped')}
         />
         {occurrence.snoozed && <Text style={styles.text}>{t.snoozed}</Text>}
-        {occurrence.outstanding && !occurrence.snoozed && occurrence.outcome == null && (
-          <Button
-            color="#00535b"
-            title={`${t.snooze} 10 ${t.minutes}`}
-            accessibilityLabel={`${t.snooze} 10 ${t.minutes}, ${context}`}
-            onPress={async () => {
-              try {
-                await reminderRepository.snooze(occurrence.medicineId, occurrence.scheduledAt, 10);
-                setError('');
-                await refresh();
-              } catch {
-                setError(t.actionError);
-              }
-            }}
-          />
-        )}
+        {occurrence.outstanding &&
+          !occurrence.snoozed &&
+          occurrence.outcome == null && (
+            <Button
+              color="#00535b"
+              title={`${t.snooze} 10 ${t.minutes}`}
+              accessibilityLabel={`${t.snooze} 10 ${t.minutes}, ${context}`}
+              onPress={async () => {
+                try {
+                  await reminderRepository.snooze(
+                    occurrence.medicineId,
+                    occurrence.scheduledAt,
+                    10,
+                  );
+                  setError('');
+                  await refresh();
+                } catch {
+                  setError(t.actionError);
+                }
+              }}
+            />
+          )}
         {occurrence.outcome != null && (
           <Button
             color="#00535b"
@@ -269,14 +300,23 @@ export default function App() {
             <Button
               color="#00535b"
               title={t.cancel}
-              onPress={() => setScreen('today')}
+              onPress={() => {
+                setEditing(undefined);
+                setScreen('today');
+              }}
             />
             <MedicineSetup
+              initial={editing}
               selectTime={time => reminderRepository.selectTime(time)}
               language={language}
               onSave={async medicine => {
                 try {
-                  await reminderRepository.saveTyped(
+                  await (editing
+                    ? reminderRepository.edit.bind(
+                        reminderRepository,
+                        editing.id,
+                      )
+                    : reminderRepository.saveTyped.bind(reminderRepository))(
                     medicine.type,
                     medicine.name,
                     medicine.instructions,
@@ -284,6 +324,7 @@ export default function App() {
                     medicine.mode,
                   );
                   await refresh();
+                  setEditing(undefined);
                   setScreen('today');
                   setError('');
                 } catch {
@@ -346,6 +387,60 @@ export default function App() {
                   state.medicines.map(medicine => (
                     <View key={medicine.id} style={styles.medicine}>
                       <Text style={styles.title}>{medicine.name}</Text>
+                      {medicine.status === 'paused' && (
+                        <Text style={styles.text}>{t.paused}</Text>
+                      )}
+                      <Button
+                        title={t.edit}
+                        color="#00535b"
+                        onPress={() => {
+                          setEditing(medicine);
+                          setScreen('setup');
+                        }}
+                      />
+                      <Button
+                        title={
+                          medicine.status === 'paused' ? t.resume : t.pause
+                        }
+                        color="#00535b"
+                        onPress={async () => {
+                          try {
+                            await reminderRepository.setStatus(
+                              medicine.id,
+                              medicine.status === 'paused'
+                                ? 'active'
+                                : 'paused',
+                            );
+                            await refresh();
+                          } catch {
+                            setError(t.error);
+                          }
+                        }}
+                      />
+                      <Button
+                        title={t.delete}
+                        color="#00535b"
+                        onPress={() =>
+                          Alert.alert(t.delete, t.deleteQuestion, [
+                            { text: t.cancel, style: 'cancel' },
+                            {
+                              text: t.delete,
+                              style: 'destructive',
+                              onPress: async () => {
+                                try {
+                                  await reminderRepository.setStatus(
+                                    medicine.id,
+                                    'deleted',
+                                  );
+                                  await refresh();
+                                } catch {
+                                  setError(t.error);
+                                }
+                              },
+                            },
+                          ])
+                        }
+                      />
                       <Text style={styles.text}>
                         {medicine.type === 'reminder' ? t.reminder : t.medicine}
                       </Text>
@@ -376,6 +471,21 @@ export default function App() {
                     </View>
                   ))
                 )}
+                {state.todayDoses
+                  .filter(
+                    item =>
+                      !state.medicines.some(m => m.id === item.medicineId),
+                  )
+                  .map(item =>
+                    occurrenceView(item, {
+                      id: item.medicineId,
+                      name: item.name ?? '',
+                      instructions: item.instructions ?? '',
+                      type: item.type ?? 'reminder',
+                      times: [],
+                      mode: 'notification',
+                    }),
+                  )}
                 <Button
                   color="#00535b"
                   title={t.add}
@@ -409,15 +519,25 @@ export default function App() {
                   const medicine = state.medicines.find(
                     item => item.id === occurrence.medicineId,
                   );
-                  return medicine ? (
+                  const details = medicine ?? {
+                    id: occurrence.medicineId,
+                    name: occurrence.name ?? '',
+                    instructions: occurrence.instructions ?? '',
+                    type: occurrence.type ?? 'reminder',
+                    times: [],
+                    mode: 'notification' as const,
+                  };
+                  return (
                     <View
                       key={`${occurrence.medicineId}:${occurrence.scheduledAt}`}
                       style={styles.medicine}
                     >
-                      <Text style={styles.title}>{medicine.name}</Text>
-                      {occurrenceView(occurrence, medicine)}
+                      <Text style={styles.title}>
+                        {occurrence.name ?? details.name}
+                      </Text>
+                      {occurrenceView(occurrence, details)}
                     </View>
-                  ) : null;
+                  );
                 })}
                 <Button
                   color="#00535b"

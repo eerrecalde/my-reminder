@@ -17,6 +17,47 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ReminderFoundationTest {
+  @Test fun pauseAndResumeCancelOnlyTheSelectedReminderAndPreserveDueOccurrence() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val now = System.currentTimeMillis()
+    val time = LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))
+    val first = MedicineRepository(context).use { it.save("First", "", listOf(time), now - 10000, "reminder") }
+    val second = MedicineRepository(context).use { it.save("Second", "", listOf(time), now - 10000, "reminder") }
+    val due = now - 1000
+    try {
+      MedicineRepository(context).use { it.setAlarm(first.id, due, "first-due") }
+      ReminderScheduler.deliver(context, first.id, due, "first-due")
+      ReminderScheduler.schedule(context, second)
+      val secondAlarm = MedicineRepository(context).use { it.alarm(second.id) }
+      ReminderScheduler.setStatus(context, first.id, "paused")
+      MedicineRepository(context).use { repo ->
+        assertNull(repo.alarm(first.id))
+        assertEquals(secondAlarm, repo.alarm(second.id))
+        assertNotNull(repo.occurrences().find { it.medicineId == first.id && it.at == due })
+        assertFalse(repo.occurrences().first { it.medicineId == first.id && it.at == due }.outstanding)
+      }
+      ReminderScheduler.setStatus(context, first.id, "active")
+      MedicineRepository(context).use { repo ->
+        assertTrue(requireNotNull(repo.alarm(first.id)).at > System.currentTimeMillis())
+        assertEquals(secondAlarm, repo.alarm(second.id))
+      }
+      ReminderScheduler.setStatus(context, first.id, "deleted")
+      ReminderScheduler.recordOutcome(context, first.id, due, "completed")
+      assertEquals("completed", MedicineRepository(context).use { it.outcome(first.id, due) })
+    } finally {
+      MedicineRepository(context).use { repo ->
+        listOf(first, second).forEach { item ->
+          repo.alarm(item.id)?.let { cancel(context, it) }
+          repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
+          repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+          repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
+          repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+        }
+      }
+    }
+  }
   @Test fun recoveryPreservesOverdueAlarmFromBeforeTrackingBegan() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     assertTrue(ReminderScheduler.enabled(context))

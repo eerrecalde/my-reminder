@@ -6,6 +6,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class TodayPolicyTest {
+  @Test fun inactiveReminderKeepsOlderUnconfirmedOccurrencesAccessible() {
+    val zone = ZoneId.of("Europe/London")
+    val occurrence = MedicineRepository.Occurrence("id", Instant.parse("2026-06-01T09:00:00Z").toEpochMilli(), null)
+    val now = Instant.parse("2026-06-03T12:00:00Z")
+    val medicine = Medicine("id", "Example", "", listOf("09:00"), 0)
+    assertFalse(TodayPolicy.includes(occurrence, medicine, now, zone))
+    assertTrue(TodayPolicy.includes(occurrence, medicine.copy(status = "paused"), now, zone))
+    assertTrue(TodayPolicy.includes(occurrence, medicine.copy(status = "deleted"), now, zone))
+    assertFalse(TodayPolicy.includes(occurrence.copy(outcome = "skipped"), medicine.copy(status = "deleted"), now, zone))
+  }
   @Test fun previousDayAlertStaysUntilActionOrNextOccurrence() {
     val zone = ZoneId.of("Europe/London")
     val at = Instant.parse("2026-06-01T22:55:00Z").toEpochMilli()
