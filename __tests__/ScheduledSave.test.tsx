@@ -16,26 +16,24 @@ test.each([false, true])(
     const saveScheduled = jest.fn().mockResolvedValue(undefined);
     const editScheduled = jest.fn().mockResolvedValue(undefined);
     repo.reminderRepository = {
-      state: jest
-        .fn()
-        .mockResolvedValue({
-          enabled: true,
-          exactAlarms: true,
-          notifications: true,
-          language: 'en',
-          medicines: [
-            {
-              id: 'r',
-              type: 'reminder',
-              name: 'Water',
-              instructions: '',
-              times: ['09:00'],
-            },
-          ],
-          todayDoses: [],
-          history: [],
-          upcoming: [],
-        }),
+      state: jest.fn().mockResolvedValue({
+        enabled: true,
+        exactAlarms: true,
+        notifications: true,
+        language: 'en',
+        medicines: [
+          {
+            id: 'r',
+            type: 'reminder',
+            name: 'Water',
+            instructions: '',
+            times: ['09:00'],
+          },
+        ],
+        todayDoses: [],
+        history: [],
+        upcoming: [],
+      }),
       saveScheduled,
       editScheduled,
     };
@@ -44,29 +42,30 @@ test.each([false, true])(
       view = ReactTestRenderer.create(<App />);
     });
     await ReactTestRenderer.act(() =>
+      view.root.findByProps({ testID: 'nav-reminders' }).props.onPress(),
+    );
+    await ReactTestRenderer.act(() =>
       view.root
         .findAllByType(Button)
         .find(b => b.props.title === (editing ? 'Edit' : 'Add reminder'))!
         .props.onPress(),
     );
     await ReactTestRenderer.act(async () =>
-      view.root
-        .findByType(MedicineSetup)
-        .props.onSave({
-          type: 'reminder',
-          name: 'Water',
-          instructions: '',
-          times: ['09:00'],
-          mode: 'notification',
-          startDate: '2026-01-01',
-          endDate: null,
-          scheduleKind: 'monthly',
-          weekdays: [],
-          intervalHours: null,
-          intervalAnchor: null,
-          monthlyDay: 31,
-          shortMonthPolicy: 'skip',
-        }),
+      view.root.findByType(MedicineSetup).props.onSave({
+        type: 'reminder',
+        name: 'Water',
+        instructions: '',
+        times: ['09:00'],
+        mode: 'notification',
+        startDate: '2026-01-01',
+        endDate: null,
+        scheduleKind: 'monthly',
+        weekdays: [],
+        intervalHours: null,
+        intervalAnchor: null,
+        monthlyDay: 31,
+        shortMonthPolicy: 'skip',
+      }),
     );
     const expected = [
       'reminder',

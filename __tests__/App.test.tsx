@@ -90,10 +90,7 @@ test('history is cleared only after confirmation', async () => {
     renderer = ReactTestRenderer.create(<App />);
   });
   await ReactTestRenderer.act(() =>
-    renderer.root
-      .findAllByType(Button)
-      .find(button => button.props.title === 'History')!
-      .props.onPress(),
+    renderer.root.findByProps({ testID: 'nav-history' }).props.onPress(),
   );
   expect(
     renderer.root
@@ -339,6 +336,9 @@ test.each([
         .find(b => b.props.title === title)!
         .props.onPress();
     });
+  await ReactTestRenderer.act(() => {
+    view.root.findByProps({ testID: 'nav-reminders' }).props.onPress();
+  });
   await press(pause);
   expect(setStatus).toHaveBeenCalledWith('m', 'paused');
   await press(resume);
@@ -360,25 +360,23 @@ test('shows and corrects a deleted reminder occurrence using its saved details',
     .fn()
     .mockResolvedValue({ previous: 'completed', revision: 2, changed: true });
   repo.reminderRepository = {
-    state: jest
-      .fn()
-      .mockResolvedValue({
-        enabled: true,
-        language: 'en',
-        medicines: [],
-        todayDoses: [
-          {
-            medicineId: 'm',
-            scheduledAt: 2000,
-            name: 'Aspirin',
-            type: 'medicine',
-            instructions: 'With food',
-            outcome: 'completed',
-          },
-        ],
-        history: [],
-        upcoming: [],
-      }),
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      language: 'en',
+      medicines: [],
+      todayDoses: [
+        {
+          medicineId: 'm',
+          scheduledAt: 2000,
+          name: 'Aspirin',
+          type: 'medicine',
+          instructions: 'With food',
+          outcome: 'completed',
+        },
+      ],
+      history: [],
+      upcoming: [],
+    }),
     setOutcome,
   };
   let view!: ReactTestRenderer.ReactTestRenderer;
@@ -390,6 +388,12 @@ test('shows and corrects a deleted reminder occurrence using its saved details',
       .findAllByType(Text)
       .some(t => JSON.stringify(t.props.children).includes('Aspirin')),
   ).toBe(true);
+  await ReactTestRenderer.act(() => {
+    view.root
+      .findAllByType(Button)
+      .find(b => b.props.title === 'Change outcome')!
+      .props.onPress();
+  });
   await ReactTestRenderer.act(async () => {
     await view.root
       .findAllByType(Button)
