@@ -313,11 +313,11 @@ export default function App() {
               onSave={async medicine => {
                 try {
                   await (editing
-                    ? reminderRepository.editDated.bind(
+                    ? reminderRepository.editScheduled.bind(
                         reminderRepository,
                         editing.id,
                       )
-                    : reminderRepository.saveDated.bind(reminderRepository))(
+                    : reminderRepository.saveScheduled.bind(reminderRepository))(
                     medicine.type,
                     medicine.name,
                     medicine.instructions,
@@ -325,6 +325,12 @@ export default function App() {
                     medicine.mode,
                     medicine.startDate!,
                     medicine.endDate ?? null,
+                    medicine.scheduleKind ?? 'daily',
+                    medicine.weekdays ?? [],
+                    medicine.intervalHours ?? null,
+                    medicine.intervalAnchor ?? null,
+                    medicine.monthlyDay ?? null,
+                    medicine.shortMonthPolicy ?? 'last',
                   );
                   await refresh();
                   setEditing(undefined);

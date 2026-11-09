@@ -87,6 +87,8 @@ export interface ReminderRepository {
     startDate: string,
     endDate: string | null,
   ): Promise<void>;
+  saveScheduled(type: ReminderType, name: string, instructions: string, times: string[], mode: 'notification' | 'alarm', startDate: string, endDate: string | null, scheduleKind: 'daily' | 'weekday' | 'interval' | 'monthly', weekdays: number[], intervalHours: number | null, intervalAnchor: number | null, monthlyDay: number | null, shortMonthPolicy: 'last' | 'skip'): Promise<void>;
+  editScheduled(id: string, type: ReminderType, name: string, instructions: string, times: string[], mode: 'notification' | 'alarm', startDate: string, endDate: string | null, scheduleKind: 'daily' | 'weekday' | 'interval' | 'monthly', weekdays: number[], intervalHours: number | null, intervalAnchor: number | null, monthlyDay: number | null, shortMonthPolicy: 'last' | 'skip'): Promise<void>;
   selectDate(date: string): Promise<string | null>;
   selectTime(time: string): Promise<string | null>;
 }

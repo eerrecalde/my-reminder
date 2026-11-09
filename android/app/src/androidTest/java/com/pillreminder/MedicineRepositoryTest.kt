@@ -10,7 +10,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class MedicineRepositoryTest {
   @Test fun recentUpgradesRetainAlarmAndOccurrenceDetails() {
-    for (version in listOf(12, 13)) {
+    for (version in listOf(12, 13, 14)) {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val db = "v12-transition-upgrade.db"
     context.deleteDatabase(db)
@@ -20,8 +20,13 @@ class MedicineRepositoryTest {
       repo.setOutcome(saved.id, 2000, "completed")
       repo.setAlarm(saved.id, 3000, "future")
       repo.markAlarmRegistered(saved.id, "future")
-      repo.writableDatabase.execSQL("ALTER TABLE medicines DROP COLUMN start_date")
-      repo.writableDatabase.execSQL("ALTER TABLE medicines DROP COLUMN end_date")
+      for (column in listOf("schedule_kind", "weekdays", "interval_hours", "interval_anchor", "monthly_day", "short_month_policy")) {
+        repo.writableDatabase.execSQL("ALTER TABLE medicines DROP COLUMN $column")
+      }
+      if (version < 14) {
+        repo.writableDatabase.execSQL("ALTER TABLE medicines DROP COLUMN start_date")
+        repo.writableDatabase.execSQL("ALTER TABLE medicines DROP COLUMN end_date")
+      }
       if (version == 12) repo.writableDatabase.execSQL("DROP TABLE reminder_transitions")
       repo.writableDatabase.version = version
       saved
