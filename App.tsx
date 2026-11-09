@@ -153,8 +153,13 @@ export function PillAction({
       onPress={onPress}
       style={[styles.pillAction, secondary && styles.pillSecondary]}
     >
+      {showPlus && (
+        <View accessible={false} style={styles.plusIcon}>
+          <View style={styles.plusHorizontal} />
+          <View style={styles.plusVertical} />
+        </View>
+      )}
       <Text style={[styles.pillLabel, secondary && styles.pillSecondaryLabel]}>
-        {showPlus && <Text style={styles.plusIcon}>＋ </Text>}
         {title}
       </Text>
     </Pressable>
@@ -428,7 +433,7 @@ export default function App() {
                 <View style={styles.brandRow}>
                   <View style={styles.brandName}>
                     <Image
-                      source={require('./assets/today-leaf.png')}
+                      source={require('./assets/brand-sprig.png')}
                       style={styles.brandLeaf}
                       resizeMode="contain"
                     />
@@ -461,7 +466,7 @@ export default function App() {
                     state.medicines.length > 0 ||
                     state.todayDoses.length > 0) && (
                     <Image
-                      source={require('./assets/today-leaf.png')}
+                      source={require('./assets/today-illustration.png')}
                       style={styles.leaf}
                       resizeMode="contain"
                       accessibilityIgnoresInvertColors
@@ -503,7 +508,7 @@ export default function App() {
                     state.todayDoses.length === 0 && (
                       <View style={styles.emptyCard}>
                         <Image
-                          source={require('./assets/today-leaf.png')}
+                          source={require('./assets/today-illustration.png')}
                           style={styles.emptyLeaf}
                           resizeMode="contain"
                         />
@@ -957,7 +962,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   brandName: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  brandLeaf: { width: 34, height: 30 },
+  brandLeaf: { width: 48, height: 36, marginHorizontal: -7 },
   brandText: { color: '#17231a', fontSize: 17, fontWeight: '700' },
   moreIcon: { color: '#142219', fontSize: 27, lineHeight: 32 },
   headerArt: {
@@ -1055,6 +1060,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#4b6f3d',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
   },
   pillSecondary: {
     backgroundColor: 'transparent',
@@ -1066,9 +1073,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     textAlign: 'center',
+    flexShrink: 1,
   },
   pillSecondaryLabel: { color: '#36542b' },
-  plusIcon: { fontSize: 22, fontWeight: '400' },
+  plusIcon: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plusHorizontal: {
+    position: 'absolute',
+    width: 20,
+    height: 2,
+    backgroundColor: '#fffdf4',
+    borderRadius: 1,
+  },
+  plusVertical: {
+    position: 'absolute',
+    height: 20,
+    width: 2,
+    backgroundColor: '#fffdf4',
+    borderRadius: 1,
+  },
   accessLink: {
     alignSelf: 'center',
     paddingVertical: 12,
