@@ -2,7 +2,9 @@
 
 **Status:** needs-info
 
-**Blocked by:** 12 — Finalize UX designs, 13 — Redesign Today and navigation
+**Blocked by:** 13 — Redesign Today and navigation
+
+**Design:** [Approved UX handoff](../ux-design-review.md)
 
 Apply the approved visual system to reminder management, the existing setup flow, History, and reminder access. Preserve existing features and behavior, including alarm and outcome distinctions.
 

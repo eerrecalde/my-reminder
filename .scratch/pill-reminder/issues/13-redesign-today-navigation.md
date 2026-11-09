@@ -1,8 +1,8 @@
 # 13: Redesign Today and navigation
 
-**Status:** needs-info
+**Status:** ready-for-agent
 
-**Blocked by:** 12 — Finalize UX designs
+**Design:** [Approved UX handoff](../ux-design-review.md)
 
 Implement the approved visual foundation, Today screen, and navigation while preserving existing functionality. Use a replaceable bundled header illustration that can be changed in a future release. Group attention, upcoming, and earlier items as approved; keep completed and skipped outcomes distinct and compact. Ensure existing reminder actions remain accessible and that status is conveyed in words as well as color.
 
