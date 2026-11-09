@@ -31,12 +31,18 @@ class ReminderFoundationTest {
       ReminderScheduler.deliver(context, first.id, due, "first-due")
       ReminderScheduler.schedule(context, second)
       val secondAlarm = MedicineRepository(context).use { it.alarm(second.id) }
+      try {
+        ReminderScheduler.edit(context, first.id, "", "", listOf(time), "reminder", "notification")
+        fail("Invalid edits should fail")
+      } catch (_: IllegalArgumentException) { }
+      assertNotNull(MedicineRepository(context).use { it.alarm(first.id) })
       ReminderScheduler.setStatus(context, first.id, "paused")
       MedicineRepository(context).use { repo ->
         assertNull(repo.alarm(first.id))
         assertEquals(secondAlarm, repo.alarm(second.id))
         assertNotNull(repo.occurrences().find { it.medicineId == first.id && it.at == due })
         assertFalse(repo.occurrences().first { it.medicineId == first.id && it.at == due }.outstanding)
+        assertTrue(repo.occurrences().first { it.medicineId == first.id && it.at == due }.retained)
       }
       ReminderScheduler.setStatus(context, first.id, "active")
       MedicineRepository(context).use { repo ->
