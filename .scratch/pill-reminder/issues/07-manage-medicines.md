@@ -4,7 +4,7 @@
 
 **Blocked by:** None
 
-The remaining physical-device checks from 06b are deferred to ticket 12 and do not block this ticket.
+The remaining physical-device checks from 06b are deferred to ticket 15 and do not block this ticket.
 
 **Status:** ready-for-agent
 
