@@ -17,6 +17,133 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ReminderFoundationTest {
+  @Test fun rebuildDismissesAlertLeftAfterInterruptedPauseCleanup() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(NotificationManager::class.java)
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val now = System.currentTimeMillis()
+    val due = now - 1000
+    val time = LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))
+    val item = MedicineRepository(context).use { repo ->
+      val saved = repo.save("Cleanup", "", listOf(time), now - 10000, "reminder")
+      repo.setAlarm(saved.id, due, "cleanup-due")
+      saved
+    }
+    try {
+      ReminderScheduler.deliver(context, item.id, due, "cleanup-due")
+      val notificationId = ("${item.id}:$due").hashCode()
+      assertTrue(manager.activeNotifications.any { it.id == notificationId })
+      MedicineRepository(context).use { repo ->
+        repo.beginTransition(item.id)
+        repo.setStatus(item.id, "paused", System.currentTimeMillis())
+        repo.setOutstanding(item.id, due, false)
+      }
+      ReminderScheduler.rebuild(context)
+      assertFalse(manager.activeNotifications.any { it.id == notificationId })
+      assertNull(MedicineRepository(context).use { it.alarm(item.id) })
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        repo.finishTransition(item.id)
+        repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
+  @Test fun watchdogRetriesDueAlarmAfterUncommittedTransition() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val now = System.currentTimeMillis()
+    val time = LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))
+    val item = MedicineRepository(context).use { repo ->
+      val saved = repo.save("Retry", "", listOf(time), now - 10000, "reminder")
+      repo.setAlarm(saved.id, now - 1000, "retry-transition")
+      repo.markAlarmRegistered(saved.id, "retry-transition")
+      repo.beginTransition(saved.id)
+      saved
+    }
+    try {
+      ReminderScheduler.recoverInterruptedDelivery(context, item.id, now - 1000, "retry-transition")
+      val intent = Intent(context, ReminderReceiver::class.java)
+        .setData(Uri.parse("pillreminder://medicine/${item.id}/retry-transition"))
+      val pending = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
+      requireNotNull(pending).send()
+      repeat(80) {
+        if (MedicineRepository(context).use { it.occurrences().none { occurrence -> occurrence.medicineId == item.id } }) Thread.sleep(50)
+      }
+      MedicineRepository(context).use { repo ->
+        assertNull(repo.transition(item.id))
+        assertTrue(repo.occurrences().any { it.medicineId == item.id && it.at == now - 1000 })
+        assertTrue(requireNotNull(repo.alarm(item.id)).at > now)
+      }
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        repo.finishTransition(item.id)
+        repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
+  @Test fun interruptedTransitionsRecoverSavedAndUnsavedChangesWithoutTouchingOtherAlarms() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val now = System.currentTimeMillis()
+    val oldTime = LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))
+    val newTime = LocalTime.now().plusHours(4).format(DateTimeFormatter.ofPattern("HH:mm"))
+    val first = MedicineRepository(context).use { it.save("Original", "", listOf(oldTime), now - 10000, "reminder") }
+    val second = MedicineRepository(context).use { it.save("Other", "", listOf(oldTime), now - 10000, "reminder") }
+    try {
+      ReminderScheduler.schedule(context, first)
+      ReminderScheduler.schedule(context, second)
+      val original = requireNotNull(MedicineRepository(context).use { it.alarm(first.id) })
+      val other = MedicineRepository(context).use { it.alarm(second.id) }
+      MedicineRepository(context).use { it.beginTransition(first.id) }
+      ReminderScheduler.rebuild(context)
+      MedicineRepository(context).use { repo ->
+        assertNull(repo.transition(first.id))
+        assertEquals(original, repo.alarm(first.id))
+        assertEquals(other, repo.alarm(second.id))
+        repo.beginTransition(first.id)
+        repo.edit(first.id, "Changed", "", listOf(newTime), "reminder", "notification", System.currentTimeMillis())
+        assertNull(repo.alarm(first.id))
+        assertTrue(requireNotNull(repo.transition(first.id)).committed)
+      }
+      ReminderScheduler.deliver(context, first.id, original.at, original.token)
+      MedicineRepository(context).use { repo ->
+        assertNull(repo.transition(first.id))
+        assertEquals("Changed", repo.all().first { it.id == first.id }.name)
+        assertNotEquals(original.token, requireNotNull(repo.alarm(first.id)).token)
+        assertEquals(other, repo.alarm(second.id))
+        repo.beginTransition(first.id)
+        repo.setStatus(first.id, "paused", System.currentTimeMillis())
+      }
+      ReminderScheduler.rebuild(context)
+      MedicineRepository(context).use { repo ->
+        assertNull(repo.transition(first.id))
+        assertNull(repo.alarm(first.id))
+        assertEquals(other, repo.alarm(second.id))
+      }
+    } finally {
+      MedicineRepository(context).use { repo ->
+        listOf(first, second).forEach { item ->
+          repo.alarm(item.id)?.let { cancel(context, it) }
+          repo.finishTransition(item.id)
+          repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
+          repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+          repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
+          repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+        }
+      }
+    }
+  }
   @Test fun pauseAndResumeCancelOnlyTheSelectedReminderAndPreserveDueOccurrence() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     assertTrue(ReminderScheduler.enabled(context))

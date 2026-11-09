@@ -162,6 +162,32 @@ object ReminderScheduler {
     }
   }
 
+  private fun transitionWatchdog(context: Context, id: String): PendingIntent {
+    val intent = Intent(context, TransitionReceiver::class.java).setData(Uri.parse("pillreminder://transition/$id"))
+    return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+  }
+
+  private fun beginTransition(context: Context, repo: MedicineRepository, id: String) {
+    repo.beginTransition(id)
+    ensureReconciliation(context)
+    if (enabled(context)) {
+      try { alarmManager(context).setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 60_000, transitionWatchdog(context, id)) }
+      catch (_: SecurityException) { }
+    }
+  }
+
+  private fun finishTransition(context: Context, repo: MedicineRepository, transition: MedicineRepository.Transition) {
+    if (transition.committed && transition.at != null && transition.token != null) {
+      val old = MedicineRepository.Alarm(transition.medicineId, transition.at, transition.token, transition.registered)
+      listOf(pending(context, old), watchdog(context, old)).forEach { operation ->
+        alarmManager(context).cancel(operation); operation.cancel()
+      }
+    }
+    repo.finishTransition(transition.medicineId)
+    val repair = transitionWatchdog(context, transition.medicineId)
+    alarmManager(context).cancel(repair); repair.cancel()
+  }
+
   @Synchronized fun rebuild(context: Context, recovery: Boolean = false) {
     val available = enabled(context)
     val prefs = context.getSharedPreferences("reminder_access", Context.MODE_PRIVATE)
@@ -174,6 +200,7 @@ object ReminderScheduler {
       val now = Instant.now()
       val zone = ZoneId.systemDefault()
       val medicines = repo.all()
+      val transitions = repo.transitions()
       if (medicines.isNotEmpty()) ensureReconciliation(context)
       repo.snoozes().forEach { item ->
         if (available && (item.alertAt > now.toEpochMilli() || !invalidate)) {
@@ -183,7 +210,7 @@ object ReminderScheduler {
       medicines.filter { it.status != "active" }.forEach { medicine ->
         cancelFuture(context, repo, medicine.id)
         repo.retainUnconfirmed(medicine.id)
-        repo.occurrences(includeCleared = true).filter { it.medicineId == medicine.id && it.outstanding }.forEach { dismissOccurrence(context, medicine.id, it.at) }
+        repo.occurrences(includeCleared = true).filter { it.medicineId == medicine.id }.forEach { dismissOccurrence(context, medicine.id, it.at) }
         repo.snoozes().filter { it.medicineId == medicine.id }.forEach { cancelSnooze(context, medicine.id, it.at) }
       }
       medicines.filter { it.status == "active" }.forEach { medicine ->
@@ -202,6 +229,7 @@ object ReminderScheduler {
         reconcileOccurrences(context, repo, medicine, now, zone)
         if (available) schedule(context, medicine, now)
       }
+      transitions.forEach { finishTransition(context, repo, it) }
     }
     prefs.edit().putBoolean("enabled", available).putInt("boot", boot).putBoolean("recovery_pending", false).commit()
   }
@@ -216,6 +244,7 @@ object ReminderScheduler {
 
   @Synchronized fun deliver(context: Context, id: String, at: Long, token: String) {
     if (!enabled(context) || recoveryPending(context)) { rebuild(context, recovery = true); return }
+    if (MedicineRepository(context).use { it.transition(id) != null }) rebuild(context)
     val now = System.currentTimeMillis()
     MedicineRepository(context).use { repo ->
       val medicine = repo.all().find { it.id == id && it.status == "active" } ?: return
@@ -250,30 +279,17 @@ object ReminderScheduler {
     }
   }
 
-  private fun recoverTransition(context: Context, id: String) {
-    MedicineRepository(context).use { repo ->
-      cancelFuture(context, repo, id)
-      val item = repo.all().find { it.id == id } ?: return
-      if (item.status == "active") schedule(context, item)
-      else {
-        repo.retainUnconfirmed(id)
-        repo.occurrences(includeCleared = true).filter { it.medicineId == id }.forEach { dismissOccurrence(context, id, it.at) }
-        repo.snoozes().filter { it.medicineId == id }.forEach { cancelSnooze(context, id, it.at) }
-      }
-    }
-  }
-
   @Synchronized fun edit(context: Context, id: String, name: String, instructions: String, times: List<String>, type: String, mode: String) {
     rebuild(context)
     MedicineRepository(context).use { repo ->
       val old = requireNotNull(repo.all().find { it.id == id && it.status != "deleted" })
-      val now = Instant.now()
       try {
-        cancelFuture(context, repo, id)
-        repo.edit(id, name, instructions, times, type, mode, now.toEpochMilli())
-        if (old.status == "active") schedule(context, requireNotNull(repo.all().find { it.id == id }), now)
+        beginTransition(context, repo, id)
+        repo.edit(id, name, instructions, times, type, mode)
+        if (old.status == "active") schedule(context, requireNotNull(repo.all().find { it.id == id }))
+        repo.transition(id)?.let { finishTransition(context, repo, it) }
       } catch (error: Exception) {
-        recoverTransition(context, id)
+        rebuild(context)
         throw error
       }
     }
@@ -284,18 +300,18 @@ object ReminderScheduler {
     rebuild(context)
     MedicineRepository(context).use { repo ->
       requireNotNull(repo.all().find { it.id == id && it.status != "deleted" })
-      val now = Instant.now()
       try {
-        cancelFuture(context, repo, id)
-        repo.setStatus(id, status, now.toEpochMilli())
+        beginTransition(context, repo, id)
+        repo.setStatus(id, status)
         if (status != "active") {
           repo.retainUnconfirmed(id)
           repo.occurrences(includeCleared = true).filter { it.medicineId == id }.forEach { dismissOccurrence(context, id, it.at) }
           repo.snoozes().filter { it.medicineId == id }.forEach { cancelSnooze(context, id, it.at) }
         }
-        if (status == "active") schedule(context, requireNotNull(repo.all().find { it.id == id }), now)
+        if (status == "active") schedule(context, requireNotNull(repo.all().find { it.id == id }))
+        repo.transition(id)?.let { finishTransition(context, repo, it) }
       } catch (error: Exception) {
-        recoverTransition(context, id)
+        rebuild(context)
         throw error
       }
     }
@@ -365,6 +381,7 @@ object ReminderScheduler {
     try { NotificationManagerCompat.from(context).notify(notificationId(medicine.id, at), notification) } catch (_: SecurityException) { }
   }
   @Synchronized fun recoverInterruptedDelivery(context: Context, id: String, at: Long, token: String) {
+    if (MedicineRepository(context).use { it.transition(id) != null }) rebuild(context)
     if (!enabled(context) || recoveryPending(context)) { rebuild(context, recovery = true); return }
     if (at > System.currentTimeMillis()) return
     MedicineRepository(context).use { repo ->
@@ -464,4 +481,8 @@ class SnoozeReceiver : BroadcastReceiver() {
     val token = intent.getStringExtra("token") ?: return
     ReminderScheduler.deliverSnooze(context, id, intent.getLongExtra("at", 0), token)
   }
+}
+
+class TransitionReceiver : BroadcastReceiver() {
+  override fun onReceive(context: Context, intent: Intent) { ReminderScheduler.rebuild(context) }
 }

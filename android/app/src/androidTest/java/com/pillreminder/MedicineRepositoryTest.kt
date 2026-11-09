@@ -9,6 +9,63 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MedicineRepositoryTest {
+  @Test fun versionTwelveUpgradeRetainsAlarmAndOccurrenceDetails() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "v12-transition-upgrade.db"
+    context.deleteDatabase(db)
+    val item = MedicineRepository(context, db).use { repo ->
+      val saved = repo.save("Aspirin", "With food", listOf("09:00"), 1000)
+      repo.recordDue(saved.id, 2000)
+      repo.setOutcome(saved.id, 2000, "completed")
+      repo.setAlarm(saved.id, 3000, "future")
+      repo.markAlarmRegistered(saved.id, "future")
+      repo.writableDatabase.execSQL("DROP TABLE reminder_transitions")
+      repo.writableDatabase.version = 12
+      saved
+    }
+    MedicineRepository(context, db).use { repo ->
+      assertEquals(item, repo.all().single())
+      assertEquals(MedicineRepository.Alarm(item.id, 3000, "future", true), repo.alarm(item.id))
+      val occurrence = repo.occurrences().single()
+      assertEquals(item.id, occurrence.medicineId)
+      assertEquals(2000L, occurrence.at)
+      assertEquals("Aspirin", occurrence.name)
+      assertEquals("With food", occurrence.instructions)
+      assertEquals("medicine", occurrence.type)
+      assertEquals("completed", occurrence.outcome)
+      repo.beginTransition(item.id)
+      assertEquals("future", repo.transition(item.id)?.token)
+    }
+    context.deleteDatabase(db)
+  }
+  @Test fun transitionPersistsOldAlarmUntilEditIsCommitted() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "transition-test.db"
+    context.deleteDatabase(db)
+    val item = MedicineRepository(context, db).use { repo ->
+      val saved = repo.save("Aspirin", "With food", listOf("09:00"), 1000)
+      repo.setAlarm(saved.id, 2000, "old")
+      repo.markAlarmRegistered(saved.id, "old")
+      repo.beginTransition(saved.id)
+      saved
+    }
+    MedicineRepository(context, db).use { repo ->
+      assertEquals("old", repo.transition(item.id)?.token)
+      assertEquals("old", repo.alarm(item.id)?.token)
+      repo.edit(item.id, "Water", "", listOf("10:00"), "reminder", "notification", 3000)
+    }
+    MedicineRepository(context, db).use { repo ->
+      assertEquals("old", repo.transition(item.id)?.token)
+      assertNull(repo.alarm(item.id))
+      val due = repo.occurrences().single()
+      assertEquals(2000L, due.at)
+      assertEquals("Aspirin", due.name)
+      assertEquals("Water", repo.all().single().name)
+      repo.finishTransition(item.id)
+      assertNull(repo.transition(item.id))
+    }
+    context.deleteDatabase(db)
+  }
   @Test fun editedAndDeletedReminderPreservesOccurrenceDetails() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val db = "manage-test.db"
