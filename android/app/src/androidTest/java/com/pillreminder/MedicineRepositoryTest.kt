@@ -9,7 +9,8 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MedicineRepositoryTest {
-  @Test fun versionTwelveUpgradeRetainsAlarmAndOccurrenceDetails() {
+  @Test fun recentUpgradesRetainAlarmAndOccurrenceDetails() {
+    for (version in listOf(12, 13)) {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val db = "v12-transition-upgrade.db"
     context.deleteDatabase(db)
@@ -19,8 +20,10 @@ class MedicineRepositoryTest {
       repo.setOutcome(saved.id, 2000, "completed")
       repo.setAlarm(saved.id, 3000, "future")
       repo.markAlarmRegistered(saved.id, "future")
-      repo.writableDatabase.execSQL("DROP TABLE reminder_transitions")
-      repo.writableDatabase.version = 12
+      repo.writableDatabase.execSQL("ALTER TABLE medicines DROP COLUMN start_date")
+      repo.writableDatabase.execSQL("ALTER TABLE medicines DROP COLUMN end_date")
+      if (version == 12) repo.writableDatabase.execSQL("DROP TABLE reminder_transitions")
+      repo.writableDatabase.version = version
       saved
     }
     MedicineRepository(context, db).use { repo ->
@@ -37,6 +40,7 @@ class MedicineRepositoryTest {
       assertEquals("future", repo.transition(item.id)?.token)
     }
     context.deleteDatabase(db)
+    }
   }
   @Test fun transitionPersistsOldAlarmUntilEditIsCommitted() {
     val context = ApplicationProvider.getApplicationContext<Context>()

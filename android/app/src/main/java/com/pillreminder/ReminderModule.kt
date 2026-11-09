@@ -28,6 +28,7 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       MedicineRepository(reactContext).use { repo -> repo.all().filter { it.status != "deleted" }.forEach { medicine ->
         medicines.pushMap(Arguments.createMap().apply {
           putString("id", medicine.id); putString("status", medicine.status); putString("type", medicine.type); putString("mode", medicine.mode); putString("name", medicine.name); putString("instructions", medicine.instructions)
+          putString("startDate", medicine.startDate); putString("endDate", medicine.endDate)
           putArray("times", Arguments.createArray().apply { medicine.times.forEach { pushString(it) } })
         })
       } }
@@ -50,12 +51,13 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
           if (!occurrence.cleared && occurrence.outcome != null) history.pushMap(occurrenceMap())
         }
         medicinesById.values.filter { it.status == "active" }.forEach { medicine ->
-          var next = DailySchedule.next(medicine.times, now, zone)
-          // Include the next occurrence even when it is tomorrow, plus all of today's upcoming occurrences.
-          do {
-            upcoming.pushMap(Arguments.createMap().apply { putString("medicineId", medicine.id); putDouble("scheduledAt", next.toEpochMilli().toDouble()) })
-            next = DailySchedule.next(medicine.times, next, zone)
-          } while (next.toEpochMilli() < end)
+          var next = DailySchedule.next(medicine, now, zone)
+          while (next != null) {
+            val occurrence = next
+            upcoming.pushMap(Arguments.createMap().apply { putString("medicineId", medicine.id); putDouble("scheduledAt", occurrence.toEpochMilli().toDouble()) })
+            next = DailySchedule.next(medicine, occurrence, zone)
+            if (next == null || next.toEpochMilli() >= end) break
+          }
         }
       }
       result.putArray("todayDoses", doses)
@@ -86,22 +88,31 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
     catch (error: Exception) { promise.reject("history_failed", error) }
   }
   @ReactMethod fun save(name: String, instructions: String, times: ReadableArray, promise: Promise) {
-    saveWithMode("medicine", name, instructions, times, "notification", promise)
+    saveWithMode("medicine", name, instructions, times, "notification", null, null, promise)
   }
   @ReactMethod fun saveTyped(type: String, name: String, instructions: String, times: ReadableArray, mode: String, promise: Promise) {
-    saveWithMode(type, name, instructions, times, mode, promise)
+    saveWithMode(type, name, instructions, times, mode, null, null, promise)
   }
-  private fun saveWithMode(type: String, name: String, instructions: String, times: ReadableArray, mode: String, promise: Promise) {
+  private fun saveWithMode(type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String?, endDate: String?, promise: Promise) {
     try {
       val clockTimes = (0 until times.size()).map { requireNotNull(times.getString(it)) }
       ReminderScheduler.rebuild(reactContext)
       ReminderScheduler.ensureReconciliation(reactContext)
       MedicineRepository(reactContext).use { repo ->
-        val medicine = repo.save(name, instructions, clockTimes, System.currentTimeMillis(), type, mode)
+        val medicine = repo.save(name, instructions, clockTimes, System.currentTimeMillis(), type, mode, startDate, endDate)
         ReminderScheduler.schedule(reactContext, medicine)
       }
       promise.resolve(null)
     } catch (error: Exception) { promise.reject("save_failed", error) }
+  }
+  @ReactMethod fun saveDated(type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, promise: Promise) {
+    saveWithMode(type, name, instructions, times, mode, startDate, endDate, promise)
+  }
+  @ReactMethod fun editDated(id: String, type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, promise: Promise) {
+    try {
+      ReminderScheduler.edit(reactContext, id, name, instructions, (0 until times.size()).map { requireNotNull(times.getString(it)) }, type, mode, startDate, endDate)
+      promise.resolve(null)
+    } catch (error: Exception) { promise.reject("edit_failed", error) }
   }
   @ReactMethod fun edit(id: String, type: String, name: String, instructions: String, times: ReadableArray, mode: String, promise: Promise) {
     try {
@@ -125,6 +136,18 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_CHANNEL_ID, "medicine_reminders")
     } else Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
     reactContext.startActivity(intent.putExtra(Settings.EXTRA_APP_PACKAGE, reactContext.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+  }
+  @ReactMethod fun selectDate(date: String, promise: Promise) {
+    val current = try { java.time.LocalDate.parse(date) } catch (error: Exception) { promise.reject("invalid_date", error); return }
+    reactContext.runOnUiQueueThread {
+      val activity = reactContext.currentActivity
+      if (activity == null) { promise.reject("no_activity", "No activity is available"); return@runOnUiQueueThread }
+      val dialog = android.app.DatePickerDialog(activity, { _, year, month, day ->
+        promise.resolve(java.time.LocalDate.of(year, month + 1, day).toString())
+      }, current.year, current.monthValue - 1, current.dayOfMonth)
+      dialog.setOnCancelListener { promise.resolve(null) }
+      dialog.show()
+    }
   }
   @ReactMethod fun selectTime(time: String, promise: Promise) {
     val current = try { java.time.LocalTime.parse(time) } catch (error: Exception) { promise.reject("invalid_time", error); return }
