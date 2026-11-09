@@ -20,6 +20,7 @@ export type DailyMedicineInput = {
 };
 type Props = {
   language: 'en' | 'es';
+  initial?: DailyMedicineInput;
   now?: Date;
   onSave: (medicine: DailyMedicineInput) => void | Promise<void>;
   selectTime?: (time: string) => Promise<string | null>;
@@ -82,14 +83,22 @@ const copy = {
   },
 };
 
-export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
+export function MedicineSetup({
+  language,
+  initial,
+  now,
+  onSave,
+  selectTime,
+}: Props) {
   const t = copy[language];
   const [step, setStep] = useState(0);
-  const [type, setType] = useState<ReminderType>('reminder');
-  const [mode, setMode] = useState<'notification' | 'alarm'>('notification');
-  const [name, setName] = useState('');
-  const [instructions, setInstructions] = useState('');
-  const [times, setTimes] = useState(['09:00']);
+  const [type, setType] = useState<ReminderType>(initial?.type ?? 'reminder');
+  const [mode, setMode] = useState<'notification' | 'alarm'>(
+    initial?.mode ?? 'notification',
+  );
+  const [name, setName] = useState(initial?.name ?? '');
+  const [instructions, setInstructions] = useState(initial?.instructions ?? '');
+  const [times, setTimes] = useState(initial?.times ?? ['09:00']);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -294,7 +303,7 @@ export function MedicineSetup({ language, now, onSave, selectTime }: Props) {
                   type,
                   mode,
                   name: name.trim(),
-                  instructions: type === 'medicine' ? instructions.trim() : '',
+                  instructions: instructions.trim(),
                   times: [...new Set(times)],
                 });
               } finally {

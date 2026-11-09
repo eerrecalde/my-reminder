@@ -7,18 +7,20 @@ import android.database.sqlite.SQLiteOpenHelper
 import org.json.JSONArray
 import java.util.UUID
 
-data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification")
+data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification", val status: String = "active", val changedAt: Long = 0)
 
 /** Shared by the React Native bridge and Android receivers. */
-class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 11) {
+class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 13) {
   override fun onCreate(db: SQLiteDatabase) {
-    db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification')")
+    db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification', status TEXT NOT NULL DEFAULT 'active', changed_at INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
-    db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0, outcome TEXT, cleared INTEGER NOT NULL DEFAULT 0, missed_acknowledged INTEGER NOT NULL DEFAULT 0, silenced INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0, outstanding INTEGER NOT NULL DEFAULT 0)")
+    db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0, outcome TEXT, cleared INTEGER NOT NULL DEFAULT 0, missed_acknowledged INTEGER NOT NULL DEFAULT 0, silenced INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0, outstanding INTEGER NOT NULL DEFAULT 0, name TEXT, instructions TEXT, type TEXT, mode TEXT, times TEXT, retained INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE snoozes (medicine_id TEXT NOT NULL, occurrence_at INTEGER NOT NULL, alert_at INTEGER NOT NULL, token TEXT NOT NULL, PRIMARY KEY (medicine_id, occurrence_at))")
+    db.execSQL("CREATE TABLE reminder_transitions (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER, token TEXT, registered INTEGER, changed_at INTEGER NOT NULL, committed INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE occurrence_tracking (medicine_id TEXT PRIMARY KEY, starts_after INTEGER NOT NULL)")
   }
   override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+    if (oldVersion < 13) db.execSQL("CREATE TABLE reminder_transitions (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER, token TEXT, registered INTEGER, changed_at INTEGER NOT NULL, committed INTEGER NOT NULL DEFAULT 0)")
     if (oldVersion < 10) {
       db.execSQL("CREATE TABLE snoozes (medicine_id TEXT NOT NULL, occurrence_at INTEGER NOT NULL, alert_at INTEGER NOT NULL, token TEXT NOT NULL, PRIMARY KEY (medicine_id, occurrence_at))")
     }
@@ -43,9 +45,20 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
       db.execSQL("ALTER TABLE doses ADD COLUMN outstanding INTEGER NOT NULL DEFAULT 0")
       db.execSQL("UPDATE doses SET outstanding = 1 WHERE alerted = 1 AND outcome IS NULL AND cleared = 0 AND silenced = 0")
     }
+    if (oldVersion < 12) {
+      db.execSQL("ALTER TABLE medicines ADD COLUMN status TEXT NOT NULL DEFAULT 'active'")
+      db.execSQL("ALTER TABLE medicines ADD COLUMN changed_at INTEGER NOT NULL DEFAULT 0")
+      db.execSQL("ALTER TABLE doses ADD COLUMN name TEXT")
+      db.execSQL("ALTER TABLE doses ADD COLUMN instructions TEXT")
+      db.execSQL("ALTER TABLE doses ADD COLUMN type TEXT")
+      db.execSQL("ALTER TABLE doses ADD COLUMN mode TEXT")
+      db.execSQL("ALTER TABLE doses ADD COLUMN times TEXT")
+      db.execSQL("ALTER TABLE doses ADD COLUMN retained INTEGER NOT NULL DEFAULT 0")
+      db.execSQL("UPDATE doses SET name = (SELECT name FROM medicines WHERE id = medicine_id), instructions = (SELECT instructions FROM medicines WHERE id = medicine_id), type = (SELECT type FROM medicines WHERE id = medicine_id), mode = (SELECT mode FROM medicines WHERE id = medicine_id), times = (SELECT times FROM medicines WHERE id = medicine_id)")
+    }
   }
 
-  data class Occurrence(val medicineId: String, val at: Long, val outcome: String?, val cleared: Boolean = false, val outstanding: Boolean = false)
+  data class Occurrence(val medicineId: String, val at: Long, val outcome: String?, val cleared: Boolean = false, val outstanding: Boolean = false, val name: String? = null, val instructions: String? = null, val type: String? = null, val mode: String? = null, val times: List<String>? = null, val retained: Boolean = false)
 
   private fun update(sql: String, vararg args: Any?): Int = writableDatabase.compileStatement(sql).use { statement ->
     args.forEachIndexed { index, value -> when (value) {
@@ -58,10 +71,17 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
 
   fun occurrences(includeCleared: Boolean = false): List<Occurrence> {
     val result = mutableListOf<Occurrence>()
-    readableDatabase.rawQuery("SELECT medicine_id, scheduled_at, outcome, cleared, outstanding FROM doses ${if (includeCleared) "" else "WHERE cleared = 0"} ORDER BY scheduled_at", null).use { cursor ->
-      while (cursor.moveToNext()) result.add(Occurrence(cursor.getString(0), cursor.getLong(1), cursor.getString(2), cursor.getInt(3) != 0, cursor.getInt(4) != 0))
+    readableDatabase.rawQuery("SELECT medicine_id, scheduled_at, outcome, cleared, outstanding, name, instructions, type, mode, times, retained FROM doses ${if (includeCleared) "" else "WHERE cleared = 0"} ORDER BY scheduled_at", null).use { cursor ->
+      while (cursor.moveToNext()) {
+        val times = cursor.getString(9)?.let { value -> JSONArray(value).let { array -> (0 until array.length()).map { array.getString(it) } } }
+        result.add(Occurrence(cursor.getString(0), cursor.getLong(1), cursor.getString(2), cursor.getInt(3) != 0, cursor.getInt(4) != 0, cursor.getString(5), cursor.getString(6), cursor.getString(7), cursor.getString(8), times, cursor.getInt(10) != 0))
+      }
     }
     return result
+  }
+
+  fun retainUnconfirmed(id: String) {
+    update("UPDATE doses SET retained = 1 WHERE medicine_id = ? AND outcome IS NULL AND cleared = 0", id)
   }
 
   fun setOutstanding(id: String, at: Long, outstanding: Boolean) {
@@ -148,10 +168,10 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
 
   fun all(): List<Medicine> {
     val medicines = mutableListOf<Medicine>()
-    readableDatabase.rawQuery("SELECT id, name, instructions, times, created_at, type, mode FROM medicines ORDER BY created_at", null).use { cursor ->
+    readableDatabase.rawQuery("SELECT id, name, instructions, times, created_at, type, mode, status, changed_at FROM medicines ORDER BY created_at", null).use { cursor ->
       while (cursor.moveToNext()) {
         val array = JSONArray(cursor.getString(3))
-        medicines.add(Medicine(cursor.getString(0), cursor.getString(1), cursor.getString(2), (0 until array.length()).map { array.getString(it) }, cursor.getLong(4), cursor.getString(5), cursor.getString(6)))
+        medicines.add(Medicine(cursor.getString(0), cursor.getString(1), cursor.getString(2), (0 until array.length()).map { array.getString(it) }, cursor.getLong(4), cursor.getString(5), cursor.getString(6), cursor.getString(7), cursor.getLong(8)))
       }
     }
     return medicines
@@ -180,6 +200,39 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     }
   }
 
+  data class Transition(val medicineId: String, val at: Long?, val token: String?, val registered: Boolean, val changedAt: Long, val committed: Boolean)
+
+  fun beginTransition(id: String) {
+    val db = writableDatabase
+    db.beginTransaction()
+    try {
+      val item = requireNotNull(all().find { it.id == id && it.status != "deleted" })
+      val alarm = alarm(id)
+      val values = ContentValues().apply {
+        put("medicine_id", id); put("scheduled_at", alarm?.at); put("token", alarm?.token)
+        put("registered", if (alarm?.registered == true) 1 else 0); put("changed_at", item.changedAt)
+      }
+      db.insertOrThrow("reminder_transitions", null, values)
+      db.setTransactionSuccessful()
+    } finally { db.endTransaction() }
+  }
+
+  fun transitions(): List<Transition> = readableDatabase.rawQuery("SELECT medicine_id, scheduled_at, token, registered, changed_at, committed FROM reminder_transitions", null).use { cursor ->
+    val result = mutableListOf<Transition>()
+    while (cursor.moveToNext()) result.add(Transition(cursor.getString(0), if (cursor.isNull(1)) null else cursor.getLong(1), cursor.getString(2), cursor.getInt(3) != 0, cursor.getLong(4), cursor.getInt(5) != 0))
+    result
+  }
+  fun transition(id: String): Transition? = transitions().find { it.medicineId == id }
+  fun finishTransition(id: String) { writableDatabase.delete("reminder_transitions", "medicine_id = ?", arrayOf(id)) }
+
+  private fun retireTransitionAlarm(id: String, now: Long) {
+    if (transition(id) == null) return
+    val old = alarm(id)
+    invalidateAlarm(id)
+    if (old != null && old.at <= now) recordDue(id, old.at)
+    update("UPDATE reminder_transitions SET committed = 1 WHERE medicine_id = ?", id)
+  }
+
   fun setAlarm(medicineId: String, at: Long, token: String) {
     val values = ContentValues().apply { put("medicine_id", medicineId); put("scheduled_at", at); put("token", token) }
     writableDatabase.insertWithOnConflict("alarms", null, values, SQLiteDatabase.CONFLICT_REPLACE)
@@ -205,9 +258,48 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     } finally { db.endTransaction() }
   }
 
+  private fun occurrenceValues(id: String, at: Long): ContentValues {
+    val item = requireNotNull(all().find { it.id == id })
+    return ContentValues().apply {
+      put("id", "$id:$at"); put("medicine_id", id); put("scheduled_at", at)
+      put("name", item.name); put("instructions", item.instructions); put("type", item.type); put("mode", item.mode); put("times", JSONArray(item.times).toString())
+    }
+  }
+
+  fun edit(id: String, name: String, instructions: String, times: List<String>, type: String, mode: String, now: Long? = null) {
+    require(name.isNotBlank() && times.isNotEmpty() && type in listOf("medicine", "reminder") && mode in listOf("notification", "alarm"))
+    times.forEach { java.time.LocalTime.parse(it) }
+    val values = ContentValues().apply {
+      put("name", name.trim()); put("instructions", instructions.trim()); put("times", JSONArray(times.distinct()).toString()); put("type", type); put("mode", mode)
+    }
+    val db = writableDatabase
+    db.beginTransaction()
+    try {
+      val cutoff = now ?: System.currentTimeMillis()
+      values.put("changed_at", cutoff)
+      retireTransitionAlarm(id, cutoff)
+      check(db.update("medicines", values, "id = ? AND status != 'deleted'", arrayOf(id)) == 1)
+      db.execSQL("UPDATE occurrence_tracking SET starts_after = ? WHERE medicine_id = ?", arrayOf<Any>(cutoff, id))
+      db.setTransactionSuccessful()
+    } finally { db.endTransaction() }
+  }
+
+  fun setStatus(id: String, status: String, now: Long? = null) {
+    require(status in listOf("active", "paused", "deleted"))
+    val db = writableDatabase
+    db.beginTransaction()
+    try {
+      val cutoff = now ?: System.currentTimeMillis()
+      retireTransitionAlarm(id, cutoff)
+      check(update("UPDATE medicines SET status = ?, changed_at = ? WHERE id = ? AND status != 'deleted'", status, cutoff, id) == 1)
+      db.execSQL("UPDATE occurrence_tracking SET starts_after = ? WHERE medicine_id = ?", arrayOf<Any>(cutoff, id))
+      db.setTransactionSuccessful()
+    } finally { db.endTransaction() }
+  }
+
   fun recordDue(medicineId: String, at: Long) {
     if (alarm(medicineId)?.at == at) return
-    val values = ContentValues().apply { put("id", "$medicineId:$at"); put("medicine_id", medicineId); put("scheduled_at", at); put("alerted", 1) }
+    val values = occurrenceValues(medicineId, at).apply { put("alerted", 1) }
     writableDatabase.insertWithOnConflict("doses", null, values, SQLiteDatabase.CONFLICT_IGNORE)
   }
 
@@ -215,7 +307,7 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     val db = writableDatabase
     db.beginTransaction()
     try {
-      val initial = ContentValues().apply { put("id", "$medicineId:$at"); put("medicine_id", medicineId); put("scheduled_at", at) }
+      val initial = occurrenceValues(medicineId, at)
       db.insertWithOnConflict("doses", null, initial, SQLiteDatabase.CONFLICT_IGNORE)
       val values = ContentValues().apply { put("alerted", 1) }
       val changed = db.update("doses", values, "id = ? AND alerted = 0", arrayOf("$medicineId:$at")) == 1

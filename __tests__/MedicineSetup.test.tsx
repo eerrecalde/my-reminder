@@ -259,3 +259,41 @@ test.each(['Reminder', 'Medicine'])(
     );
   },
 );
+
+test('editing preserves dosage instructions when changing medicine to reminder', async () => {
+  const save = jest.fn();
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    view = ReactTestRenderer.create(
+      <MedicineSetup
+        language="en"
+        onSave={save}
+        initial={{
+          type: 'medicine',
+          name: 'Aspirin',
+          instructions: 'With food',
+          times: ['09:00'],
+          mode: 'alarm',
+        }}
+      />,
+    );
+  });
+  const press = async (title: string) =>
+    ReactTestRenderer.act(() =>
+      view.root
+        .findAllByType(Button)
+        .find(b => b.props.title === title)!
+        .props.onPress(),
+    );
+  await press('Reminder');
+  await press('Next');
+  await press('Review');
+  await press('Save reminder');
+  expect(save).toHaveBeenCalledWith({
+    type: 'reminder',
+    name: 'Aspirin',
+    instructions: 'With food',
+    times: ['09:00'],
+    mode: 'alarm',
+  });
+});
