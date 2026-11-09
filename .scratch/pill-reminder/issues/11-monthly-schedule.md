@@ -6,4 +6,4 @@
 
 **Status:** ready-for-agent
 
-- [ ] Implement and verify the behaviour above against the [spec](../spec.md).
+- [x] Implement and verify the behaviour above against the [spec](../spec.md).
