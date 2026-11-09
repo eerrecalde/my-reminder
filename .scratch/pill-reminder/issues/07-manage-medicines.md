@@ -8,4 +8,4 @@ The remaining physical-device checks from 06b are deferred to ticket 12 and do n
 
 **Status:** ready-for-agent
 
-- [ ] Implement and verify the behaviour above against the [spec](../spec.md).
+- [x] Implement and verify the behaviour above against the [spec](../spec.md).
