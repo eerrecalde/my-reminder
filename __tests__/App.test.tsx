@@ -403,3 +403,32 @@ test('shows and corrects a deleted reminder occurrence using its saved details',
   expect(setOutcome).toHaveBeenCalledWith('m', 2000, 'skipped');
   await ReactTestRenderer.act(() => view.unmount());
 });
+
+test.each([
+  ['en', ['Today', 'Reminders', 'History']],
+  ['es', ['Hoy', 'Recordatorios', 'Historial']],
+])('navigation has clear accessible names in %s', async (language, labels) => {
+  const repository = require('../src/reminderRepository');
+  repository.reminderRepository = {
+    state: jest
+      .fn()
+      .mockResolvedValue({
+        enabled: true,
+        language,
+        medicines: [],
+        todayDoses: [],
+        history: [],
+        upcoming: [],
+      }),
+  };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    view = ReactTestRenderer.create(<App />);
+  });
+  for (const [index, tab] of ['today', 'reminders', 'history'].entries()) {
+    expect(
+      view.root.findByProps({ testID: `nav-${tab}` }).props.accessibilityLabel,
+    ).toBe(labels[index]);
+  }
+  await ReactTestRenderer.act(() => view.unmount());
+});

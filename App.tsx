@@ -845,6 +845,7 @@ export default function App() {
                     key={tab}
                     testID={`nav-${tab}`}
                     accessibilityRole="tab"
+                    accessibilityLabel={t[tab]}
                     accessibilityState={{ selected: screen === tab }}
                     onPress={() => {
                       setUndo(undefined);
