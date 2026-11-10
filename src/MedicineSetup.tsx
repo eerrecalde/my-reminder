@@ -345,13 +345,14 @@ export function MedicineSetup({
           onPress={goBack}
           style={styles.back}
         >
-          <Text
-            style={styles.backText}
-            accessibilityElementsHidden
+          <View
+            style={styles.arrowIcon}
+            accessible={false}
             importantForAccessibility="no-hide-descendants"
           >
-            ←
-          </Text>
+            <View style={styles.arrowShaft} />
+            <View style={styles.arrowHead} />
+          </View>
           <Text style={styles.backText}>{t.back}</Text>
         </Pressable>
         <View style={styles.brand}>
@@ -750,6 +751,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     minHeight: 48,
+  },
+  arrowIcon: { width: 24, height: 24 },
+  arrowShaft: {
+    position: 'absolute',
+    left: 3,
+    top: 11,
+    width: 19,
+    height: 2,
+    backgroundColor: '#36542b',
+  },
+  arrowHead: {
+    position: 'absolute',
+    left: 4,
+    top: 7,
+    width: 10,
+    height: 10,
+    borderLeftWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: '#36542b',
+    transform: [{ rotate: '45deg' }],
   },
   backText: { color: '#36542b', fontSize: 18, fontWeight: '600' },
   heading: {

@@ -139,7 +139,7 @@ test('shows reminders off and offers an enable action when access is missing', a
   await ReactTestRenderer.act(() =>
     renderer.root
       .findAllByType(PillAction)
-      .find(button => button.props.title === 'Enable reminders')!
+      .find(button => button.props.title === 'Review reminder access')!
       .props.onPress(),
   );
   expect(
@@ -534,18 +534,16 @@ test.each(['today', 'reminders'] as const)(
   async origin => {
     const repo = require('../src/reminderRepository');
     repo.reminderRepository = {
-      state: jest
-        .fn()
-        .mockResolvedValue({
-          enabled: true,
-          notifications: true,
-          exactAlarms: true,
-          language: 'en',
-          medicines: [],
-          todayDoses: [],
-          history: [],
-          upcoming: [],
-        }),
+      state: jest.fn().mockResolvedValue({
+        enabled: true,
+        notifications: true,
+        exactAlarms: true,
+        language: 'en',
+        medicines: [],
+        todayDoses: [],
+        history: [],
+        upcoming: [],
+      }),
     };
     let view!: ReactTestRenderer.ReactTestRenderer;
     await ReactTestRenderer.act(async () => {
@@ -572,6 +570,88 @@ test.each(['today', 'reminders'] as const)(
     expect(
       view.root.findByProps({ testID: `nav-${origin}` }).props
         .accessibilityState.selected,
+    ).toBe(true);
+    await ReactTestRenderer.act(() => view.unmount());
+  },
+);
+
+test.each([
+  [
+    'en',
+    false,
+    false,
+    'Allow notifications and exact alarms so reminders can arrive on time.',
+  ],
+  ['en', false, true, 'Allow notifications so your reminders can appear.'],
+  [
+    'en',
+    true,
+    false,
+    'Allow exact alarms so your reminders can arrive on time.',
+  ],
+  [
+    'es',
+    false,
+    false,
+    'Permite las notificaciones y las alarmas exactas para recibir recordatorios a tiempo.',
+  ],
+  [
+    'es',
+    false,
+    true,
+    'Permite las notificaciones para que aparezcan tus recordatorios.',
+  ],
+  [
+    'es',
+    true,
+    false,
+    'Permite las alarmas exactas para recibir tus recordatorios a tiempo.',
+  ],
+])(
+  'explains which reminder access is missing in %s',
+  async (language, notifications, exactAlarms, explanation) => {
+    const repository = require('../src/reminderRepository');
+    repository.reminderRepository = {
+      state: jest
+        .fn()
+        .mockResolvedValue({
+          enabled: false,
+          notifications,
+          exactAlarms,
+          language,
+          medicines: [],
+          todayDoses: [],
+          history: [],
+          upcoming: [],
+        }),
+    };
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      view = ReactTestRenderer.create(<App />);
+    });
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(text => text.props.children === explanation),
+    ).toBe(true);
+    const action =
+      language === 'en'
+        ? 'Review reminder access'
+        : 'Revisar acceso a recordatorios';
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findAllByType(PillAction)
+        .find(button => button.props.title === action)!
+        .props.onPress(),
+    );
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(
+          text =>
+            text.props.children ===
+            (language === 'en' ? 'Reminder access' : 'Acceso a recordatorios'),
+        ),
     ).toBe(true);
     await ReactTestRenderer.act(() => view.unmount());
   },
