@@ -325,10 +325,13 @@ class ReminderFoundationTest {
     val clock = target.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
     val items = mutableListOf<Medicine>()
     try {
-      for (type in listOf("reminder", "medicine")) for (kind in listOf("weekday", "interval", "monthly")) {
+      for (type in listOf("reminder", "medicine")) for (kind in listOf("weekday", "interval", "monthly", "once")) {
         val item = MedicineRepository(context).use { repo ->
           repo.save("Delivery $kind $type", "", listOf(clock), System.currentTimeMillis() - 1000, type,
-            scheduleKind = kind, weekdays = if (kind == "weekday") listOf(target.dayOfWeek.value) else emptyList(),
+            mode = if (kind == "once") "alarm" else "notification",
+            startDate = if (kind == "once") target.toLocalDate().toString() else null,
+            endDate = if (kind == "once") target.toLocalDate().toString() else null,
+            scheduleKind = if (kind == "once") "daily" else kind, weekdays = if (kind == "weekday") listOf(target.dayOfWeek.value) else emptyList(),
             intervalHours = if (kind == "interval") 1 else null, intervalAnchor = if (kind == "interval") at else null,
             monthlyDay = if (kind == "monthly") target.dayOfMonth else null)
         }
@@ -342,16 +345,19 @@ class ReminderFoundationTest {
       while (System.currentTimeMillis() < deadline && items.any { item ->
         val notified = manager.activeNotifications.any { it.id == ("${item.id}:$at").hashCode() }
         val next = MedicineRepository(context).use { it.alarm(item.id) }
-        !notified || next == null || !next.registered || next.at <= at
+        !notified || if (item.endDate != null) next != null else next == null || !next.registered || next.at <= at
       }) Thread.sleep(200)
       MedicineRepository(context).use { repo ->
         for (item in items) {
           assertTrue("Android should deliver ${item.scheduleKind} for ${item.type}", repo.occurrences().any { it.medicineId == item.id && it.at == at })
-          assertTrue("A future occurrence should be registered", requireNotNull(repo.alarm(item.id)).let { it.registered && it.at > at })
+          if (item.endDate != null) assertNull("A one-off must not schedule another occurrence", repo.alarm(item.id))
+          else assertTrue("A future occurrence should be registered", requireNotNull(repo.alarm(item.id)).let { it.registered && it.at > at })
           assertTrue("Notification should be visible", manager.activeNotifications.any { it.id == ("${item.id}:$at").hashCode() })
         }
       }
     } finally {
+      context.stopService(Intent(context, AlarmSoundService::class.java))
+      manager.cancel(119348)
       for (item in items) {
         manager.cancel(("${item.id}:$at").hashCode())
         MedicineRepository(context).use { repo ->

@@ -92,3 +92,18 @@ export function finalDailyOccurrence(
     })
     .sort((a, b) => b.getTime() - a.getTime())[0];
 }
+
+/** A single daily time bounded to one date represents a one-off reminder. */
+export function isOneOffSchedule(schedule: {
+  scheduleKind?: string;
+  times: string[];
+  startDate?: string | null;
+  endDate?: string | null;
+}): boolean {
+  return (
+    (schedule.scheduleKind == null || schedule.scheduleKind === 'daily') &&
+    !!schedule.startDate &&
+    schedule.startDate === schedule.endDate &&
+    schedule.times.length === 1
+  );
+}

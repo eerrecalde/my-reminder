@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import {
   finalDailyOccurrence,
+  isOneOffSchedule,
+  localDate,
   localDateString,
   nextDailyOccurrences,
 } from './dailySchedule';
@@ -56,6 +58,11 @@ type Props = {
 
 const copy = {
   en: {
+    once: 'Once',
+    onceDate: 'Date',
+    onceTime: 'Time',
+    onceFuture: 'Choose a future date and time.',
+    oncePreview: 'Reminder time',
     daily: 'Every day',
     weekday: 'Selected weekdays',
     interval: 'Every X hours',
@@ -90,6 +97,10 @@ const copy = {
     schedule: 'Schedule',
     times: 'Daily times',
     addTime: 'Add a time',
+    change: 'Change',
+    remove: 'Remove',
+    noEnd: 'No end date',
+    setDate: 'Set date',
     changeTime: 'Change time',
     removeTime: 'Remove time',
     invalid: 'Enter one or more times, for example 09:00, 21:00',
@@ -111,6 +122,11 @@ const copy = {
     back: 'Back',
   },
   es: {
+    once: 'Una vez',
+    onceDate: 'Fecha',
+    onceTime: 'Hora',
+    onceFuture: 'Elige una fecha y hora futuras.',
+    oncePreview: 'Hora del recordatorio',
     daily: 'Todos los días',
     weekday: 'Días de la semana',
     interval: 'Cada X horas',
@@ -145,6 +161,10 @@ const copy = {
     schedule: 'Horario',
     times: 'Horas diarias',
     addTime: 'Agregar una hora',
+    change: 'Cambiar',
+    remove: 'Quitar',
+    noEnd: 'Sin fecha de fin',
+    setDate: 'Elegir fecha',
     changeTime: 'Cambiar hora',
     removeTime: 'Quitar hora',
     invalid: 'Escribe una o más horas, por ejemplo 09:00, 21:00',
@@ -192,8 +212,16 @@ export function MedicineSetup({
     initial?.endDate ?? null,
   );
   const [scheduleKind, setScheduleKind] = useState<
-    NonNullable<DailyMedicineInput['scheduleKind']>
-  >(initial?.scheduleKind ?? 'daily');
+    NonNullable<DailyMedicineInput['scheduleKind']> | 'once'
+  >(
+    initial && isOneOffSchedule(initial)
+      ? 'once'
+      : initial?.scheduleKind ?? 'daily',
+  );
+  const [onceDate, setOnceDate] = useState(
+    initial?.startDate ?? localDateString(now ?? new Date()),
+  );
+  const [onceTime, setOnceTime] = useState(initial?.times[0] ?? '09:00');
   const [weekdays, setWeekdays] = useState<number[]>(initial?.weekdays ?? [1]);
   const [intervalHours, setIntervalHours] = useState(
     String(initial?.intervalHours ?? 8),
@@ -277,7 +305,21 @@ export function MedicineSetup({
       setError(t.invalidSchedule);
       return;
     }
-    if (step === 2 && endDate && endDate < startDate) {
+    if (
+      step === 2 &&
+      scheduleKind === 'once' &&
+      nextDailyOccurrences([onceTime], now ?? new Date(), 1, onceDate, onceDate)
+        .length === 0
+    ) {
+      setError(t.onceFuture);
+      return;
+    }
+    if (
+      step === 2 &&
+      scheduleKind !== 'once' &&
+      endDate &&
+      endDate < startDate
+    ) {
       setError(t.invalidDates);
       return;
     }
@@ -287,6 +329,14 @@ export function MedicineSetup({
   const preview =
     step !== 3
       ? []
+      : scheduleKind === 'once'
+      ? nextDailyOccurrences(
+          [onceTime],
+          now ?? new Date(),
+          1,
+          onceDate,
+          onceDate,
+        )
       : scheduleKind === 'weekday'
       ? nextWeekdayOccurrences(
           times,
@@ -321,7 +371,7 @@ export function MedicineSetup({
         )
       : nextDailyOccurrences(times, now ?? new Date(), 3, startDate, endDate);
   const final =
-    step === 3 && endDate
+    step === 3 && scheduleKind !== 'once' && endDate
       ? scheduleKind === 'weekday'
         ? finalWeekdayOccurrence(times, weekdays, endDate)
         : scheduleKind === 'interval'
@@ -336,6 +386,36 @@ export function MedicineSetup({
           )
         : finalDailyOccurrence(times, endDate)
       : undefined;
+  const formatDate = (value: string) =>
+    localDate(value).toLocaleDateString(language === 'es' ? 'es-MX' : 'en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  const dateField = (
+    label: string,
+    value: string | null,
+    action: string,
+    accessibilityLabel: string,
+    onPress: () => void,
+  ) => (
+    <View style={styles.fieldGroup}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${accessibilityLabel}: ${
+          value ? formatDate(value) : t.noEnd
+        }`}
+        onPress={onPress}
+        style={styles.fieldControl}
+      >
+        <Text style={styles.fieldValue}>
+          {value ? formatDate(value) : t.noEnd}
+        </Text>
+        <Text style={styles.fieldAction}>{action} ›</Text>
+      </Pressable>
+    </View>
+  );
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
@@ -423,23 +503,23 @@ export function MedicineSetup({
         )}
         {step === 2 && (
           <>
-            <View accessibilityRole="radiogroup">
-              {(['daily', 'weekday', 'interval', 'monthly'] as const).map(
-                kind => (
-                  <Pressable
-                    key={kind}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: scheduleKind === kind }}
-                    onPress={() => setScheduleKind(kind)}
-                    style={styles.modeOption}
-                  >
-                    <Text style={styles.modeText}>
-                      {scheduleKind === kind ? '● ' : '○ '}
-                      {t[kind]}
-                    </Text>
-                  </Pressable>
-                ),
-              )}
+            <View accessibilityRole="radiogroup" style={styles.scheduleOptions}>
+              {(
+                ['once', 'daily', 'weekday', 'interval', 'monthly'] as const
+              ).map(kind => (
+                <Pressable
+                  key={kind}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: scheduleKind === kind }}
+                  onPress={() => setScheduleKind(kind)}
+                  style={styles.scheduleOption}
+                >
+                  <Text style={styles.modeText}>
+                    {scheduleKind === kind ? '● ' : '○ '}
+                    {t[kind]}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
             {scheduleKind === 'weekday' &&
               t.weekdays.map((label, index) => (
@@ -472,23 +552,25 @@ export function MedicineSetup({
                   value={intervalHours}
                   onChangeText={setIntervalHours}
                 />
-                <Text style={styles.label}>
-                  {t.first}: {anchorDate} {anchorTime}
-                </Text>
-                <PillAction
-                  title={t.startDate}
-                  onPress={async () => {
-                    const value = await selectDate?.(anchorDate);
-                    if (value) setAnchorDate(value);
-                  }}
-                />
-                <PillAction
-                  title={t.changeTime}
-                  onPress={async () => {
-                    const value = await selectTime?.(anchorTime);
-                    if (value) setAnchorTime(value);
-                  }}
-                />
+                {dateField(t.first, anchorDate, t.change, t.first, async () => {
+                  const value = await selectDate?.(anchorDate);
+                  if (value) setAnchorDate(value);
+                })}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>{t.onceTime}</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t.first}, ${t.changeTime}: ${anchorTime}`}
+                    onPress={async () => {
+                      const value = await selectTime?.(anchorTime);
+                      if (value) setAnchorTime(value);
+                    }}
+                    style={styles.fieldControl}
+                  >
+                    <Text style={styles.fieldValue}>{anchorTime}</Text>
+                    <Text style={styles.fieldAction}>{t.change} ›</Text>
+                  </Pressable>
+                </View>
               </>
             )}
             {scheduleKind === 'monthly' && (
@@ -535,77 +617,124 @@ export function MedicineSetup({
                 )}
               </>
             )}
-            <Text style={styles.label}>
-              {t.startDate}: {startDate}
-            </Text>
-            <PillAction
-              title={t.startDate}
-              onPress={async () => {
-                const value = await selectDate?.(startDate);
-                if (value) setStartDate(value);
-              }}
-            />
-            <Text style={styles.label}>
-              {t.endDate}
-              {endDate ? `: ${endDate}` : ''}
-            </Text>
-            <PillAction
-              title={t.setEnd}
-              onPress={async () => {
-                const value = await selectDate?.(endDate ?? startDate);
-                if (value) setEndDate(value);
-              }}
-            />
-            {endDate && (
-              <PillAction
-                secondary
-                title={t.clearEnd}
-                onPress={() => setEndDate(null)}
-              />
-            )}
-            {scheduleKind !== 'interval' && (
+            {scheduleKind === 'once' ? (
               <>
-                <Text style={styles.label}>{t.times}</Text>
-                {times.map((time, index) => (
-                  <View key={`${time}-${index}`} style={styles.timeRow}>
-                    <PillAction
-                      title={`${t.changeTime}: ${time}`}
+                {dateField(
+                  t.onceDate,
+                  onceDate,
+                  t.change,
+                  t.onceDate,
+                  async () => {
+                    const value = await selectDate?.(onceDate);
+                    if (value) setOnceDate(value);
+                  },
+                )}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>{t.onceTime}</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t.changeTime}: ${onceTime}`}
+                    onPress={async () => {
+                      const value = await selectTime?.(onceTime);
+                      if (value) setOnceTime(value);
+                    }}
+                    style={styles.fieldControl}
+                  >
+                    <Text style={styles.fieldValue}>{onceTime}</Text>
+                    <Text style={styles.fieldAction}>{t.change} ›</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <>
+                {dateField(
+                  t.startDate,
+                  startDate,
+                  t.change,
+                  t.startDate,
+                  async () => {
+                    const value = await selectDate?.(startDate);
+                    if (value) setStartDate(value);
+                  },
+                )}
+                {dateField(
+                  t.endDate,
+                  endDate,
+                  endDate ? t.change : t.setDate,
+                  t.setEnd,
+                  async () => {
+                    const value = await selectDate?.(endDate ?? startDate);
+                    if (value) setEndDate(value);
+                  },
+                )}
+                {endDate && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t.clearEnd}
+                    onPress={() => setEndDate(null)}
+                    style={styles.linkButton}
+                  >
+                    <Text style={styles.linkText}>{t.clearEnd}</Text>
+                  </Pressable>
+                )}
+                {scheduleKind !== 'interval' && (
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>{t.times}</Text>
+                    {times.map((time, index) => (
+                      <View key={`${time}-${index}`} style={styles.timeRow}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t.changeTime}: ${time}`}
+                          onPress={async () => {
+                            const selected = await selectTime?.(time);
+                            if (selected)
+                              setTimes(current =>
+                                [
+                                  ...new Set(
+                                    current.map((value, i) =>
+                                      i === index ? selected : value,
+                                    ),
+                                  ),
+                                ].sort(),
+                              );
+                          }}
+                          style={[styles.fieldControl, styles.timeControl]}
+                        >
+                          <Text style={styles.fieldValue}>{time}</Text>
+                          <Text style={styles.fieldAction}>{t.change} ›</Text>
+                        </Pressable>
+                        {times.length > 1 && (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`${t.removeTime}: ${time}`}
+                            onPress={() =>
+                              setTimes(current =>
+                                current.filter((_, i) => i !== index),
+                              )
+                            }
+                            style={styles.removeButton}
+                          >
+                            <Text style={styles.removeText}>{t.remove}</Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    ))}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t.addTime}
                       onPress={async () => {
-                        const selected = await selectTime?.(time);
+                        const selected = await selectTime?.('09:00');
                         if (selected)
                           setTimes(current =>
-                            [
-                              ...new Set(
-                                current.map((value, i) =>
-                                  i === index ? selected : value,
-                                ),
-                              ),
-                            ].sort(),
+                            [...new Set([...current, selected])].sort(),
                           );
                       }}
-                    />
-                    {times.length > 1 && (
-                      <PillAction
-                        title={`${t.removeTime}: ${time}`}
-                        onPress={() =>
-                          setTimes(current =>
-                            current.filter((_, i) => i !== index),
-                          )
-                        }
-                      />
-                    )}
+                      style={styles.linkButton}
+                    >
+                      <Text style={styles.linkText}>＋ {t.addTime}</Text>
+                    </Pressable>
                   </View>
-                ))}
-                <PillAction
-                  title={t.addTime}
-                  onPress={async () => {
-                    const selected = await selectTime?.('09:00');
-                    if (selected)
-                      setTimes(current =>
-                        [...new Set([...current, selected])].sort(),
-                      );
-                  }}
-                />
+                )}
               </>
             )}
             <Text accessibilityLiveRegion="polite" style={styles.label}>
@@ -644,12 +773,14 @@ export function MedicineSetup({
             </Text>
             <Text style={styles.label}>
               {t[scheduleKind]}
-              {scheduleKind !== 'interval'
+              {scheduleKind === 'once'
+                ? `: ${onceDate}, ${onceTime}`
+                : scheduleKind !== 'interval'
                 ? `: ${times.join(', ')}`
                 : `: ${intervalHours}h`}
             </Text>
             <Text accessibilityRole="header" style={styles.label}>
-              {t.nextThree}
+              {scheduleKind === 'once' ? t.oncePreview : t.nextThree}
             </Text>
             {preview.map(date => (
               <Text key={date.toISOString()} style={styles.label}>
@@ -689,12 +820,26 @@ export function MedicineSetup({
               disabled={saving}
               onPress={async () => {
                 if (savingRef.current) return;
+                if (
+                  scheduleKind === 'once' &&
+                  nextDailyOccurrences(
+                    [onceTime],
+                    now ?? new Date(),
+                    1,
+                    onceDate,
+                    onceDate,
+                  ).length === 0
+                ) {
+                  setError(t.onceFuture);
+                  return;
+                }
                 savingRef.current = true;
                 setSaving(true);
                 try {
                   await onSave({
                     type,
-                    scheduleKind,
+                    scheduleKind:
+                      scheduleKind === 'once' ? 'daily' : scheduleKind,
                     weekdays,
                     intervalHours:
                       scheduleKind === 'interval'
@@ -710,9 +855,12 @@ export function MedicineSetup({
                     mode,
                     name: name.trim(),
                     instructions: instructions.trim(),
-                    times: [...new Set(times)],
-                    startDate,
-                    endDate,
+                    times:
+                      scheduleKind === 'once'
+                        ? [onceTime]
+                        : [...new Set(times)],
+                    startDate: scheduleKind === 'once' ? onceDate : startDate,
+                    endDate: scheduleKind === 'once' ? onceDate : endDate,
                   });
                 } finally {
                   savingRef.current = false;
@@ -792,7 +940,54 @@ const styles = StyleSheet.create({
   },
   error: { color: '#a01818', fontSize: 18, marginVertical: 12 },
   actions: { gap: 12, marginTop: 24 },
-  timeRow: { gap: 8, marginVertical: 8 },
+  scheduleOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 8,
+    marginBottom: 12,
+  },
+  scheduleOption: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingRight: 4,
+  },
+  fieldGroup: { gap: 8, marginVertical: 8 },
+  fieldLabel: { color: '#162524', fontSize: 17, fontWeight: '600' },
+  fieldControl: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: '#a4b398',
+    backgroundColor: '#fffaf1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  fieldValue: { color: '#162524', fontSize: 17, flexShrink: 1 },
+  fieldAction: { color: '#36542b', fontSize: 15, fontWeight: '600' },
+  timeRow: { flexDirection: 'row', gap: 8, alignItems: 'stretch' },
+  timeControl: { flex: 1 },
+  removeButton: {
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#d9b8ac',
+    borderRadius: 10,
+  },
+  removeText: { color: '#99433a', fontSize: 15, fontWeight: '600' },
+  linkButton: {
+    minHeight: 44,
+    alignSelf: 'flex-start',
+    justifyContent: 'center',
+  },
+  linkText: { color: '#36542b', fontSize: 16, fontWeight: '700' },
   modeOption: { minHeight: 48, justifyContent: 'center' },
   modeText: { color: '#162524', fontSize: 18 },
 });
