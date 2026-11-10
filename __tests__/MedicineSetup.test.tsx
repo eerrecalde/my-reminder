@@ -10,6 +10,7 @@ test('requires a name and previews three daily reminders before saving', async (
   await ReactTestRenderer.act(() => {
     view = ReactTestRenderer.create(
       <MedicineSetup
+        onExit={() => {}}
         language="en"
         now={new Date(2026, 5, 1, 12)}
         onSave={save}
@@ -59,7 +60,12 @@ test('lets the user add a second daily time using the time selector', async () =
   let view!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     view = ReactTestRenderer.create(
-      <MedicineSetup language="en" onSave={save} selectTime={selectTime} />,
+      <MedicineSetup
+        onExit={() => {}}
+        language="en"
+        onSave={save}
+        selectTime={selectTime}
+      />,
     );
   });
   const press = async (title: string) => {
@@ -93,7 +99,7 @@ test('shows the schedule controls in Spanish', async () => {
   let view!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     view = ReactTestRenderer.create(
-      <MedicineSetup language="es" onSave={jest.fn()} />,
+      <MedicineSetup onExit={() => {}} language="es" onSave={jest.fn()} />,
     );
   });
   await ReactTestRenderer.act(() =>
@@ -145,7 +151,7 @@ test('ignores repeated saves until the first save completes', async () => {
   let view!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     view = ReactTestRenderer.create(
-      <MedicineSetup language="en" onSave={save} />,
+      <MedicineSetup onExit={() => {}} language="en" onSave={save} />,
     );
   });
   await ReactTestRenderer.act(() =>
@@ -180,7 +186,7 @@ test('creates a reminder without medicine instructions', async () => {
   let view!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     view = ReactTestRenderer.create(
-      <MedicineSetup language="en" onSave={save} />,
+      <MedicineSetup onExit={() => {}} language="en" onSave={save} />,
     );
   });
   const press = async (title: string) => {
@@ -222,7 +228,7 @@ test.each(['Reminder', 'Medicine'])(
     let view!: ReactTestRenderer.ReactTestRenderer;
     await ReactTestRenderer.act(() => {
       view = ReactTestRenderer.create(
-        <MedicineSetup language="en" onSave={save} />,
+        <MedicineSetup onExit={() => {}} language="en" onSave={save} />,
       );
     });
     const press = async (title: string) => {
@@ -273,6 +279,7 @@ test('editing preserves dosage instructions when changing medicine to reminder',
   await ReactTestRenderer.act(() => {
     view = ReactTestRenderer.create(
       <MedicineSetup
+        onExit={() => {}}
         language="en"
         onSave={save}
         initial={{
@@ -334,6 +341,7 @@ test.each([
     await ReactTestRenderer.act(() => {
       view = ReactTestRenderer.create(
         <MedicineSetup
+          onExit={() => {}}
           language={language}
           now={new Date(2026, 5, 1, 12)}
           onSave={save}
@@ -368,5 +376,56 @@ test.each([
         endDate: '2026-06-03',
       }),
     );
+  },
+);
+
+test.each([
+  ['en', 'Medicine', 'Next', 'Review', 'Back'],
+  ['es', 'Medicamento', 'Continuar', 'Revisar', 'Volver'],
+])(
+  'back moves through setup and preserves the name in %s',
+  async (language, type, next, review, back) => {
+    const exit = jest.fn();
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(() => {
+      view = ReactTestRenderer.create(
+        <MedicineSetup
+          language={language as 'en' | 'es'}
+          onExit={exit}
+          onSave={jest.fn()}
+        />,
+      );
+    });
+    const pressAction = (title: string) =>
+      ReactTestRenderer.act(() =>
+        view.root
+          .findAllByType(PillAction)
+          .find(button => button.props.title === title)!
+          .props.onPress(),
+      );
+    const pressBack = () =>
+      ReactTestRenderer.act(() =>
+        view.root
+          .findByProps({
+            accessibilityRole: 'button',
+            accessibilityLabel: back,
+          })
+          .props.onPress(),
+      );
+    await pressAction(type);
+    await ReactTestRenderer.act(() =>
+      view.root.findAllByType(TextInput)[0].props.onChangeText('Aspirin'),
+    );
+    await pressAction(next);
+    await pressAction(review);
+    await pressBack();
+    await pressBack();
+    expect(view.root.findAllByType(TextInput)[0].props.value).toBe('Aspirin');
+    expect(exit).not.toHaveBeenCalled();
+    await pressBack();
+    expect(exit).not.toHaveBeenCalled();
+    await pressBack();
+    expect(exit).toHaveBeenCalledTimes(1);
+    await ReactTestRenderer.act(() => view.unmount());
   },
 );

@@ -185,6 +185,9 @@ export default function App() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [editing, setEditing] = useState<Medicine>();
+  const [setupOrigin, setSetupOrigin] = useState<'today' | 'reminders'>(
+    'today',
+  );
   const [undo, setUndo] = useState<{
     occurrence: Occurrence;
     previous: Outcome | null;
@@ -421,18 +424,13 @@ export default function App() {
       <SafeAreaView style={styles.screen}>
         {screen === 'setup' ? (
           <>
-            <View style={styles.setupCancel}>
-              <PillAction
-                secondary
-                title={t.cancel}
-                onPress={() => {
-                  setEditing(undefined);
-                  setScreen('today');
-                }}
-              />
-            </View>
             <MedicineSetup
               initial={editing}
+              onExit={() => {
+                setEditing(undefined);
+                setError('');
+                setScreen(setupOrigin);
+              }}
               selectTime={time => reminderRepository.selectTime(time)}
               selectDate={date => reminderRepository.selectDate(date)}
               language={language}
@@ -566,7 +564,10 @@ export default function App() {
                           <PillAction
                             showPlus
                             title={t.add}
-                            onPress={() => setScreen('setup')}
+                            onPress={() => {
+                              setSetupOrigin('today');
+                              setScreen('setup');
+                            }}
                           />
                         </View>
                       </View>
@@ -769,6 +770,7 @@ export default function App() {
                     title={t.add}
                     onPress={() => {
                       setEditing(undefined);
+                      setSetupOrigin('reminders');
                       setScreen('setup');
                     }}
                   />
@@ -802,6 +804,7 @@ export default function App() {
                           title={t.edit}
                           onPress={() => {
                             setEditing(medicine);
+                            setSetupOrigin('reminders');
                             setScreen('setup');
                           }}
                         />
@@ -1020,7 +1023,6 @@ export default function App() {
 }
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fbf6eb' },
-  setupCancel: { paddingHorizontal: 24, paddingTop: 12 },
   content: {
     paddingHorizontal: 20,
     paddingTop: 18,

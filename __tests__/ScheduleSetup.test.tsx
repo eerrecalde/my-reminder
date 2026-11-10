@@ -59,6 +59,7 @@ test.each([
     await ReactTestRenderer.act(() => {
       view = ReactTestRenderer.create(
         <MedicineSetup
+          onExit={() => {}}
           language={language}
           now={new Date(2026, 0, 1, 12)}
           onSave={save}
@@ -103,7 +104,12 @@ test('discarding invalid interval and monthly settings allows another schedule t
   let view!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     view = ReactTestRenderer.create(
-      <MedicineSetup language="en" now={new Date(2026, 0, 1)} onSave={save} />,
+      <MedicineSetup
+        onExit={() => {}}
+        language="en"
+        now={new Date(2026, 0, 1)}
+        onSave={save}
+      />,
     );
   });
   const button = async (title: string) =>

@@ -528,3 +528,51 @@ test.each([
     await ReactTestRenderer.act(() => view.unmount());
   },
 );
+
+test.each(['today', 'reminders'] as const)(
+  'back from setup returns to %s',
+  async origin => {
+    const repo = require('../src/reminderRepository');
+    repo.reminderRepository = {
+      state: jest
+        .fn()
+        .mockResolvedValue({
+          enabled: true,
+          notifications: true,
+          exactAlarms: true,
+          language: 'en',
+          medicines: [],
+          todayDoses: [],
+          history: [],
+          upcoming: [],
+        }),
+    };
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      view = ReactTestRenderer.create(<App />);
+    });
+    if (origin === 'reminders')
+      await ReactTestRenderer.act(() =>
+        view.root.findByProps({ testID: 'nav-reminders' }).props.onPress(),
+      );
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findAllByType(PillAction)
+        .find(button => button.props.title === 'Add reminder')!
+        .props.onPress(),
+    );
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findByProps({
+          accessibilityRole: 'button',
+          accessibilityLabel: 'Back',
+        })
+        .props.onPress(),
+    );
+    expect(
+      view.root.findByProps({ testID: `nav-${origin}` }).props
+        .accessibilityState.selected,
+    ).toBe(true);
+    await ReactTestRenderer.act(() => view.unmount());
+  },
+);
