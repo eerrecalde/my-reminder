@@ -338,7 +338,7 @@ export function MedicineSetup({
       {step === 0 && (
         <View style={styles.actions}>
           <Button
-            color="#00535b"
+            color="#527457"
             title={t.reminder}
             onPress={() => {
               setType('reminder');
@@ -346,7 +346,7 @@ export function MedicineSetup({
             }}
           />
           <Button
-            color="#00535b"
+            color="#527457"
             title={t.medicine}
             onPress={() => {
               setType('medicine');
@@ -497,7 +497,7 @@ export function MedicineSetup({
             {t.startDate}: {startDate}
           </Text>
           <Button
-            color="#00535b"
+            color="#527457"
             title={t.startDate}
             onPress={async () => {
               const value = await selectDate?.(startDate);
@@ -509,7 +509,7 @@ export function MedicineSetup({
             {endDate ? `: ${endDate}` : ''}
           </Text>
           <Button
-            color="#00535b"
+            color="#527457"
             title={t.setEnd}
             onPress={async () => {
               const value = await selectDate?.(endDate ?? startDate);
@@ -518,7 +518,7 @@ export function MedicineSetup({
           />
           {endDate && (
             <Button
-              color="#00535b"
+              color="#527457"
               title={t.clearEnd}
               onPress={() => setEndDate(null)}
             />
@@ -529,7 +529,7 @@ export function MedicineSetup({
               {times.map((time, index) => (
                 <View key={`${time}-${index}`} style={styles.timeRow}>
                   <Button
-                    color="#00535b"
+                    color="#527457"
                     title={`${t.changeTime}: ${time}`}
                     onPress={async () => {
                       const selected = await selectTime?.(time);
@@ -547,7 +547,7 @@ export function MedicineSetup({
                   />
                   {times.length > 1 && (
                     <Button
-                      color="#00535b"
+                      color="#527457"
                       title={`${t.removeTime}: ${time}`}
                       onPress={() =>
                         setTimes(current =>
@@ -559,7 +559,7 @@ export function MedicineSetup({
                 </View>
               ))}
               <Button
-                color="#00535b"
+                color="#527457"
                 title={t.addTime}
                 onPress={async () => {
                   const selected = await selectTime?.('09:00');
@@ -646,7 +646,7 @@ export function MedicineSetup({
       <View style={styles.actions}>
         {step > 0 && (
           <Button
-            color="#00535b"
+            color="#527457"
             title={t.back}
             onPress={() => {
               setError('');
@@ -656,13 +656,13 @@ export function MedicineSetup({
         )}
         {step > 0 && step < 3 ? (
           <Button
-            color="#00535b"
+            color="#527457"
             title={step === 1 ? t.next : t.review}
             onPress={next}
           />
         ) : step === 3 ? (
           <Button
-            color="#00535b"
+            color="#527457"
             title={type === 'medicine' ? t.save : t.saveReminder}
             disabled={saving}
             onPress={async () => {
@@ -702,7 +702,7 @@ export function MedicineSetup({
   );
 }
 const styles = StyleSheet.create({
-  content: { padding: 24, backgroundColor: '#fff', flexGrow: 1 },
+  content: { padding: 24, backgroundColor: '#fbf6eb', flexGrow: 1 },
   heading: {
     color: '#162524',
     fontSize: 28,
@@ -714,8 +714,9 @@ const styles = StyleSheet.create({
     color: '#162524',
     fontSize: 18,
     borderWidth: 1,
-    borderColor: '#324b49',
-    borderRadius: 6,
+    borderColor: '#a4b398',
+    backgroundColor: '#fffaf1',
+    borderRadius: 12,
     minHeight: 52,
     paddingHorizontal: 12,
   },
