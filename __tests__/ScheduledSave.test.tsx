@@ -1,6 +1,5 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Button } from 'react-native';
 import App, { PillAction } from '../App';
 import { MedicineSetup } from '../src/MedicineSetup';
 
@@ -46,7 +45,7 @@ test.each([false, true])(
     );
     await ReactTestRenderer.act(() =>
       view.root
-        .findAllByType(editing ? Button : PillAction)
+        .findAllByType(PillAction)
         .find(b => b.props.title === (editing ? 'Edit' : 'Add reminder'))!
         .props.onPress(),
     );

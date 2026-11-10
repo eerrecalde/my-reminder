@@ -1,6 +1,7 @@
+import { PillAction } from '../src/PillAction';
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Button, Text, TextInput } from 'react-native';
+import { Text, TextInput } from 'react-native';
 import { MedicineSetup } from '../src/MedicineSetup';
 
 test('requires a name and previews three daily reminders before saving', async () => {
@@ -18,7 +19,7 @@ test('requires a name and previews three daily reminders before saving', async (
   const press = async (title: string) => {
     await ReactTestRenderer.act(() =>
       view.root
-        .findAllByType(Button)
+        .findAllByType(PillAction)
         .find(button => button.props.title === title)!
         .props.onPress(),
     );
@@ -64,7 +65,7 @@ test('lets the user add a second daily time using the time selector', async () =
   const press = async (title: string) => {
     await ReactTestRenderer.act(async () => {
       await view.root
-        .findAllByType(Button)
+        .findAllByType(PillAction)
         .find(button => button.props.title === title)!
         .props.onPress();
     });
@@ -97,7 +98,7 @@ test('shows the schedule controls in Spanish', async () => {
   });
   await ReactTestRenderer.act(() =>
     view.root
-      .findAllByType(Button)
+      .findAllByType(PillAction)
       .find(button => button.props.title === 'Medicamento')!
       .props.onPress(),
   );
@@ -106,13 +107,13 @@ test('shows the schedule controls in Spanish', async () => {
   );
   await ReactTestRenderer.act(() =>
     view.root
-      .findAllByType(Button)
+      .findAllByType(PillAction)
       .find(button => button.props.title === 'Continuar')!
       .props.onPress(),
   );
   expect(
     view.root
-      .findAllByType(Button)
+      .findAllByType(PillAction)
       .some(button => button.props.title === 'Agregar una hora'),
   ).toBe(true);
   expect(
@@ -149,7 +150,7 @@ test('ignores repeated saves until the first save completes', async () => {
   });
   await ReactTestRenderer.act(() =>
     view.root
-      .findAllByType(Button)
+      .findAllByType(PillAction)
       .find(button => button.props.title === 'Medicine')!
       .props.onPress(),
   );
@@ -158,7 +159,7 @@ test('ignores repeated saves until the first save completes', async () => {
   );
   const press = (title: string) =>
     view.root
-      .findAllByType(Button)
+      .findAllByType(PillAction)
       .find(button => button.props.title === title)!
       .props.onPress();
   await ReactTestRenderer.act(() => press('Next'));
@@ -185,7 +186,7 @@ test('creates a reminder without medicine instructions', async () => {
   const press = async (title: string) => {
     await ReactTestRenderer.act(() =>
       view.root
-        .findAllByType(Button)
+        .findAllByType(PillAction)
         .find(button => button.props.title === title)!
         .props.onPress(),
     );
@@ -227,7 +228,7 @@ test.each(['Reminder', 'Medicine'])(
     const press = async (title: string) => {
       await ReactTestRenderer.act(() =>
         view.root
-          .findAllByType(Button)
+          .findAllByType(PillAction)
           .find(b => b.props.title === title)!
           .props.onPress(),
       );
@@ -287,7 +288,7 @@ test('editing preserves dosage instructions when changing medicine to reminder',
   const press = async (title: string) =>
     ReactTestRenderer.act(() =>
       view.root
-        .findAllByType(Button)
+        .findAllByType(PillAction)
         .find(b => b.props.title === title)!
         .props.onPress(),
     );
@@ -343,7 +344,7 @@ test.each([
     const press = async (title: string) => {
       await ReactTestRenderer.act(async () => {
         await view.root
-          .findAllByType(Button)
+          .findAllByType(PillAction)
           .find(button => button.props.title === title)!
           .props.onPress();
       });

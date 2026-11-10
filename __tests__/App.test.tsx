@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Alert, Button, NativeModules, Text } from 'react-native';
+import { Alert, NativeModules, Text } from 'react-native';
 import App, { PillAction } from '../App';
 
 test('records and undoes a reminder outcome from Today', async () => {
@@ -47,7 +47,7 @@ test('records and undoes a reminder outcome from Today', async () => {
   expect(setOutcome).toHaveBeenCalledWith('r', 2000, 'completed');
   await ReactTestRenderer.act(async () => {
     await renderer.root
-      .findAllByType(Button)
+      .findAllByType(PillAction)
       .find(button => button.props.title === 'Undo')!
       .props.onPress();
   });
@@ -99,7 +99,7 @@ test('history is cleared only after confirmation', async () => {
   ).toBe(true);
   await ReactTestRenderer.act(() =>
     renderer.root
-      .findAllByType(Button)
+      .findAllByType(PillAction)
       .find(button => button.props.title === 'Clear history')!
       .props.onPress(),
   );
@@ -332,7 +332,7 @@ test.each([
   const press = async (title: string) =>
     ReactTestRenderer.act(async () => {
       await view.root
-        .findAllByType(Button)
+        .findAllByType(PillAction)
         .find(b => b.props.title === title)!
         .props.onPress();
     });
@@ -346,7 +346,7 @@ test.each([
   await press(edit);
   expect(
     view.root
-      .findAllByType(Button)
+      .findAllByType(PillAction)
       .some(
         b => b.props.title === (language === 'en' ? 'Medicine' : 'Medicamento'),
       ),
