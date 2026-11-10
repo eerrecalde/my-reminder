@@ -40,7 +40,11 @@ const words = {
     reminder: 'Reminder',
     allowed: 'Allowed',
     notAllowed: 'Not allowed',
-    enable: 'Enable reminders',
+    enable: 'Review reminder access',
+    offBoth:
+      'Allow notifications and exact alarms so reminders can arrive on time.',
+    offNotifications: 'Allow notifications so your reminders can appear.',
+    offAlarms: 'Allow exact alarms so your reminders can arrive on time.',
     test: 'Send a test reminder',
     settings: 'Reminder access',
     notifications: 'Allow notifications',
@@ -114,7 +118,13 @@ const words = {
     reminder: 'Recordatorio',
     allowed: 'Permitido',
     notAllowed: 'No permitido',
-    enable: 'Activar recordatorios',
+    enable: 'Revisar acceso a recordatorios',
+    offBoth:
+      'Permite las notificaciones y las alarmas exactas para recibir recordatorios a tiempo.',
+    offNotifications:
+      'Permite las notificaciones para que aparezcan tus recordatorios.',
+    offAlarms:
+      'Permite las alarmas exactas para recibir tus recordatorios a tiempo.',
     test: 'Enviar recordatorio de prueba',
     settings: 'Acceso a recordatorios',
     notifications: 'Permitir notificaciones',
@@ -535,8 +545,27 @@ export default function App() {
                 <>
                   {!state.enabled && (
                     <View style={styles.warning}>
-                      <Text accessibilityRole="alert" style={styles.title}>
-                        {t.off}
+                      <View style={styles.warningHeader}>
+                        <View
+                          accessible={false}
+                          importantForAccessibility="no-hide-descendants"
+                          style={styles.warningIcon}
+                        >
+                          <Text style={styles.warningIconText}>!</Text>
+                        </View>
+                        <Text
+                          accessibilityRole="alert"
+                          style={styles.warningTitle}
+                        >
+                          {t.off}
+                        </Text>
+                      </View>
+                      <Text style={styles.warningText}>
+                        {!state.notifications && !state.exactAlarms
+                          ? t.offBoth
+                          : !state.notifications
+                          ? t.offNotifications
+                          : t.offAlarms}
                       </Text>
                       <PillAction
                         title={t.enable}
@@ -1202,11 +1231,35 @@ const styles = StyleSheet.create({
   title: { color: '#162524', fontSize: 26, fontWeight: '700' },
   text: { color: '#162524', fontSize: 18, marginVertical: 8 },
   warning: {
-    backgroundColor: '#fff0dc',
+    backgroundColor: '#fff1ee',
+    borderColor: '#dca69e',
+    borderWidth: 1,
     borderRadius: 16,
     padding: 16,
     gap: 12,
   },
+  warningHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  warningIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#b83229',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  warningIconText: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '700',
+    lineHeight: 26,
+  },
+  warningTitle: {
+    color: '#8f241e',
+    fontSize: 22,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  warningText: { color: '#4b2925', fontSize: 16, lineHeight: 23 },
   medicine: {
     borderWidth: 1,
     borderColor: '#e5e1cf',
