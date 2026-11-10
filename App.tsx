@@ -62,6 +62,10 @@ const words = {
     hours: 'hours',
     monthly: 'Monthly',
     lastDay: 'last day',
+    starts: 'Starts',
+    ends: 'Ends',
+    shortLast: 'Use last day in shorter months',
+    shortSkip: 'Skip shorter months',
     cancel: 'Cancel',
     empty: 'No reminders added yet',
     emptyHelp: 'Add a reminder for a task, an event, or a medicine.',
@@ -131,6 +135,10 @@ const words = {
     hours: 'horas',
     monthly: 'Mensual',
     lastDay: 'último día',
+    starts: 'Comienza',
+    ends: 'Termina',
+    shortLast: 'Usar el último día en meses más cortos',
+    shortSkip: 'Omitir meses más cortos',
     cancel: 'Cancelar',
     empty: 'Aún no hay recordatorios',
     emptyHelp:
@@ -287,15 +295,40 @@ export default function App() {
     });
   const scheduleLabel = (medicine: Medicine) => {
     const kind = medicine.scheduleKind ?? 'daily';
-    if (kind === 'interval')
-      return `${t.everyHours} ${medicine.intervalHours} ${t.hours}`;
     const when =
-      kind === 'weekday'
-        ? (medicine.weekdays ?? []).map(day => t.weekdays[day - 1]).join(', ')
-        : kind === 'monthly'
-        ? `${t.monthly}: ${medicine.monthlyDay ?? t.lastDay}`
-        : t.daily;
-    return `${when} · ${medicine.times.join(', ')}`;
+      kind === 'interval'
+        ? `${t.everyHours} ${medicine.intervalHours} ${t.hours}${
+            medicine.intervalAnchor != null
+              ? ` · ${t.starts}: ${new Date(
+                  medicine.intervalAnchor,
+                ).toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                })}`
+              : ''
+          }`
+        : `${
+            kind === 'weekday'
+              ? (medicine.weekdays ?? [])
+                  .map(day => t.weekdays[day - 1])
+                  .join(', ')
+              : kind === 'monthly'
+              ? `${t.monthly}: ${medicine.monthlyDay ?? t.lastDay}${
+                  medicine.monthlyDay != null && medicine.monthlyDay >= 29
+                    ? ` · ${
+                        medicine.shortMonthPolicy === 'skip'
+                          ? t.shortSkip
+                          : t.shortLast
+                      }`
+                    : ''
+                }`
+              : t.daily
+          } · ${medicine.times.join(', ')}`;
+    return `${when}${
+      kind !== 'interval' && medicine.startDate
+        ? ` · ${t.starts}: ${medicine.startDate}`
+        : ''
+    }${medicine.endDate ? ` · ${t.ends}: ${medicine.endDate}` : ''}`;
   };
   const occurrenceView = (
     occurrence: Occurrence,
@@ -767,8 +800,7 @@ export default function App() {
                 </>
               ) : screen === 'reminders' ? (
                 <>
-                  <Button
-                    color="#527457"
+                  <PillAction
                     title={t.add}
                     onPress={() => {
                       setEditing(undefined);
