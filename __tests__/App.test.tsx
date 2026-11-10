@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Alert, NativeModules, Text } from 'react-native';
+import { Alert, AppState, NativeModules, Platform, Text } from 'react-native';
 import App, { PillAction } from '../App';
 
 test('records and undoes a reminder outcome from Today', async () => {
@@ -612,18 +612,16 @@ test.each([
   async (language, notifications, exactAlarms, explanation) => {
     const repository = require('../src/reminderRepository');
     repository.reminderRepository = {
-      state: jest
-        .fn()
-        .mockResolvedValue({
-          enabled: false,
-          notifications,
-          exactAlarms,
-          language,
-          medicines: [],
-          todayDoses: [],
-          history: [],
-          upcoming: [],
-        }),
+      state: jest.fn().mockResolvedValue({
+        enabled: false,
+        notifications,
+        exactAlarms,
+        language,
+        medicines: [],
+        todayDoses: [],
+        history: [],
+        upcoming: [],
+      }),
     };
     let view!: ReactTestRenderer.ReactTestRenderer;
     await ReactTestRenderer.act(async () => {
@@ -656,3 +654,181 @@ test.each([
     await ReactTestRenderer.act(() => view.unmount());
   },
 );
+
+test.each([
+  ['en', true, true],
+  ['en', true, false],
+  ['en', false, true],
+  ['en', false, false],
+  ['es', true, true],
+  ['es', true, false],
+  ['es', false, true],
+  ['es', false, false],
+])(
+  'shows the correct permission card statuses in %s',
+  async (language, notifications, exactAlarms) => {
+    const repository = require('../src/reminderRepository');
+    const openNotificationSettings = jest.fn();
+    const openAlarmSettings = jest.fn();
+    repository.reminderRepository = {
+      state: jest.fn().mockResolvedValue({
+        enabled: notifications && exactAlarms,
+        notifications,
+        exactAlarms,
+        language,
+        medicines: [],
+        todayDoses: [],
+        history: [],
+        upcoming: [],
+      }),
+      openNotificationSettings,
+      openAlarmSettings,
+    };
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      view = ReactTestRenderer.create(<App />);
+    });
+    const access =
+      language === 'en' ? 'Reminder access' : 'Acceso a recordatorios';
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findAllByProps({
+          accessibilityRole: 'button',
+          accessibilityLabel: access,
+        })[0]
+        .props.onPress(),
+    );
+    const status = (allowed: boolean) =>
+      language === 'en'
+        ? allowed
+          ? 'Allowed'
+          : 'Not allowed'
+        : allowed
+        ? 'Permitidas'
+        : 'No permitidas';
+    const notificationCard = view.root.findByProps({
+      testID: 'access-notifications',
+    });
+    const alarmCard = view.root.findByProps({ testID: 'access-exact' });
+    expect(
+      notificationCard
+        .findAllByType(Text)
+        .some(text => text.props.children === status(notifications)),
+    ).toBe(true);
+    expect(
+      alarmCard
+        .findAllByType(Text)
+        .some(text => text.props.children === status(exactAlarms)),
+    ).toBe(true);
+    await ReactTestRenderer.act(async () => {
+      await notificationCard.findByType(PillAction).props.onPress();
+    });
+    expect(openNotificationSettings).toHaveBeenCalledTimes(1);
+    await ReactTestRenderer.act(() =>
+      alarmCard.findByType(PillAction).props.onPress(),
+    );
+    expect(openAlarmSettings).toHaveBeenCalledTimes(1);
+    await ReactTestRenderer.act(() => view.unmount());
+  },
+);
+
+test('refreshes permission cards when the app returns from settings', async () => {
+  let resume!: (state: 'active') => void;
+  const subscription = jest
+    .spyOn(AppState, 'addEventListener')
+    .mockImplementation((_type, callback) => {
+      resume = callback as typeof resume;
+      return { remove: jest.fn() };
+    });
+  const repository = require('../src/reminderRepository');
+  const base = {
+    enabled: false,
+    notifications: false,
+    exactAlarms: true,
+    language: 'en',
+    medicines: [],
+    todayDoses: [],
+    history: [],
+    upcoming: [],
+  };
+  const state = jest
+    .fn()
+    .mockResolvedValueOnce(base)
+    .mockResolvedValue({ ...base, enabled: true, notifications: true });
+  repository.reminderRepository = { state };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    view = ReactTestRenderer.create(<App />);
+  });
+  await ReactTestRenderer.act(() =>
+    view.root
+      .findAllByProps({
+        accessibilityRole: 'button',
+        accessibilityLabel: 'Reminder access',
+      })[0]
+      .props.onPress(),
+  );
+  expect(
+    view.root
+      .findByProps({ testID: 'access-notifications' })
+      .findAllByType(Text)
+      .some(text => text.props.children === 'Not allowed'),
+  ).toBe(true);
+  await ReactTestRenderer.act(async () => {
+    resume('active');
+  });
+  expect(
+    view.root
+      .findByProps({ testID: 'access-notifications' })
+      .findAllByType(Text)
+      .some(text => text.props.children === 'Allowed'),
+  ).toBe(true);
+  await ReactTestRenderer.act(() => view.unmount());
+  subscription.mockRestore();
+});
+
+test('explains that exact alarms are automatic on older Android phones', async () => {
+  const subscription = jest
+    .spyOn(AppState, 'addEventListener')
+    .mockReturnValue({ remove: jest.fn() });
+  const os = jest.replaceProperty(Platform, 'OS', 'android');
+  const version = jest.spyOn(Platform, 'Version', 'get').mockReturnValue(30);
+  const repository = require('../src/reminderRepository');
+  repository.reminderRepository = {
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      notifications: true,
+      exactAlarms: true,
+      language: 'en',
+      medicines: [],
+      todayDoses: [],
+      history: [],
+      upcoming: [],
+    }),
+  };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    view = ReactTestRenderer.create(<App />);
+  });
+  await ReactTestRenderer.act(() =>
+    view.root
+      .findAllByProps({
+        accessibilityRole: 'button',
+        accessibilityLabel: 'Reminder access',
+      })[0]
+      .props.onPress(),
+  );
+  const card = view.root.findByProps({ testID: 'access-exact' });
+  expect(
+    card
+      .findAllByType(Text)
+      .some(
+        text => text.props.children === 'Automatically allowed on this phone.',
+      ),
+  ).toBe(true);
+  expect(card.findAllByType(PillAction)).toHaveLength(0);
+  await ReactTestRenderer.act(() => view.unmount());
+  version.mockRestore();
+  os.restore();
+  subscription.mockRestore();
+});
