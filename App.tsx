@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   AppState,
   Alert,
-  Button,
   Image,
   PermissionsAndroid,
   Platform,
@@ -422,8 +421,8 @@ export default function App() {
       <SafeAreaView style={styles.screen}>
         {screen === 'setup' ? (
           <>
-            <Button
-              color="#527457"
+            <PillAction
+              secondary
               title={t.cancel}
               onPress={() => {
                 setEditing(undefined);
@@ -545,13 +544,7 @@ export default function App() {
                       />
                     </View>
                   )}
-                  {undo && (
-                    <Button
-                      color="#527457"
-                      title={t.undo}
-                      onPress={undoChange}
-                    />
-                  )}
+                  {undo && <PillAction title={t.undo} onPress={undoChange} />}
                   {state.medicines.length === 0 &&
                     state.todayDoses.length === 0 && (
                       <View style={styles.emptyCard}>
@@ -803,19 +796,17 @@ export default function App() {
                         <Text style={styles.text}>
                           {scheduleLabel(medicine)}
                         </Text>
-                        <Button
+                        <PillAction
                           title={t.edit}
-                          color="#527457"
                           onPress={() => {
                             setEditing(medicine);
                             setScreen('setup');
                           }}
                         />
-                        <Button
+                        <PillAction
                           title={
                             medicine.status === 'paused' ? t.resume : t.pause
                           }
-                          color="#527457"
                           onPress={async () => {
                             try {
                               await reminderRepository.setStatus(
@@ -830,9 +821,9 @@ export default function App() {
                             }
                           }}
                         />
-                        <Button
+                        <PillAction
+                          secondary
                           title={t.delete}
-                          color="#527457"
                           onPress={() =>
                             Alert.alert(t.delete, t.deleteQuestion, [
                               { text: t.cancel, style: 'cancel' },
@@ -860,13 +851,7 @@ export default function App() {
                 </>
               ) : screen === 'history' ? (
                 <>
-                  {undo && (
-                    <Button
-                      color="#527457"
-                      title={t.undo}
-                      onPress={undoChange}
-                    />
-                  )}
+                  {undo && <PillAction title={t.undo} onPress={undoChange} />}
                   {(state.history ?? []).length === 0 && (
                     <Text style={styles.text}>{t.noHistory}</Text>
                   )}
@@ -915,8 +900,8 @@ export default function App() {
                         </View>
                       );
                     })}
-                  <Button
-                    color="#527457"
+                  <PillAction
+                    secondary
                     title={t.clearHistory}
                     onPress={() =>
                       Alert.alert(t.clearHistory, t.clearQuestion, [
@@ -937,8 +922,8 @@ export default function App() {
                       ])
                     }
                   />
-                  <Button
-                    color="#527457"
+                  <PillAction
+                    secondary
                     title={t.cancel}
                     onPress={() => {
                       setUndo(undefined);
@@ -954,8 +939,7 @@ export default function App() {
                     {t.notifications}:{' '}
                     {state.notifications ? t.allowed : t.notAllowed}
                   </Text>
-                  <Button
-                    color="#527457"
+                  <PillAction
                     title={t.notifications}
                     onPress={allowNotifications}
                   />
@@ -963,20 +947,18 @@ export default function App() {
                   <Text style={styles.text}>
                     {t.exact}: {state.exactAlarms ? t.allowed : t.notAllowed}
                   </Text>
-                  <Button
-                    color="#527457"
+                  <PillAction
                     title={t.exact}
                     onPress={() => reminderRepository.openAlarmSettings()}
                   />
                   <View style={styles.spacer} />
-                  <Button
-                    color="#527457"
+                  <PillAction
                     title={t.test}
                     onPress={() => reminderRepository.testReminder()}
                   />
                   <View style={styles.spacer} />
-                  <Button
-                    color="#527457"
+                  <PillAction
+                    secondary
                     title={t.cancel}
                     onPress={() => {
                       refresh();

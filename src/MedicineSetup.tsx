@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react';
 import {
-  Button,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +25,7 @@ import {
   finalMonthlyOccurrence,
 } from './monthlySchedule';
 import type { ReminderType } from './reminderRepository';
+import { PillAction } from './PillAction';
 
 export type DailyMedicineInput = {
   type: ReminderType;
@@ -337,16 +337,14 @@ export function MedicineSetup({
       </Text>
       {step === 0 && (
         <View style={styles.actions}>
-          <Button
-            color="#527457"
+          <PillAction
             title={t.reminder}
             onPress={() => {
               setType('reminder');
               setStep(1);
             }}
           />
-          <Button
-            color="#527457"
+          <PillAction
             title={t.medicine}
             onPress={() => {
               setType('medicine');
@@ -433,14 +431,14 @@ export function MedicineSetup({
               <Text style={styles.label}>
                 {t.first}: {anchorDate} {anchorTime}
               </Text>
-              <Button
+              <PillAction
                 title={t.startDate}
                 onPress={async () => {
                   const value = await selectDate?.(anchorDate);
                   if (value) setAnchorDate(value);
                 }}
               />
-              <Button
+              <PillAction
                 title={t.changeTime}
                 onPress={async () => {
                   const value = await selectTime?.(anchorTime);
@@ -496,8 +494,7 @@ export function MedicineSetup({
           <Text style={styles.label}>
             {t.startDate}: {startDate}
           </Text>
-          <Button
-            color="#527457"
+          <PillAction
             title={t.startDate}
             onPress={async () => {
               const value = await selectDate?.(startDate);
@@ -508,8 +505,7 @@ export function MedicineSetup({
             {t.endDate}
             {endDate ? `: ${endDate}` : ''}
           </Text>
-          <Button
-            color="#527457"
+          <PillAction
             title={t.setEnd}
             onPress={async () => {
               const value = await selectDate?.(endDate ?? startDate);
@@ -517,8 +513,8 @@ export function MedicineSetup({
             }}
           />
           {endDate && (
-            <Button
-              color="#527457"
+            <PillAction
+              secondary
               title={t.clearEnd}
               onPress={() => setEndDate(null)}
             />
@@ -528,8 +524,7 @@ export function MedicineSetup({
               <Text style={styles.label}>{t.times}</Text>
               {times.map((time, index) => (
                 <View key={`${time}-${index}`} style={styles.timeRow}>
-                  <Button
-                    color="#527457"
+                  <PillAction
                     title={`${t.changeTime}: ${time}`}
                     onPress={async () => {
                       const selected = await selectTime?.(time);
@@ -546,8 +541,7 @@ export function MedicineSetup({
                     }}
                   />
                   {times.length > 1 && (
-                    <Button
-                      color="#527457"
+                    <PillAction
                       title={`${t.removeTime}: ${time}`}
                       onPress={() =>
                         setTimes(current =>
@@ -558,8 +552,7 @@ export function MedicineSetup({
                   )}
                 </View>
               ))}
-              <Button
-                color="#527457"
+              <PillAction
                 title={t.addTime}
                 onPress={async () => {
                   const selected = await selectTime?.('09:00');
@@ -645,8 +638,8 @@ export function MedicineSetup({
       )}
       <View style={styles.actions}>
         {step > 0 && (
-          <Button
-            color="#527457"
+          <PillAction
+            secondary
             title={t.back}
             onPress={() => {
               setError('');
@@ -655,14 +648,9 @@ export function MedicineSetup({
           />
         )}
         {step > 0 && step < 3 ? (
-          <Button
-            color="#527457"
-            title={step === 1 ? t.next : t.review}
-            onPress={next}
-          />
+          <PillAction title={step === 1 ? t.next : t.review} onPress={next} />
         ) : step === 3 ? (
-          <Button
-            color="#527457"
+          <PillAction
             title={type === 'medicine' ? t.save : t.saveReminder}
             disabled={saving}
             onPress={async () => {

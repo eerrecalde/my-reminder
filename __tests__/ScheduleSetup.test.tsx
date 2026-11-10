@@ -1,6 +1,7 @@
+import { PillAction } from '../src/PillAction';
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Button, Text, TextInput } from 'react-native';
+import { Text, TextInput } from 'react-native';
 import { MedicineSetup } from '../src/MedicineSetup';
 
 test.each([
@@ -67,7 +68,7 @@ test.each([
     const button = async (title: string) =>
       ReactTestRenderer.act(async () => {
         await view.root
-          .findAllByType(Button)
+          .findAllByType(PillAction)
           .find(b => b.props.title === title)!
           .props.onPress();
       });
@@ -108,7 +109,7 @@ test('discarding invalid interval and monthly settings allows another schedule t
   const button = async (title: string) =>
     ReactTestRenderer.act(async () => {
       await view.root
-        .findAllByType(Button)
+        .findAllByType(PillAction)
         .find(b => b.props.title === title)!
         .props.onPress();
     });

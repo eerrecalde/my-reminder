@@ -7,19 +7,27 @@ export function PillAction({
   onPress,
   secondary = false,
   showPlus = false,
+  disabled = false,
 }: {
   title: string;
   accessibilityLabel?: string;
   onPress: () => void;
   secondary?: boolean;
   showPlus?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       onPress={onPress}
-      style={[styles.pillAction, secondary && styles.pillSecondary]}
+      disabled={disabled}
+      accessibilityState={{ disabled }}
+      style={[
+        styles.pillAction,
+        secondary && styles.pillSecondary,
+        disabled && styles.disabled,
+      ]}
     >
       {showPlus && (
         <View accessible={false} style={styles.plusIcon}>
@@ -46,6 +54,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
+  disabled: { opacity: 0.5 },
   pillSecondary: {
     backgroundColor: 'transparent',
     borderWidth: 1,
