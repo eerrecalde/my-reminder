@@ -12,6 +12,7 @@ import {
 import {
   finalDailyOccurrence,
   isOneOffSchedule,
+  localDate,
   localDateString,
   nextDailyOccurrences,
 } from './dailySchedule';
@@ -96,6 +97,10 @@ const copy = {
     schedule: 'Schedule',
     times: 'Daily times',
     addTime: 'Add a time',
+    change: 'Change',
+    remove: 'Remove',
+    noEnd: 'No end date',
+    setDate: 'Set date',
     changeTime: 'Change time',
     removeTime: 'Remove time',
     invalid: 'Enter one or more times, for example 09:00, 21:00',
@@ -156,6 +161,10 @@ const copy = {
     schedule: 'Horario',
     times: 'Horas diarias',
     addTime: 'Agregar una hora',
+    change: 'Cambiar',
+    remove: 'Quitar',
+    noEnd: 'Sin fecha de fin',
+    setDate: 'Elegir fecha',
     changeTime: 'Cambiar hora',
     removeTime: 'Quitar hora',
     invalid: 'Escribe una o más horas, por ejemplo 09:00, 21:00',
@@ -377,6 +386,36 @@ export function MedicineSetup({
           )
         : finalDailyOccurrence(times, endDate)
       : undefined;
+  const formatDate = (value: string) =>
+    localDate(value).toLocaleDateString(language === 'es' ? 'es-MX' : 'en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  const dateField = (
+    label: string,
+    value: string | null,
+    action: string,
+    accessibilityLabel: string,
+    onPress: () => void,
+  ) => (
+    <View style={styles.fieldGroup}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${accessibilityLabel}: ${
+          value ? formatDate(value) : t.noEnd
+        }`}
+        onPress={onPress}
+        style={styles.fieldControl}
+      >
+        <Text style={styles.fieldValue}>
+          {value ? formatDate(value) : t.noEnd}
+        </Text>
+        <Text style={styles.fieldAction}>{action} ›</Text>
+      </Pressable>
+    </View>
+  );
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
@@ -464,7 +503,7 @@ export function MedicineSetup({
         )}
         {step === 2 && (
           <>
-            <View accessibilityRole="radiogroup">
+            <View accessibilityRole="radiogroup" style={styles.scheduleOptions}>
               {(
                 ['once', 'daily', 'weekday', 'interval', 'monthly'] as const
               ).map(kind => (
@@ -473,7 +512,7 @@ export function MedicineSetup({
                   accessibilityRole="radio"
                   accessibilityState={{ checked: scheduleKind === kind }}
                   onPress={() => setScheduleKind(kind)}
-                  style={styles.modeOption}
+                  style={styles.scheduleOption}
                 >
                   <Text style={styles.modeText}>
                     {scheduleKind === kind ? '● ' : '○ '}
@@ -513,23 +552,25 @@ export function MedicineSetup({
                   value={intervalHours}
                   onChangeText={setIntervalHours}
                 />
-                <Text style={styles.label}>
-                  {t.first}: {anchorDate} {anchorTime}
-                </Text>
-                <PillAction
-                  title={t.startDate}
-                  onPress={async () => {
-                    const value = await selectDate?.(anchorDate);
-                    if (value) setAnchorDate(value);
-                  }}
-                />
-                <PillAction
-                  title={t.changeTime}
-                  onPress={async () => {
-                    const value = await selectTime?.(anchorTime);
-                    if (value) setAnchorTime(value);
-                  }}
-                />
+                {dateField(t.first, anchorDate, t.change, t.first, async () => {
+                  const value = await selectDate?.(anchorDate);
+                  if (value) setAnchorDate(value);
+                })}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>{t.onceTime}</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t.first}, ${t.changeTime}: ${anchorTime}`}
+                    onPress={async () => {
+                      const value = await selectTime?.(anchorTime);
+                      if (value) setAnchorTime(value);
+                    }}
+                    style={styles.fieldControl}
+                  >
+                    <Text style={styles.fieldValue}>{anchorTime}</Text>
+                    <Text style={styles.fieldAction}>{t.change} ›</Text>
+                  </Pressable>
+                </View>
               </>
             )}
             {scheduleKind === 'monthly' && (
@@ -578,64 +619,72 @@ export function MedicineSetup({
             )}
             {scheduleKind === 'once' ? (
               <>
-                <Text style={styles.label}>
-                  {t.onceDate}: {onceDate}
-                </Text>
-                <PillAction
-                  title={t.onceDate}
-                  onPress={async () => {
+                {dateField(
+                  t.onceDate,
+                  onceDate,
+                  t.change,
+                  t.onceDate,
+                  async () => {
                     const value = await selectDate?.(onceDate);
                     if (value) setOnceDate(value);
-                  }}
-                />
-                <Text style={styles.label}>
-                  {t.onceTime}: {onceTime}
-                </Text>
-                <PillAction
-                  title={t.changeTime}
-                  onPress={async () => {
-                    const value = await selectTime?.(onceTime);
-                    if (value) setOnceTime(value);
-                  }}
-                />
+                  },
+                )}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>{t.onceTime}</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t.changeTime}: ${onceTime}`}
+                    onPress={async () => {
+                      const value = await selectTime?.(onceTime);
+                      if (value) setOnceTime(value);
+                    }}
+                    style={styles.fieldControl}
+                  >
+                    <Text style={styles.fieldValue}>{onceTime}</Text>
+                    <Text style={styles.fieldAction}>{t.change} ›</Text>
+                  </Pressable>
+                </View>
               </>
             ) : (
               <>
-                <Text style={styles.label}>
-                  {t.startDate}: {startDate}
-                </Text>
-                <PillAction
-                  title={t.startDate}
-                  onPress={async () => {
+                {dateField(
+                  t.startDate,
+                  startDate,
+                  t.change,
+                  t.startDate,
+                  async () => {
                     const value = await selectDate?.(startDate);
                     if (value) setStartDate(value);
-                  }}
-                />
-                <Text style={styles.label}>
-                  {t.endDate}
-                  {endDate ? `: ${endDate}` : ''}
-                </Text>
-                <PillAction
-                  title={t.setEnd}
-                  onPress={async () => {
+                  },
+                )}
+                {dateField(
+                  t.endDate,
+                  endDate,
+                  endDate ? t.change : t.setDate,
+                  t.setEnd,
+                  async () => {
                     const value = await selectDate?.(endDate ?? startDate);
                     if (value) setEndDate(value);
-                  }}
-                />
+                  },
+                )}
                 {endDate && (
-                  <PillAction
-                    secondary
-                    title={t.clearEnd}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t.clearEnd}
                     onPress={() => setEndDate(null)}
-                  />
+                    style={styles.linkButton}
+                  >
+                    <Text style={styles.linkText}>{t.clearEnd}</Text>
+                  </Pressable>
                 )}
                 {scheduleKind !== 'interval' && (
-                  <>
-                    <Text style={styles.label}>{t.times}</Text>
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>{t.times}</Text>
                     {times.map((time, index) => (
                       <View key={`${time}-${index}`} style={styles.timeRow}>
-                        <PillAction
-                          title={`${t.changeTime}: ${time}`}
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t.changeTime}: ${time}`}
                           onPress={async () => {
                             const selected = await selectTime?.(time);
                             if (selected)
@@ -649,21 +698,30 @@ export function MedicineSetup({
                                 ].sort(),
                               );
                           }}
-                        />
+                          style={[styles.fieldControl, styles.timeControl]}
+                        >
+                          <Text style={styles.fieldValue}>{time}</Text>
+                          <Text style={styles.fieldAction}>{t.change} ›</Text>
+                        </Pressable>
                         {times.length > 1 && (
-                          <PillAction
-                            title={`${t.removeTime}: ${time}`}
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`${t.removeTime}: ${time}`}
                             onPress={() =>
                               setTimes(current =>
                                 current.filter((_, i) => i !== index),
                               )
                             }
-                          />
+                            style={styles.removeButton}
+                          >
+                            <Text style={styles.removeText}>{t.remove}</Text>
+                          </Pressable>
                         )}
                       </View>
                     ))}
-                    <PillAction
-                      title={t.addTime}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t.addTime}
                       onPress={async () => {
                         const selected = await selectTime?.('09:00');
                         if (selected)
@@ -671,8 +729,11 @@ export function MedicineSetup({
                             [...new Set([...current, selected])].sort(),
                           );
                       }}
-                    />
-                  </>
+                      style={styles.linkButton}
+                    >
+                      <Text style={styles.linkText}>＋ {t.addTime}</Text>
+                    </Pressable>
+                  </View>
                 )}
               </>
             )}
@@ -879,7 +940,54 @@ const styles = StyleSheet.create({
   },
   error: { color: '#a01818', fontSize: 18, marginVertical: 12 },
   actions: { gap: 12, marginTop: 24 },
-  timeRow: { gap: 8, marginVertical: 8 },
+  scheduleOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 8,
+    marginBottom: 12,
+  },
+  scheduleOption: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingRight: 4,
+  },
+  fieldGroup: { gap: 8, marginVertical: 8 },
+  fieldLabel: { color: '#162524', fontSize: 17, fontWeight: '600' },
+  fieldControl: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: '#a4b398',
+    backgroundColor: '#fffaf1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  fieldValue: { color: '#162524', fontSize: 17, flexShrink: 1 },
+  fieldAction: { color: '#36542b', fontSize: 15, fontWeight: '600' },
+  timeRow: { flexDirection: 'row', gap: 8, alignItems: 'stretch' },
+  timeControl: { flex: 1 },
+  removeButton: {
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#d9b8ac',
+    borderRadius: 10,
+  },
+  removeText: { color: '#99433a', fontSize: 15, fontWeight: '600' },
+  linkButton: {
+    minHeight: 44,
+    alignSelf: 'flex-start',
+    justifyContent: 'center',
+  },
+  linkText: { color: '#36542b', fontSize: 16, fontWeight: '700' },
   modeOption: { minHeight: 48, justifyContent: 'center' },
   modeText: { color: '#162524', fontSize: 18 },
 });

@@ -4,6 +4,21 @@ import ReactTestRenderer from 'react-test-renderer';
 import { BackHandler, Text, TextInput } from 'react-native';
 import { MedicineSetup } from '../src/MedicineSetup';
 
+function findAction(view: ReactTestRenderer.ReactTestRenderer, title: string) {
+  return (
+    view.root
+      .findAllByType(PillAction)
+      .find(button => button.props.title === title) ??
+    view.root.findAll(
+      node =>
+        node.props.accessibilityRole === 'button' &&
+        typeof node.props.accessibilityLabel === 'string' &&
+        (node.props.accessibilityLabel === title ||
+          node.props.accessibilityLabel.startsWith(`${title}:`)),
+    )[0]
+  );
+}
+
 test('requires a name and previews three daily reminders before saving', async () => {
   const save = jest.fn();
   let view!: ReactTestRenderer.ReactTestRenderer;
@@ -18,12 +33,7 @@ test('requires a name and previews three daily reminders before saving', async (
     );
   });
   const press = async (title: string) => {
-    await ReactTestRenderer.act(() =>
-      view.root
-        .findAllByType(PillAction)
-        .find(button => button.props.title === title)!
-        .props.onPress(),
-    );
+    await ReactTestRenderer.act(() => findAction(view, title).props.onPress());
   };
   await press('Medicine');
   await press('Next');
@@ -70,10 +80,7 @@ test('lets the user add a second daily time using the time selector', async () =
   });
   const press = async (title: string) => {
     await ReactTestRenderer.act(async () => {
-      await view.root
-        .findAllByType(PillAction)
-        .find(button => button.props.title === title)!
-        .props.onPress();
+      await findAction(view, title).props.onPress();
     });
   };
   await press('Medicine');
@@ -118,9 +125,10 @@ test('shows the schedule controls in Spanish', async () => {
       .props.onPress(),
   );
   expect(
-    view.root
-      .findAllByType(PillAction)
-      .some(button => button.props.title === 'Agregar una hora'),
+    view.root.findAllByProps({
+      accessibilityRole: 'button',
+      accessibilityLabel: 'Agregar una hora',
+    }).length > 0,
   ).toBe(true);
   expect(
     view.root
@@ -190,12 +198,7 @@ test('creates a reminder without medicine instructions', async () => {
     );
   });
   const press = async (title: string) => {
-    await ReactTestRenderer.act(() =>
-      view.root
-        .findAllByType(PillAction)
-        .find(button => button.props.title === title)!
-        .props.onPress(),
-    );
+    await ReactTestRenderer.act(() => findAction(view, title).props.onPress());
   };
   await press('Reminder');
   expect(view.root.findAllByType(TextInput)).toHaveLength(1);
@@ -351,10 +354,7 @@ test.each([
     });
     const press = async (title: string) => {
       await ReactTestRenderer.act(async () => {
-        await view.root
-          .findAllByType(PillAction)
-          .find(button => button.props.title === title)!
-          .props.onPress();
+        await findAction(view, title).props.onPress();
       });
     };
     await press(type);
@@ -397,12 +397,7 @@ test.each([
       );
     });
     const pressAction = (title: string) =>
-      ReactTestRenderer.act(() =>
-        view.root
-          .findAllByType(PillAction)
-          .find(button => button.props.title === title)!
-          .props.onPress(),
-      );
+      ReactTestRenderer.act(() => findAction(view, title).props.onPress());
     const pressBack = () =>
       ReactTestRenderer.act(() =>
         view.root
@@ -541,10 +536,7 @@ test.each([
     });
     const press = async (title: string) =>
       ReactTestRenderer.act(async () => {
-        await view.root
-          .findAllByType(PillAction)
-          .find(button => button.props.title === title)!
-          .props.onPress();
+        await findAction(view, title).props.onPress();
       });
     await press(type);
     await ReactTestRenderer.act(() =>
@@ -606,12 +598,7 @@ test('a one-off reminder in the past cannot be reviewed or saved', async () => {
     );
   });
   const press = (title: string) =>
-    ReactTestRenderer.act(() =>
-      view.root
-        .findAllByType(PillAction)
-        .find(button => button.props.title === title)!
-        .props.onPress(),
-    );
+    ReactTestRenderer.act(() => findAction(view, title).props.onPress());
   await press('Reminder');
   await ReactTestRenderer.act(() =>
     view.root.findByType(TextInput).props.onChangeText('Test'),
@@ -663,12 +650,7 @@ test('editing a saved one-off shows Once and preserves its date and time', async
     );
   });
   const press = (title: string) =>
-    ReactTestRenderer.act(() =>
-      view.root
-        .findAllByType(PillAction)
-        .find(button => button.props.title === title)!
-        .props.onPress(),
-    );
+    ReactTestRenderer.act(() => findAction(view, title).props.onPress());
   await press('Reminder');
   await press('Next');
   const once = view.root.findAll(
@@ -695,3 +677,85 @@ test('editing a saved one-off shows Once and preserves its date and time', async
   );
   await ReactTestRenderer.act(() => view.unmount());
 });
+
+test.each([
+  [
+    'en',
+    'Reminder',
+    'Next',
+    'Change time',
+    'Remove time',
+    'Review',
+    'Save reminder',
+  ],
+  [
+    'es',
+    'Recordatorio',
+    'Continuar',
+    'Cambiar hora',
+    'Quitar hora',
+    'Revisar',
+    'Guardar recordatorio',
+  ],
+])(
+  'changes and removes the intended daily time in %s',
+  async (language, type, next, change, remove, review, saveLabel) => {
+    const save = jest.fn();
+    const selectTime = jest.fn().mockResolvedValue('10:30');
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(() => {
+      view = ReactTestRenderer.create(
+        <MedicineSetup
+          onExit={() => {}}
+          language={language as 'en' | 'es'}
+          now={new Date(2026, 5, 1, 8)}
+          onSave={save}
+          selectTime={selectTime}
+          initial={{
+            type: 'reminder',
+            name: 'Water',
+            instructions: '',
+            mode: 'notification',
+            times: ['09:00', '21:00'],
+          }}
+        />,
+      );
+    });
+    const press = (title: string) =>
+      ReactTestRenderer.act(() =>
+        view.root
+          .findAllByType(PillAction)
+          .find(button => button.props.title === title)!
+          .props.onPress(),
+      );
+    const field = (label: string) =>
+      view.root.findAll(
+        node =>
+          node.props.accessibilityRole === 'button' &&
+          node.props.accessibilityLabel === label,
+      )[0];
+    await press(type);
+    await press(next);
+    await ReactTestRenderer.act(async () => {
+      await field(`${change}: 09:00`).props.onPress();
+    });
+    expect(selectTime).toHaveBeenCalledWith('09:00');
+    expect(field(`${change}: 10:30`)).toBeDefined();
+    await ReactTestRenderer.act(() =>
+      field(`${remove}: 21:00`).props.onPress(),
+    );
+    expect(
+      view.root.findAll(
+        node =>
+          node.props.accessibilityRole === 'button' &&
+          node.props.accessibilityLabel === `${remove}: 10:30`,
+      ),
+    ).toHaveLength(0);
+    await press(review);
+    await press(saveLabel);
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ times: ['10:30'] }),
+    );
+    await ReactTestRenderer.act(() => view.unmount());
+  },
+);
