@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import {
   finalDailyOccurrence,
+  isOneOffSchedule,
   localDateString,
   nextDailyOccurrences,
 } from './dailySchedule';
@@ -56,6 +57,11 @@ type Props = {
 
 const copy = {
   en: {
+    once: 'Once',
+    onceDate: 'Date',
+    onceTime: 'Time',
+    onceFuture: 'Choose a future date and time.',
+    oncePreview: 'Reminder time',
     daily: 'Every day',
     weekday: 'Selected weekdays',
     interval: 'Every X hours',
@@ -111,6 +117,11 @@ const copy = {
     back: 'Back',
   },
   es: {
+    once: 'Una vez',
+    onceDate: 'Fecha',
+    onceTime: 'Hora',
+    onceFuture: 'Elige una fecha y hora futuras.',
+    oncePreview: 'Hora del recordatorio',
     daily: 'Todos los días',
     weekday: 'Días de la semana',
     interval: 'Cada X horas',
@@ -192,8 +203,16 @@ export function MedicineSetup({
     initial?.endDate ?? null,
   );
   const [scheduleKind, setScheduleKind] = useState<
-    NonNullable<DailyMedicineInput['scheduleKind']>
-  >(initial?.scheduleKind ?? 'daily');
+    NonNullable<DailyMedicineInput['scheduleKind']> | 'once'
+  >(
+    initial && isOneOffSchedule(initial)
+      ? 'once'
+      : initial?.scheduleKind ?? 'daily',
+  );
+  const [onceDate, setOnceDate] = useState(
+    initial?.startDate ?? localDateString(now ?? new Date()),
+  );
+  const [onceTime, setOnceTime] = useState(initial?.times[0] ?? '09:00');
   const [weekdays, setWeekdays] = useState<number[]>(initial?.weekdays ?? [1]);
   const [intervalHours, setIntervalHours] = useState(
     String(initial?.intervalHours ?? 8),
@@ -277,7 +296,21 @@ export function MedicineSetup({
       setError(t.invalidSchedule);
       return;
     }
-    if (step === 2 && endDate && endDate < startDate) {
+    if (
+      step === 2 &&
+      scheduleKind === 'once' &&
+      nextDailyOccurrences([onceTime], now ?? new Date(), 1, onceDate, onceDate)
+        .length === 0
+    ) {
+      setError(t.onceFuture);
+      return;
+    }
+    if (
+      step === 2 &&
+      scheduleKind !== 'once' &&
+      endDate &&
+      endDate < startDate
+    ) {
       setError(t.invalidDates);
       return;
     }
@@ -287,6 +320,14 @@ export function MedicineSetup({
   const preview =
     step !== 3
       ? []
+      : scheduleKind === 'once'
+      ? nextDailyOccurrences(
+          [onceTime],
+          now ?? new Date(),
+          1,
+          onceDate,
+          onceDate,
+        )
       : scheduleKind === 'weekday'
       ? nextWeekdayOccurrences(
           times,
@@ -321,7 +362,7 @@ export function MedicineSetup({
         )
       : nextDailyOccurrences(times, now ?? new Date(), 3, startDate, endDate);
   const final =
-    step === 3 && endDate
+    step === 3 && scheduleKind !== 'once' && endDate
       ? scheduleKind === 'weekday'
         ? finalWeekdayOccurrence(times, weekdays, endDate)
         : scheduleKind === 'interval'
@@ -424,22 +465,22 @@ export function MedicineSetup({
         {step === 2 && (
           <>
             <View accessibilityRole="radiogroup">
-              {(['daily', 'weekday', 'interval', 'monthly'] as const).map(
-                kind => (
-                  <Pressable
-                    key={kind}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: scheduleKind === kind }}
-                    onPress={() => setScheduleKind(kind)}
-                    style={styles.modeOption}
-                  >
-                    <Text style={styles.modeText}>
-                      {scheduleKind === kind ? '● ' : '○ '}
-                      {t[kind]}
-                    </Text>
-                  </Pressable>
-                ),
-              )}
+              {(
+                ['once', 'daily', 'weekday', 'interval', 'monthly'] as const
+              ).map(kind => (
+                <Pressable
+                  key={kind}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: scheduleKind === kind }}
+                  onPress={() => setScheduleKind(kind)}
+                  style={styles.modeOption}
+                >
+                  <Text style={styles.modeText}>
+                    {scheduleKind === kind ? '● ' : '○ '}
+                    {t[kind]}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
             {scheduleKind === 'weekday' &&
               t.weekdays.map((label, index) => (
@@ -535,77 +576,104 @@ export function MedicineSetup({
                 )}
               </>
             )}
-            <Text style={styles.label}>
-              {t.startDate}: {startDate}
-            </Text>
-            <PillAction
-              title={t.startDate}
-              onPress={async () => {
-                const value = await selectDate?.(startDate);
-                if (value) setStartDate(value);
-              }}
-            />
-            <Text style={styles.label}>
-              {t.endDate}
-              {endDate ? `: ${endDate}` : ''}
-            </Text>
-            <PillAction
-              title={t.setEnd}
-              onPress={async () => {
-                const value = await selectDate?.(endDate ?? startDate);
-                if (value) setEndDate(value);
-              }}
-            />
-            {endDate && (
-              <PillAction
-                secondary
-                title={t.clearEnd}
-                onPress={() => setEndDate(null)}
-              />
-            )}
-            {scheduleKind !== 'interval' && (
+            {scheduleKind === 'once' ? (
               <>
-                <Text style={styles.label}>{t.times}</Text>
-                {times.map((time, index) => (
-                  <View key={`${time}-${index}`} style={styles.timeRow}>
+                <Text style={styles.label}>
+                  {t.onceDate}: {onceDate}
+                </Text>
+                <PillAction
+                  title={t.onceDate}
+                  onPress={async () => {
+                    const value = await selectDate?.(onceDate);
+                    if (value) setOnceDate(value);
+                  }}
+                />
+                <Text style={styles.label}>
+                  {t.onceTime}: {onceTime}
+                </Text>
+                <PillAction
+                  title={t.changeTime}
+                  onPress={async () => {
+                    const value = await selectTime?.(onceTime);
+                    if (value) setOnceTime(value);
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>
+                  {t.startDate}: {startDate}
+                </Text>
+                <PillAction
+                  title={t.startDate}
+                  onPress={async () => {
+                    const value = await selectDate?.(startDate);
+                    if (value) setStartDate(value);
+                  }}
+                />
+                <Text style={styles.label}>
+                  {t.endDate}
+                  {endDate ? `: ${endDate}` : ''}
+                </Text>
+                <PillAction
+                  title={t.setEnd}
+                  onPress={async () => {
+                    const value = await selectDate?.(endDate ?? startDate);
+                    if (value) setEndDate(value);
+                  }}
+                />
+                {endDate && (
+                  <PillAction
+                    secondary
+                    title={t.clearEnd}
+                    onPress={() => setEndDate(null)}
+                  />
+                )}
+                {scheduleKind !== 'interval' && (
+                  <>
+                    <Text style={styles.label}>{t.times}</Text>
+                    {times.map((time, index) => (
+                      <View key={`${time}-${index}`} style={styles.timeRow}>
+                        <PillAction
+                          title={`${t.changeTime}: ${time}`}
+                          onPress={async () => {
+                            const selected = await selectTime?.(time);
+                            if (selected)
+                              setTimes(current =>
+                                [
+                                  ...new Set(
+                                    current.map((value, i) =>
+                                      i === index ? selected : value,
+                                    ),
+                                  ),
+                                ].sort(),
+                              );
+                          }}
+                        />
+                        {times.length > 1 && (
+                          <PillAction
+                            title={`${t.removeTime}: ${time}`}
+                            onPress={() =>
+                              setTimes(current =>
+                                current.filter((_, i) => i !== index),
+                              )
+                            }
+                          />
+                        )}
+                      </View>
+                    ))}
                     <PillAction
-                      title={`${t.changeTime}: ${time}`}
+                      title={t.addTime}
                       onPress={async () => {
-                        const selected = await selectTime?.(time);
+                        const selected = await selectTime?.('09:00');
                         if (selected)
                           setTimes(current =>
-                            [
-                              ...new Set(
-                                current.map((value, i) =>
-                                  i === index ? selected : value,
-                                ),
-                              ),
-                            ].sort(),
+                            [...new Set([...current, selected])].sort(),
                           );
                       }}
                     />
-                    {times.length > 1 && (
-                      <PillAction
-                        title={`${t.removeTime}: ${time}`}
-                        onPress={() =>
-                          setTimes(current =>
-                            current.filter((_, i) => i !== index),
-                          )
-                        }
-                      />
-                    )}
-                  </View>
-                ))}
-                <PillAction
-                  title={t.addTime}
-                  onPress={async () => {
-                    const selected = await selectTime?.('09:00');
-                    if (selected)
-                      setTimes(current =>
-                        [...new Set([...current, selected])].sort(),
-                      );
-                  }}
-                />
+                  </>
+                )}
               </>
             )}
             <Text accessibilityLiveRegion="polite" style={styles.label}>
@@ -644,12 +712,14 @@ export function MedicineSetup({
             </Text>
             <Text style={styles.label}>
               {t[scheduleKind]}
-              {scheduleKind !== 'interval'
+              {scheduleKind === 'once'
+                ? `: ${onceDate}, ${onceTime}`
+                : scheduleKind !== 'interval'
                 ? `: ${times.join(', ')}`
                 : `: ${intervalHours}h`}
             </Text>
             <Text accessibilityRole="header" style={styles.label}>
-              {t.nextThree}
+              {scheduleKind === 'once' ? t.oncePreview : t.nextThree}
             </Text>
             {preview.map(date => (
               <Text key={date.toISOString()} style={styles.label}>
@@ -689,12 +759,26 @@ export function MedicineSetup({
               disabled={saving}
               onPress={async () => {
                 if (savingRef.current) return;
+                if (
+                  scheduleKind === 'once' &&
+                  nextDailyOccurrences(
+                    [onceTime],
+                    now ?? new Date(),
+                    1,
+                    onceDate,
+                    onceDate,
+                  ).length === 0
+                ) {
+                  setError(t.onceFuture);
+                  return;
+                }
                 savingRef.current = true;
                 setSaving(true);
                 try {
                   await onSave({
                     type,
-                    scheduleKind,
+                    scheduleKind:
+                      scheduleKind === 'once' ? 'daily' : scheduleKind,
                     weekdays,
                     intervalHours:
                       scheduleKind === 'interval'
@@ -710,9 +794,12 @@ export function MedicineSetup({
                     mode,
                     name: name.trim(),
                     instructions: instructions.trim(),
-                    times: [...new Set(times)],
-                    startDate,
-                    endDate,
+                    times:
+                      scheduleKind === 'once'
+                        ? [onceTime]
+                        : [...new Set(times)],
+                    startDate: scheduleKind === 'once' ? onceDate : startDate,
+                    endDate: scheduleKind === 'once' ? onceDate : endDate,
                   });
                 } finally {
                   savingRef.current = false;

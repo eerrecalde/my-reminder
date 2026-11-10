@@ -469,3 +469,229 @@ test('system Back moves through setup and exits from the first step', async () =
   expect(remove).toHaveBeenCalled();
   listener.mockRestore();
 });
+
+test.each([
+  [
+    'en',
+    'Reminder',
+    'Next',
+    'Once',
+    'Date',
+    'Change time',
+    'Review',
+    'Save reminder',
+  ],
+  [
+    'en',
+    'Medicine',
+    'Next',
+    'Once',
+    'Date',
+    'Change time',
+    'Review',
+    'Save medicine',
+  ],
+  [
+    'es',
+    'Recordatorio',
+    'Continuar',
+    'Una vez',
+    'Fecha',
+    'Cambiar hora',
+    'Revisar',
+    'Guardar recordatorio',
+  ],
+  [
+    'es',
+    'Medicamento',
+    'Continuar',
+    'Una vez',
+    'Fecha',
+    'Cambiar hora',
+    'Revisar',
+    'Guardar medicamento',
+  ],
+])(
+  'creates one future occurrence for %s %s',
+  async (
+    language,
+    type,
+    next,
+    once,
+    dateLabel,
+    timeLabel,
+    review,
+    saveLabel,
+  ) => {
+    const save = jest.fn();
+    const selectDate = jest.fn().mockResolvedValue('2026-06-04');
+    const selectTime = jest.fn().mockResolvedValue('18:10');
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(() => {
+      view = ReactTestRenderer.create(
+        <MedicineSetup
+          onExit={() => {}}
+          language={language as 'en' | 'es'}
+          now={new Date(2026, 5, 1, 12)}
+          onSave={save}
+          selectDate={selectDate}
+          selectTime={selectTime}
+        />,
+      );
+    });
+    const press = async (title: string) =>
+      ReactTestRenderer.act(async () => {
+        await view.root
+          .findAllByType(PillAction)
+          .find(button => button.props.title === title)!
+          .props.onPress();
+      });
+    await press(type);
+    await ReactTestRenderer.act(() =>
+      view.root.findAllByType(TextInput)[0].props.onChangeText('Test'),
+    );
+    await press(next);
+    const option = view.root.findAll(
+      node =>
+        node.props.accessibilityRole === 'radio' &&
+        node
+          .findAllByType(Text)
+          .some(
+            text =>
+              Array.isArray(text.props.children) &&
+              text.props.children.includes(once),
+          ),
+    )[0];
+    await ReactTestRenderer.act(() => option.props.onPress());
+    await press(dateLabel);
+    await press(timeLabel);
+    await press(review);
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(
+          text =>
+            text.props.children ===
+            (language === 'en' ? 'Reminder time' : 'Hora del recordatorio'),
+        ),
+    ).toBe(true);
+    await press(saveLabel);
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scheduleKind: 'daily',
+        startDate: '2026-06-04',
+        endDate: '2026-06-04',
+        times: ['18:10'],
+        type:
+          type === 'Medicine' || type === 'Medicamento'
+            ? 'medicine'
+            : 'reminder',
+      }),
+    );
+    await ReactTestRenderer.act(() => view.unmount());
+  },
+);
+
+test('a one-off reminder in the past cannot be reviewed or saved', async () => {
+  const save = jest.fn();
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    view = ReactTestRenderer.create(
+      <MedicineSetup
+        onExit={() => {}}
+        language="en"
+        now={new Date(2026, 5, 1, 12)}
+        onSave={save}
+      />,
+    );
+  });
+  const press = (title: string) =>
+    ReactTestRenderer.act(() =>
+      view.root
+        .findAllByType(PillAction)
+        .find(button => button.props.title === title)!
+        .props.onPress(),
+    );
+  await press('Reminder');
+  await ReactTestRenderer.act(() =>
+    view.root.findByType(TextInput).props.onChangeText('Test'),
+  );
+  await press('Next');
+  const option = view.root.findAll(
+    node =>
+      node.props.accessibilityRole === 'radio' &&
+      node
+        .findAllByType(Text)
+        .some(
+          text =>
+            Array.isArray(text.props.children) &&
+            text.props.children.includes('Once'),
+        ),
+  )[0];
+  await ReactTestRenderer.act(() => option.props.onPress());
+  await press('Review');
+  expect(
+    view.root
+      .findAllByType(Text)
+      .some(text => text.props.children === 'Choose a future date and time.'),
+  ).toBe(true);
+  expect(save).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => view.unmount());
+});
+
+test('editing a saved one-off shows Once and preserves its date and time', async () => {
+  const save = jest.fn();
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    view = ReactTestRenderer.create(
+      <MedicineSetup
+        onExit={() => {}}
+        language="en"
+        now={new Date(2026, 5, 1, 12)}
+        onSave={save}
+        initial={{
+          type: 'reminder',
+          name: 'Visit',
+          instructions: '',
+          mode: 'alarm',
+          scheduleKind: 'daily',
+          startDate: '2026-06-04',
+          endDate: '2026-06-04',
+          times: ['18:10'],
+        }}
+      />,
+    );
+  });
+  const press = (title: string) =>
+    ReactTestRenderer.act(() =>
+      view.root
+        .findAllByType(PillAction)
+        .find(button => button.props.title === title)!
+        .props.onPress(),
+    );
+  await press('Reminder');
+  await press('Next');
+  const once = view.root.findAll(
+    node =>
+      node.props.accessibilityRole === 'radio' &&
+      node
+        .findAllByType(Text)
+        .some(
+          text =>
+            Array.isArray(text.props.children) &&
+            text.props.children.includes('Once'),
+        ),
+  )[0];
+  expect(once.props.accessibilityState.checked).toBe(true);
+  await press('Review');
+  await press('Save reminder');
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      mode: 'alarm',
+      startDate: '2026-06-04',
+      endDate: '2026-06-04',
+      times: ['18:10'],
+    }),
+  );
+  await ReactTestRenderer.act(() => view.unmount());
+});

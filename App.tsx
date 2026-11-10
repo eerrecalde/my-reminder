@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { MedicineSetup } from './src/MedicineSetup';
+import { isOneOffSchedule } from './src/dailySchedule';
 import { PillAction } from './src/PillAction';
 export { PillAction } from './src/PillAction';
 import {
@@ -63,6 +64,7 @@ const words = {
       'Reminders resume after you unlock your phone for the first time after a restart.',
     storage:
       'Reminders are stored only on this phone. They may be lost if you uninstall the app, clear its data, or lose your phone.',
+    once: 'Once',
     daily: 'Every day',
     weekdays: [
       'Monday',
@@ -153,6 +155,7 @@ const words = {
       'Los recordatorios se reanudan después de desbloquear el teléfono por primera vez tras reiniciarlo.',
     storage:
       'Los recordatorios se guardan solo en este teléfono. Pueden perderse si desinstalas la aplicación, borras sus datos o pierdes el teléfono.',
+    once: 'Una vez',
     daily: 'Todos los días',
     weekdays: [
       'Lunes',
@@ -299,6 +302,8 @@ export default function App() {
     });
   const scheduleLabel = (medicine: Medicine) => {
     const kind = medicine.scheduleKind ?? 'daily';
+    if (isOneOffSchedule(medicine))
+      return `${t.once} · ${medicine.startDate} · ${medicine.times[0]}`;
     const when =
       kind === 'interval'
         ? `${t.everyHours} ${medicine.intervalHours} ${t.hours}${

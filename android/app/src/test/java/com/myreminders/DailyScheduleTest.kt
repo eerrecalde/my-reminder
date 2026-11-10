@@ -15,6 +15,15 @@ class DailyScheduleTest {
     assertEquals(Instant.parse("2026-06-03T20:00:00Z"), last)
     assertEquals(null, DailySchedule.next(medicine, last!!, zone))
   }
+  @Test fun `one time bounded to one date never repeats and preserves local time`() {
+    val item = Medicine("m", "Visit", "", listOf("09:00"), 0, startDate = "2026-06-03", endDate = "2026-06-03")
+    val london = ZoneId.of("Europe/London")
+    val first = DailySchedule.next(item, Instant.parse("2026-06-01T12:00:00Z"), london)
+    assertEquals(Instant.parse("2026-06-03T08:00:00Z"), first)
+    assertEquals(null, DailySchedule.next(item, first!!, london))
+    assertEquals(null, DailySchedule.next(item, Instant.parse("2026-06-04T00:00:00Z"), london))
+    assertEquals(Instant.parse("2026-06-03T13:00:00Z"), DailySchedule.next(item, Instant.parse("2026-06-01T12:00:00Z"), ZoneId.of("America/New_York")))
+  }
   @Test fun `next dose uses local time after daylight saving gap`() {
     val next = DailySchedule.next(listOf("01:30"), Instant.parse("2026-03-28T12:00:00Z"), ZoneId.of("Europe/London"))
     assertEquals(Instant.parse("2026-03-29T01:30:00Z"), next)

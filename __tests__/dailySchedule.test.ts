@@ -60,3 +60,17 @@ test('honours start and inclusive end dates with multiple times', () => {
     ),
   ).toEqual([]);
 });
+
+test('recognises only a single daily time bounded to one day as one-off', () => {
+  const { isOneOffSchedule } = require('../src/dailySchedule');
+  const once = {
+    scheduleKind: 'daily',
+    times: ['18:10'],
+    startDate: '2026-06-04',
+    endDate: '2026-06-04',
+  };
+  expect(isOneOffSchedule(once)).toBe(true);
+  expect(isOneOffSchedule({ ...once, times: ['18:10', '18:15'] })).toBe(false);
+  expect(isOneOffSchedule({ ...once, endDate: null })).toBe(false);
+  expect(isOneOffSchedule({ ...once, scheduleKind: 'monthly' })).toBe(false);
+});
