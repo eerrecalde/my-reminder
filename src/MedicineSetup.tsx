@@ -1,5 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  BackHandler,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -236,6 +238,18 @@ export function MedicineSetup({
       ? originalAnchor
       : new Date(`${anchorDate}T${anchorTime}:00`);
   const [error, setError] = useState('');
+  const goBack = useCallback(() => {
+    setError('');
+    if (step === 0) onExit();
+    else setStep(step - 1);
+  }, [step, onExit]);
+  useEffect(() => {
+    const listener = BackHandler.addEventListener('hardwareBackPress', () => {
+      goBack();
+      return true;
+    });
+    return () => listener.remove();
+  }, [goBack]);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const next = () => {
@@ -323,384 +337,412 @@ export function MedicineSetup({
         : finalDailyOccurrence(times, endDate)
       : undefined;
   return (
-    <ScrollView
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t.back}
-        onPress={() => {
-          setError('');
-          if (step === 0) onExit();
-          else setStep(step - 1);
-        }}
-        style={styles.back}
-      >
-        <Text
-          style={styles.backText}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t.back}
+          onPress={goBack}
+          style={styles.back}
         >
-          ←
-        </Text>
-        <Text style={styles.backText}>{t.back}</Text>
-      </Pressable>
-      <Text accessibilityRole="header" style={styles.heading}>
-        {
-          [
-            t.choose,
-            type === 'medicine' ? t.medicine : t.reminder,
-            t.schedule,
-            t.review,
-          ][step]
-        }
-      </Text>
-      {step === 0 && (
-        <View style={styles.actions}>
-          <PillAction
-            title={t.reminder}
-            onPress={() => {
-              setType('reminder');
-              setStep(1);
-            }}
-          />
-          <PillAction
-            title={t.medicine}
-            onPress={() => {
-              setType('medicine');
-              setStep(1);
-            }}
-          />
-        </View>
-      )}
-      {step === 1 && (
-        <>
-          <Text style={styles.label}>
-            {type === 'medicine' ? t.name : t.reminderName}
+          <Text
+            style={styles.backText}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            ←
           </Text>
-          <TextInput
-            accessibilityLabel={type === 'medicine' ? t.name : t.reminderName}
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
+          <Text style={styles.backText}>{t.back}</Text>
+        </Pressable>
+        <View style={styles.brand}>
+          <Image
+            source={require('../assets/brand-sprig.png')}
+            style={styles.brandLeaf}
+            resizeMode="contain"
+            accessible={false}
           />
-          {type === 'medicine' && (
-            <>
-              <Text style={styles.label}>{t.instructions}</Text>
-              <TextInput
-                accessibilityLabel={t.instructions}
-                style={styles.input}
-                value={instructions}
-                onChangeText={setInstructions}
-              />
-            </>
-          )}
-        </>
-      )}
-      {step === 2 && (
-        <>
-          <View accessibilityRole="radiogroup">
-            {(['daily', 'weekday', 'interval', 'monthly'] as const).map(
-              kind => (
+          <Text style={styles.brandText}>My Reminders</Text>
+        </View>
+      </View>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text accessibilityRole="header" style={styles.heading}>
+          {
+            [
+              t.choose,
+              type === 'medicine' ? t.medicine : t.reminder,
+              t.schedule,
+              t.review,
+            ][step]
+          }
+        </Text>
+        {step === 0 && (
+          <View style={styles.actions}>
+            <PillAction
+              title={t.reminder}
+              onPress={() => {
+                setType('reminder');
+                setStep(1);
+              }}
+            />
+            <PillAction
+              title={t.medicine}
+              onPress={() => {
+                setType('medicine');
+                setStep(1);
+              }}
+            />
+          </View>
+        )}
+        {step === 1 && (
+          <>
+            <Text style={styles.label}>
+              {type === 'medicine' ? t.name : t.reminderName}
+            </Text>
+            <TextInput
+              accessibilityLabel={type === 'medicine' ? t.name : t.reminderName}
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+            />
+            {type === 'medicine' && (
+              <>
+                <Text style={styles.label}>{t.instructions}</Text>
+                <TextInput
+                  accessibilityLabel={t.instructions}
+                  style={styles.input}
+                  value={instructions}
+                  onChangeText={setInstructions}
+                />
+              </>
+            )}
+          </>
+        )}
+        {step === 2 && (
+          <>
+            <View accessibilityRole="radiogroup">
+              {(['daily', 'weekday', 'interval', 'monthly'] as const).map(
+                kind => (
+                  <Pressable
+                    key={kind}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: scheduleKind === kind }}
+                    onPress={() => setScheduleKind(kind)}
+                    style={styles.modeOption}
+                  >
+                    <Text style={styles.modeText}>
+                      {scheduleKind === kind ? '● ' : '○ '}
+                      {t[kind]}
+                    </Text>
+                  </Pressable>
+                ),
+              )}
+            </View>
+            {scheduleKind === 'weekday' &&
+              t.weekdays.map((label, index) => (
                 <Pressable
-                  key={kind}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: scheduleKind === kind }}
-                  onPress={() => setScheduleKind(kind)}
+                  key={label}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: weekdays.includes(index + 1) }}
+                  onPress={() =>
+                    setWeekdays(current =>
+                      current.includes(index + 1)
+                        ? current.filter(day => day !== index + 1)
+                        : [...current, index + 1],
+                    )
+                  }
                   style={styles.modeOption}
                 >
                   <Text style={styles.modeText}>
-                    {scheduleKind === kind ? '● ' : '○ '}
-                    {t[kind]}
+                    {weekdays.includes(index + 1) ? '☑ ' : '□ '}
+                    {label}
                   </Text>
                 </Pressable>
-              ),
-            )}
-          </View>
-          {scheduleKind === 'weekday' &&
-            t.weekdays.map((label, index) => (
-              <Pressable
-                key={label}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: weekdays.includes(index + 1) }}
-                onPress={() =>
-                  setWeekdays(current =>
-                    current.includes(index + 1)
-                      ? current.filter(day => day !== index + 1)
-                      : [...current, index + 1],
-                  )
-                }
-                style={styles.modeOption}
-              >
-                <Text style={styles.modeText}>
-                  {weekdays.includes(index + 1) ? '☑ ' : '□ '}
-                  {label}
-                </Text>
-              </Pressable>
-            ))}
-          {scheduleKind === 'interval' && (
-            <>
-              <Text style={styles.label}>{t.hours}</Text>
-              <TextInput
-                accessibilityLabel={t.hours}
-                style={styles.input}
-                keyboardType="number-pad"
-                value={intervalHours}
-                onChangeText={setIntervalHours}
-              />
-              <Text style={styles.label}>
-                {t.first}: {anchorDate} {anchorTime}
-              </Text>
-              <PillAction
-                title={t.startDate}
-                onPress={async () => {
-                  const value = await selectDate?.(anchorDate);
-                  if (value) setAnchorDate(value);
-                }}
-              />
-              <PillAction
-                title={t.changeTime}
-                onPress={async () => {
-                  const value = await selectTime?.(anchorTime);
-                  if (value) setAnchorTime(value);
-                }}
-              />
-            </>
-          )}
-          {scheduleKind === 'monthly' && (
-            <>
-              <Text style={styles.label}>{t.monthDay}</Text>
-              <TextInput
-                accessibilityLabel={t.monthDay}
-                style={styles.input}
-                keyboardType="number-pad"
-                value={monthlyDay === 'last' ? '' : monthlyDay}
-                onChangeText={setMonthlyDay}
-              />
-              <Pressable
-                accessibilityRole="radio"
-                accessibilityState={{ checked: monthlyDay === 'last' }}
-                onPress={() => setMonthlyDay('last')}
-                style={styles.modeOption}
-              >
-                <Text style={styles.modeText}>
-                  {monthlyDay === 'last' ? '● ' : '○ '}
-                  {t.lastDay}
-                </Text>
-              </Pressable>
-              {Number(monthlyDay) >= 29 && monthlyDay !== 'last' && (
-                <>
-                  <Text style={styles.label}>{t.shortMonth}</Text>
-                  {(['last', 'skip'] as const).map(policy => (
-                    <Pressable
-                      key={policy}
-                      accessibilityRole="radio"
-                      accessibilityState={{
-                        checked: shortMonthPolicy === policy,
-                      }}
-                      onPress={() => setShortMonthPolicy(policy)}
-                      style={styles.modeOption}
-                    >
-                      <Text style={styles.modeText}>
-                        {shortMonthPolicy === policy ? '● ' : '○ '}
-                        {policy === 'last' ? t.useLast : t.skipMonth}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </>
-              )}
-            </>
-          )}
-          <Text style={styles.label}>
-            {t.startDate}: {startDate}
-          </Text>
-          <PillAction
-            title={t.startDate}
-            onPress={async () => {
-              const value = await selectDate?.(startDate);
-              if (value) setStartDate(value);
-            }}
-          />
-          <Text style={styles.label}>
-            {t.endDate}
-            {endDate ? `: ${endDate}` : ''}
-          </Text>
-          <PillAction
-            title={t.setEnd}
-            onPress={async () => {
-              const value = await selectDate?.(endDate ?? startDate);
-              if (value) setEndDate(value);
-            }}
-          />
-          {endDate && (
-            <PillAction
-              secondary
-              title={t.clearEnd}
-              onPress={() => setEndDate(null)}
-            />
-          )}
-          {scheduleKind !== 'interval' && (
-            <>
-              <Text style={styles.label}>{t.times}</Text>
-              {times.map((time, index) => (
-                <View key={`${time}-${index}`} style={styles.timeRow}>
-                  <PillAction
-                    title={`${t.changeTime}: ${time}`}
-                    onPress={async () => {
-                      const selected = await selectTime?.(time);
-                      if (selected)
-                        setTimes(current =>
-                          [
-                            ...new Set(
-                              current.map((value, i) =>
-                                i === index ? selected : value,
-                              ),
-                            ),
-                          ].sort(),
-                        );
-                    }}
-                  />
-                  {times.length > 1 && (
-                    <PillAction
-                      title={`${t.removeTime}: ${time}`}
-                      onPress={() =>
-                        setTimes(current =>
-                          current.filter((_, i) => i !== index),
-                        )
-                      }
-                    />
-                  )}
-                </View>
               ))}
-              <PillAction
-                title={t.addTime}
-                onPress={async () => {
-                  const selected = await selectTime?.('09:00');
-                  if (selected)
-                    setTimes(current =>
-                      [...new Set([...current, selected])].sort(),
-                    );
-                }}
-              />
-            </>
-          )}
-          <Text accessibilityLiveRegion="polite" style={styles.label}>
-            {mode === 'alarm' ? t.alarmMode : t.mode}
-          </Text>
-          <View accessibilityRole="radiogroup">
-            {(['notification', 'alarm'] as const).map(choice => (
-              <Pressable
-                key={choice}
-                accessibilityRole="radio"
-                accessibilityLabel={t[choice]}
-                accessibilityState={{ checked: mode === choice }}
-                onPress={() => setMode(choice)}
-                style={styles.modeOption}
-              >
-                <Text style={styles.modeText}>
-                  {mode === choice ? '● ' : '○ '}
-                  {t[choice]}
+            {scheduleKind === 'interval' && (
+              <>
+                <Text style={styles.label}>{t.hours}</Text>
+                <TextInput
+                  accessibilityLabel={t.hours}
+                  style={styles.input}
+                  keyboardType="number-pad"
+                  value={intervalHours}
+                  onChangeText={setIntervalHours}
+                />
+                <Text style={styles.label}>
+                  {t.first}: {anchorDate} {anchorTime}
                 </Text>
-              </Pressable>
-            ))}
-          </View>
-        </>
-      )}
-      {step === 3 && (
-        <>
-          <Text style={styles.label}>
-            {type === 'medicine' ? t.medicine : t.reminder}
-          </Text>
-          <Text style={styles.label}>{name.trim()}</Text>
-          {type === 'medicine' && !!instructions.trim() && (
-            <Text style={styles.label}>{instructions.trim()}</Text>
-          )}
-          <Text style={styles.label}>
-            {mode === 'alarm' ? t.alarmMode : t.mode}
-          </Text>
-          <Text style={styles.label}>
-            {t[scheduleKind]}
-            {scheduleKind !== 'interval'
-              ? `: ${times.join(', ')}`
-              : `: ${intervalHours}h`}
-          </Text>
-          <Text accessibilityRole="header" style={styles.label}>
-            {t.nextThree}
-          </Text>
-          {preview.map(date => (
-            <Text key={date.toISOString()} style={styles.label}>
-              {date.toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
-                dateStyle: 'full',
-                timeStyle: 'short',
-              })}
+                <PillAction
+                  title={t.startDate}
+                  onPress={async () => {
+                    const value = await selectDate?.(anchorDate);
+                    if (value) setAnchorDate(value);
+                  }}
+                />
+                <PillAction
+                  title={t.changeTime}
+                  onPress={async () => {
+                    const value = await selectTime?.(anchorTime);
+                    if (value) setAnchorTime(value);
+                  }}
+                />
+              </>
+            )}
+            {scheduleKind === 'monthly' && (
+              <>
+                <Text style={styles.label}>{t.monthDay}</Text>
+                <TextInput
+                  accessibilityLabel={t.monthDay}
+                  style={styles.input}
+                  keyboardType="number-pad"
+                  value={monthlyDay === 'last' ? '' : monthlyDay}
+                  onChangeText={setMonthlyDay}
+                />
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: monthlyDay === 'last' }}
+                  onPress={() => setMonthlyDay('last')}
+                  style={styles.modeOption}
+                >
+                  <Text style={styles.modeText}>
+                    {monthlyDay === 'last' ? '● ' : '○ '}
+                    {t.lastDay}
+                  </Text>
+                </Pressable>
+                {Number(monthlyDay) >= 29 && monthlyDay !== 'last' && (
+                  <>
+                    <Text style={styles.label}>{t.shortMonth}</Text>
+                    {(['last', 'skip'] as const).map(policy => (
+                      <Pressable
+                        key={policy}
+                        accessibilityRole="radio"
+                        accessibilityState={{
+                          checked: shortMonthPolicy === policy,
+                        }}
+                        onPress={() => setShortMonthPolicy(policy)}
+                        style={styles.modeOption}
+                      >
+                        <Text style={styles.modeText}>
+                          {shortMonthPolicy === policy ? '● ' : '○ '}
+                          {policy === 'last' ? t.useLast : t.skipMonth}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+            <Text style={styles.label}>
+              {t.startDate}: {startDate}
             </Text>
-          ))}
-          {preview.length === 0 && <Text style={styles.label}>{t.none}</Text>}
-          {preview.length > 0 && final && (
-            <>
-              <Text accessibilityRole="header" style={styles.label}>
-                {t.final}
-              </Text>
-              <Text style={styles.label}>
-                {final.toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
+            <PillAction
+              title={t.startDate}
+              onPress={async () => {
+                const value = await selectDate?.(startDate);
+                if (value) setStartDate(value);
+              }}
+            />
+            <Text style={styles.label}>
+              {t.endDate}
+              {endDate ? `: ${endDate}` : ''}
+            </Text>
+            <PillAction
+              title={t.setEnd}
+              onPress={async () => {
+                const value = await selectDate?.(endDate ?? startDate);
+                if (value) setEndDate(value);
+              }}
+            />
+            {endDate && (
+              <PillAction
+                secondary
+                title={t.clearEnd}
+                onPress={() => setEndDate(null)}
+              />
+            )}
+            {scheduleKind !== 'interval' && (
+              <>
+                <Text style={styles.label}>{t.times}</Text>
+                {times.map((time, index) => (
+                  <View key={`${time}-${index}`} style={styles.timeRow}>
+                    <PillAction
+                      title={`${t.changeTime}: ${time}`}
+                      onPress={async () => {
+                        const selected = await selectTime?.(time);
+                        if (selected)
+                          setTimes(current =>
+                            [
+                              ...new Set(
+                                current.map((value, i) =>
+                                  i === index ? selected : value,
+                                ),
+                              ),
+                            ].sort(),
+                          );
+                      }}
+                    />
+                    {times.length > 1 && (
+                      <PillAction
+                        title={`${t.removeTime}: ${time}`}
+                        onPress={() =>
+                          setTimes(current =>
+                            current.filter((_, i) => i !== index),
+                          )
+                        }
+                      />
+                    )}
+                  </View>
+                ))}
+                <PillAction
+                  title={t.addTime}
+                  onPress={async () => {
+                    const selected = await selectTime?.('09:00');
+                    if (selected)
+                      setTimes(current =>
+                        [...new Set([...current, selected])].sort(),
+                      );
+                  }}
+                />
+              </>
+            )}
+            <Text accessibilityLiveRegion="polite" style={styles.label}>
+              {mode === 'alarm' ? t.alarmMode : t.mode}
+            </Text>
+            <View accessibilityRole="radiogroup">
+              {(['notification', 'alarm'] as const).map(choice => (
+                <Pressable
+                  key={choice}
+                  accessibilityRole="radio"
+                  accessibilityLabel={t[choice]}
+                  accessibilityState={{ checked: mode === choice }}
+                  onPress={() => setMode(choice)}
+                  style={styles.modeOption}
+                >
+                  <Text style={styles.modeText}>
+                    {mode === choice ? '● ' : '○ '}
+                    {t[choice]}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        )}
+        {step === 3 && (
+          <>
+            <Text style={styles.label}>
+              {type === 'medicine' ? t.medicine : t.reminder}
+            </Text>
+            <Text style={styles.label}>{name.trim()}</Text>
+            {type === 'medicine' && !!instructions.trim() && (
+              <Text style={styles.label}>{instructions.trim()}</Text>
+            )}
+            <Text style={styles.label}>
+              {mode === 'alarm' ? t.alarmMode : t.mode}
+            </Text>
+            <Text style={styles.label}>
+              {t[scheduleKind]}
+              {scheduleKind !== 'interval'
+                ? `: ${times.join(', ')}`
+                : `: ${intervalHours}h`}
+            </Text>
+            <Text accessibilityRole="header" style={styles.label}>
+              {t.nextThree}
+            </Text>
+            {preview.map(date => (
+              <Text key={date.toISOString()} style={styles.label}>
+                {date.toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
                   dateStyle: 'full',
                   timeStyle: 'short',
                 })}
               </Text>
-            </>
-          )}
-        </>
-      )}
-      {!!error && (
-        <Text accessibilityRole="alert" style={styles.error}>
-          {error}
-        </Text>
-      )}
-      <View style={styles.actions}>
-        {step > 0 && step < 3 ? (
-          <PillAction title={step === 1 ? t.next : t.review} onPress={next} />
-        ) : step === 3 ? (
-          <PillAction
-            title={type === 'medicine' ? t.save : t.saveReminder}
-            disabled={saving}
-            onPress={async () => {
-              if (savingRef.current) return;
-              savingRef.current = true;
-              setSaving(true);
-              try {
-                await onSave({
-                  type,
-                  scheduleKind,
-                  weekdays,
-                  intervalHours:
-                    scheduleKind === 'interval' ? Number(intervalHours) : null,
-                  intervalAnchor:
-                    scheduleKind === 'interval' ? anchor.getTime() : null,
-                  monthlyDay:
-                    scheduleKind === 'monthly' && monthlyDay !== 'last'
-                      ? Number(monthlyDay)
-                      : null,
-                  shortMonthPolicy,
-                  mode,
-                  name: name.trim(),
-                  instructions: instructions.trim(),
-                  times: [...new Set(times)],
-                  startDate,
-                  endDate,
-                });
-              } finally {
-                savingRef.current = false;
-                setSaving(false);
-              }
-            }}
-          />
-        ) : null}
-      </View>
-    </ScrollView>
+            ))}
+            {preview.length === 0 && <Text style={styles.label}>{t.none}</Text>}
+            {preview.length > 0 && final && (
+              <>
+                <Text accessibilityRole="header" style={styles.label}>
+                  {t.final}
+                </Text>
+                <Text style={styles.label}>
+                  {final.toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
+                    dateStyle: 'full',
+                    timeStyle: 'short',
+                  })}
+                </Text>
+              </>
+            )}
+          </>
+        )}
+        {!!error && (
+          <Text accessibilityRole="alert" style={styles.error}>
+            {error}
+          </Text>
+        )}
+        <View style={styles.actions}>
+          {step > 0 && step < 3 ? (
+            <PillAction title={step === 1 ? t.next : t.review} onPress={next} />
+          ) : step === 3 ? (
+            <PillAction
+              title={type === 'medicine' ? t.save : t.saveReminder}
+              disabled={saving}
+              onPress={async () => {
+                if (savingRef.current) return;
+                savingRef.current = true;
+                setSaving(true);
+                try {
+                  await onSave({
+                    type,
+                    scheduleKind,
+                    weekdays,
+                    intervalHours:
+                      scheduleKind === 'interval'
+                        ? Number(intervalHours)
+                        : null,
+                    intervalAnchor:
+                      scheduleKind === 'interval' ? anchor.getTime() : null,
+                    monthlyDay:
+                      scheduleKind === 'monthly' && monthlyDay !== 'last'
+                        ? Number(monthlyDay)
+                        : null,
+                    shortMonthPolicy,
+                    mode,
+                    name: name.trim(),
+                    instructions: instructions.trim(),
+                    times: [...new Set(times)],
+                    startDate,
+                    endDate,
+                  });
+                } finally {
+                  savingRef.current = false;
+                  setSaving(false);
+                }
+              }}
+            />
+          ) : null}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#fbf6eb' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    gap: 12,
+  },
+  brand: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, gap: 6 },
+  brandLeaf: { width: 40, height: 36 },
+  brandText: {
+    color: '#17231a',
+    fontSize: 17,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
   content: { padding: 24, backgroundColor: '#fbf6eb', flexGrow: 1 },
   back: {
     alignSelf: 'flex-start',
@@ -708,7 +750,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     minHeight: 48,
-    marginBottom: 8,
   },
   backText: { color: '#36542b', fontSize: 18, fontWeight: '600' },
   heading: {
