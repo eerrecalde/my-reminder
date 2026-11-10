@@ -832,3 +832,35 @@ test('explains that exact alarms are automatic on older Android phones', async (
   os.restore();
   subscription.mockRestore();
 });
+
+test('does not show a past occurrence as the next reminder', async () => {
+  const subscription = jest
+    .spyOn(AppState, 'addEventListener')
+    .mockReturnValue({ remove: jest.fn() });
+  const repo = require('../src/reminderRepository');
+  repo.reminderRepository = {
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      notifications: true,
+      exactAlarms: true,
+      language: 'en',
+      medicines: [
+        { id: 'r', name: 'Water', type: 'reminder', times: ['10:00'] },
+      ],
+      todayDoses: [],
+      history: [],
+      upcoming: [{ medicineId: 'r', scheduledAt: 2000 }],
+    }),
+  };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    view = ReactTestRenderer.create(<App />);
+  });
+  expect(
+    view.root
+      .findAllByType(Text)
+      .some(text => text.props.children === 'Next reminder'),
+  ).toBe(false);
+  await ReactTestRenderer.act(() => view.unmount());
+  subscription.mockRestore();
+});
