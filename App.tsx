@@ -62,6 +62,7 @@ const words = {
     hours: 'hours',
     monthly: 'Monthly',
     lastDay: 'last day',
+    anchor: 'Interval reference',
     starts: 'Starts',
     ends: 'Ends',
     shortLast: 'Use last day in shorter months',
@@ -135,6 +136,7 @@ const words = {
     hours: 'horas',
     monthly: 'Mensual',
     lastDay: 'último día',
+    anchor: 'Referencia del intervalo',
     starts: 'Comienza',
     ends: 'Termina',
     shortLast: 'Usar el último día en meses más cortos',
@@ -299,7 +301,7 @@ export default function App() {
       kind === 'interval'
         ? `${t.everyHours} ${medicine.intervalHours} ${t.hours}${
             medicine.intervalAnchor != null
-              ? ` · ${t.starts}: ${new Date(
+              ? ` · ${t.anchor}: ${new Date(
                   medicine.intervalAnchor,
                 ).toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
                   dateStyle: 'short',
@@ -325,9 +327,7 @@ export default function App() {
               : t.daily
           } · ${medicine.times.join(', ')}`;
     return `${when}${
-      kind !== 'interval' && medicine.startDate
-        ? ` · ${t.starts}: ${medicine.startDate}`
-        : ''
+      medicine.startDate ? ` · ${t.starts}: ${medicine.startDate}` : ''
     }${medicine.endDate ? ` · ${t.ends}: ${medicine.endDate}` : ''}`;
   };
   const occurrenceView = (
