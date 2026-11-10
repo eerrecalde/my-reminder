@@ -63,6 +63,7 @@ test.each([
           language={language}
           now={new Date(2026, 0, 1, 12)}
           onSave={save}
+          selectTime={async () => '09:00'}
         />,
       );
     });
@@ -78,6 +79,15 @@ test.each([
       view.root.findAllByType(TextInput)[0].props.onChangeText('Test'),
     );
     await button(next);
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findAll(
+          node =>
+            node.props.accessibilityRole === 'button' &&
+            node.props.accessibilityState?.expanded === false,
+        )[0]
+        .props.onPress(),
+    );
     const option = view.root.findAll(
       node =>
         node.props.accessibilityRole === 'radio' &&
@@ -91,6 +101,16 @@ test.each([
     )[0];
     expect(option).toBeDefined();
     await ReactTestRenderer.act(() => option!.props.onPress());
+    await ReactTestRenderer.act(async () => {
+      const action = view.root.findAll(
+        node =>
+          node.props.accessibilityRole === 'button' &&
+          typeof node.props.accessibilityLabel === 'string' &&
+          (node.props.accessibilityLabel.includes('Select a time') ||
+            node.props.accessibilityLabel.includes('Elegir una hora')),
+      )[0];
+      await action.props.onPress();
+    });
     await button(review);
     await button(saveLabel);
     expect(save).toHaveBeenCalledWith(
@@ -109,6 +129,7 @@ test('discarding invalid interval and monthly settings allows another schedule t
         language="en"
         now={new Date(2026, 0, 1)}
         onSave={save}
+        selectTime={async () => '09:00'}
       />,
     );
   });
@@ -119,8 +140,17 @@ test('discarding invalid interval and monthly settings allows another schedule t
         .find(b => b.props.title === title)!
         .props.onPress();
     });
-  const choose = async (label: string) =>
-    ReactTestRenderer.act(() =>
+  const choose = async (label: string) => {
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findAll(
+          node =>
+            node.props.accessibilityRole === 'button' &&
+            node.props.accessibilityState?.expanded === false,
+        )[0]
+        .props.onPress(),
+    );
+    await ReactTestRenderer.act(() =>
       view.root
         .findAll(
           node =>
@@ -135,6 +165,7 @@ test('discarding invalid interval and monthly settings allows another schedule t
         )[0]
         .props.onPress(),
     );
+  };
   await button('Reminder');
   await ReactTestRenderer.act(() =>
     view.root.findAllByType(TextInput)[0].props.onChangeText('Water'),
@@ -157,6 +188,11 @@ test('discarding invalid interval and monthly settings allows another schedule t
       .props.onChangeText('99'),
   );
   await choose('Every day');
+  await ReactTestRenderer.act(async () =>
+    view.root
+      .findAll(node => node.props.accessibilityLabel === 'Select a time')[0]
+      .props.onPress(),
+  );
   await button('Review');
   await button('Save reminder');
   expect(save).toHaveBeenCalledWith(

@@ -95,8 +95,12 @@ const copy = {
     next: 'Next',
     required: 'Enter a medicine name',
     schedule: 'Schedule',
+    frequency: 'Repeat',
     times: 'Daily times',
     addTime: 'Add a time',
+    selectTime: 'Select a time',
+    select: 'Select',
+    timeRequired: 'Select a time for this reminder.',
     change: 'Change',
     remove: 'Remove',
     noEnd: 'No end date',
@@ -159,8 +163,12 @@ const copy = {
     next: 'Continuar',
     required: 'Escribe el nombre del medicamento',
     schedule: 'Horario',
+    frequency: 'Repetir',
     times: 'Horas diarias',
     addTime: 'Agregar una hora',
+    selectTime: 'Elegir una hora',
+    select: 'Elegir',
+    timeRequired: 'Elige una hora para este recordatorio.',
     change: 'Cambiar',
     remove: 'Quitar',
     noEnd: 'Sin fecha de fin',
@@ -197,6 +205,12 @@ export function MedicineSetup({
   selectDate,
 }: Props) {
   const t = copy[language];
+  const currentTime = () => {
+    const date = now ?? new Date();
+    return `${String(date.getHours()).padStart(2, '0')}:${String(
+      date.getMinutes(),
+    ).padStart(2, '0')}`;
+  };
   const [step, setStep] = useState(0);
   const [type, setType] = useState<ReminderType>(initial?.type ?? 'reminder');
   const [mode, setMode] = useState<'notification' | 'alarm'>(
@@ -204,7 +218,7 @@ export function MedicineSetup({
   );
   const [name, setName] = useState(initial?.name ?? '');
   const [instructions, setInstructions] = useState(initial?.instructions ?? '');
-  const [times, setTimes] = useState(initial?.times ?? ['09:00']);
+  const [times, setTimes] = useState(initial?.times ?? []);
   const [startDate, setStartDate] = useState(
     initial?.startDate ?? localDateString(now ?? new Date()),
   );
@@ -216,12 +230,15 @@ export function MedicineSetup({
   >(
     initial && isOneOffSchedule(initial)
       ? 'once'
-      : initial?.scheduleKind ?? 'daily',
+      : initial
+      ? initial.scheduleKind ?? 'daily'
+      : 'once',
   );
+  const [frequencyOpen, setFrequencyOpen] = useState(false);
   const [onceDate, setOnceDate] = useState(
     initial?.startDate ?? localDateString(now ?? new Date()),
   );
-  const [onceTime, setOnceTime] = useState(initial?.times[0] ?? '09:00');
+  const [onceTime, setOnceTime] = useState(initial?.times[0] ?? '');
   const [weekdays, setWeekdays] = useState<number[]>(initial?.weekdays ?? [1]);
   const [intervalHours, setIntervalHours] = useState(
     String(initial?.intervalHours ?? 8),
@@ -242,7 +259,7 @@ export function MedicineSetup({
           2,
           '0',
         )}`
-      : '09:00',
+      : '',
   );
   const [monthlyDay, setMonthlyDay] = useState(
     initial?.monthlyDay == null && initial?.scheduleKind === 'monthly'
@@ -285,8 +302,15 @@ export function MedicineSetup({
       setError(type === 'medicine' ? t.required : t.reminderRequired);
       return;
     }
-    if (step === 2 && !times.length) {
-      setError(t.invalid);
+    if (
+      step === 2 &&
+      (scheduleKind === 'once'
+        ? !onceTime
+        : scheduleKind === 'interval'
+        ? !anchorTime
+        : !times.length)
+    ) {
+      setError(t.timeRequired);
       return;
     }
     if (
@@ -503,23 +527,46 @@ export function MedicineSetup({
         )}
         {step === 2 && (
           <>
-            <View accessibilityRole="radiogroup" style={styles.scheduleOptions}>
-              {(
-                ['once', 'daily', 'weekday', 'interval', 'monthly'] as const
-              ).map(kind => (
-                <Pressable
-                  key={kind}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: scheduleKind === kind }}
-                  onPress={() => setScheduleKind(kind)}
-                  style={styles.scheduleOption}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>{t.frequency}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${t.frequency}: ${t[scheduleKind]}`}
+                accessibilityState={{ expanded: frequencyOpen }}
+                onPress={() => setFrequencyOpen(open => !open)}
+                style={styles.fieldControl}
+              >
+                <Text style={styles.fieldValue}>{t[scheduleKind]}</Text>
+                <Text style={styles.fieldAction}>
+                  {frequencyOpen ? '⌃' : '⌄'}
+                </Text>
+              </Pressable>
+              {frequencyOpen && (
+                <View
+                  accessibilityRole="radiogroup"
+                  style={styles.scheduleOptions}
                 >
-                  <Text style={styles.modeText}>
-                    {scheduleKind === kind ? '● ' : '○ '}
-                    {t[kind]}
-                  </Text>
-                </Pressable>
-              ))}
+                  {(
+                    ['once', 'daily', 'weekday', 'interval', 'monthly'] as const
+                  ).map(kind => (
+                    <Pressable
+                      key={kind}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: scheduleKind === kind }}
+                      onPress={() => {
+                        setScheduleKind(kind);
+                        setFrequencyOpen(false);
+                      }}
+                      style={styles.scheduleOption}
+                    >
+                      <Text style={styles.modeText}>
+                        {scheduleKind === kind ? '● ' : '○ '}
+                        {t[kind]}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
             </View>
             {scheduleKind === 'weekday' &&
               t.weekdays.map((label, index) => (
@@ -560,15 +607,25 @@ export function MedicineSetup({
                   <Text style={styles.fieldLabel}>{t.onceTime}</Text>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${t.first}, ${t.changeTime}: ${anchorTime}`}
+                    accessibilityLabel={`${t.first}, ${
+                      anchorTime
+                        ? `${t.changeTime}: ${anchorTime}`
+                        : t.selectTime
+                    }`}
                     onPress={async () => {
-                      const value = await selectTime?.(anchorTime);
+                      const value = await selectTime?.(
+                        anchorTime || currentTime(),
+                      );
                       if (value) setAnchorTime(value);
                     }}
                     style={styles.fieldControl}
                   >
-                    <Text style={styles.fieldValue}>{anchorTime}</Text>
-                    <Text style={styles.fieldAction}>{t.change} ›</Text>
+                    <Text style={styles.fieldValue}>
+                      {anchorTime || t.selectTime}
+                    </Text>
+                    <Text style={styles.fieldAction}>
+                      {anchorTime ? t.change : t.select} ›
+                    </Text>
                   </Pressable>
                 </View>
               </>
@@ -633,15 +690,23 @@ export function MedicineSetup({
                   <Text style={styles.fieldLabel}>{t.onceTime}</Text>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${t.changeTime}: ${onceTime}`}
+                    accessibilityLabel={
+                      onceTime ? `${t.changeTime}: ${onceTime}` : t.selectTime
+                    }
                     onPress={async () => {
-                      const value = await selectTime?.(onceTime);
+                      const value = await selectTime?.(
+                        onceTime || currentTime(),
+                      );
                       if (value) setOnceTime(value);
                     }}
                     style={styles.fieldControl}
                   >
-                    <Text style={styles.fieldValue}>{onceTime}</Text>
-                    <Text style={styles.fieldAction}>{t.change} ›</Text>
+                    <Text style={styles.fieldValue}>
+                      {onceTime || t.selectTime}
+                    </Text>
+                    <Text style={styles.fieldAction}>
+                      {onceTime ? t.change : t.select} ›
+                    </Text>
                   </Pressable>
                 </View>
               </>
@@ -721,17 +786,28 @@ export function MedicineSetup({
                     ))}
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel={t.addTime}
+                      accessibilityLabel={
+                        times.length ? t.addTime : t.selectTime
+                      }
                       onPress={async () => {
-                        const selected = await selectTime?.('09:00');
+                        const selected = await selectTime?.(currentTime());
                         if (selected)
                           setTimes(current =>
                             [...new Set([...current, selected])].sort(),
                           );
                       }}
-                      style={styles.linkButton}
+                      style={
+                        times.length ? styles.linkButton : styles.fieldControl
+                      }
                     >
-                      <Text style={styles.linkText}>＋ {t.addTime}</Text>
+                      {times.length ? (
+                        <Text style={styles.linkText}>＋ {t.addTime}</Text>
+                      ) : (
+                        <>
+                          <Text style={styles.fieldValue}>{t.selectTime}</Text>
+                          <Text style={styles.fieldAction}>{t.select} ›</Text>
+                        </>
+                      )}
                     </Pressable>
                   </View>
                 )}
@@ -858,6 +934,8 @@ export function MedicineSetup({
                     times:
                       scheduleKind === 'once'
                         ? [onceTime]
+                        : scheduleKind === 'interval' && !times.length
+                        ? [anchorTime]
                         : [...new Set(times)],
                     startDate: scheduleKind === 'once' ? onceDate : startDate,
                     endDate: scheduleKind === 'once' ? onceDate : endDate,
@@ -941,17 +1019,15 @@ const styles = StyleSheet.create({
   error: { color: '#a01818', fontSize: 18, marginVertical: 12 },
   actions: { gap: 12, marginTop: 24 },
   scheduleOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: 8,
-    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#a4b398',
+    backgroundColor: '#fffaf1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
   },
   scheduleOption: {
-    flexBasis: '48%',
-    flexGrow: 1,
     minHeight: 48,
     justifyContent: 'center',
-    paddingRight: 4,
   },
   fieldGroup: { gap: 8, marginVertical: 8 },
   fieldLabel: { color: '#162524', fontSize: 17, fontWeight: '600' },

@@ -19,6 +19,31 @@ function findAction(view: ReactTestRenderer.ReactTestRenderer, title: string) {
   );
 }
 
+async function chooseFrequency(
+  view: ReactTestRenderer.ReactTestRenderer,
+  label: string,
+) {
+  const selector = view.root.findAll(
+    node =>
+      node.props.accessibilityRole === 'button' &&
+      (node.props.accessibilityLabel?.startsWith('Repeat: ') ||
+        node.props.accessibilityLabel?.startsWith('Repetir: ')),
+  )[0];
+  await ReactTestRenderer.act(() => selector.props.onPress());
+  const option = view.root.findAll(
+    node =>
+      node.props.accessibilityRole === 'radio' &&
+      node
+        .findAllByType(Text)
+        .some(
+          text =>
+            Array.isArray(text.props.children) &&
+            text.props.children.includes(label),
+        ),
+  )[0];
+  await ReactTestRenderer.act(() => option.props.onPress());
+}
+
 test('requires a name and previews three daily reminders before saving', async () => {
   const save = jest.fn();
   let view!: ReactTestRenderer.ReactTestRenderer;
@@ -29,6 +54,7 @@ test('requires a name and previews three daily reminders before saving', async (
         language="en"
         now={new Date(2026, 5, 1, 12)}
         onSave={save}
+        selectTime={async () => '09:00'}
       />,
     );
   });
@@ -46,6 +72,8 @@ test('requires a name and previews three daily reminders before saving', async (
     view.root.findAllByType(TextInput)[0].props.onChangeText('Aspirin'),
   );
   await press('Next');
+  await chooseFrequency(view, 'Every day');
+  await press('Select a time');
   await press('Review');
   expect(
     view.root
@@ -66,7 +94,10 @@ test('requires a name and previews three daily reminders before saving', async (
 
 test('lets the user add a second daily time using the time selector', async () => {
   const save = jest.fn();
-  const selectTime = jest.fn().mockResolvedValue('21:30');
+  const selectTime = jest
+    .fn()
+    .mockResolvedValueOnce('09:00')
+    .mockResolvedValueOnce('21:30');
   let view!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     view = ReactTestRenderer.create(
@@ -88,6 +119,8 @@ test('lets the user add a second daily time using the time selector', async () =
     view.root.findAllByType(TextInput)[0].props.onChangeText('Aspirin'),
   );
   await press('Next');
+  await chooseFrequency(view, 'Every day');
+  await press('Select a time');
   await press('Add a time');
   await press('Review');
   await press('Save medicine');
@@ -124,10 +157,11 @@ test('shows the schedule controls in Spanish', async () => {
       .find(button => button.props.title === 'Continuar')!
       .props.onPress(),
   );
+  await chooseFrequency(view, 'Todos los días');
   expect(
     view.root.findAllByProps({
       accessibilityRole: 'button',
-      accessibilityLabel: 'Agregar una hora',
+      accessibilityLabel: 'Elegir una hora',
     }).length > 0,
   ).toBe(true);
   expect(
@@ -159,7 +193,13 @@ test('ignores repeated saves until the first save completes', async () => {
   let view!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     view = ReactTestRenderer.create(
-      <MedicineSetup onExit={() => {}} language="en" onSave={save} />,
+      <MedicineSetup
+        onExit={() => {}}
+        language="en"
+        onSave={save}
+        now={new Date(2026, 5, 1, 8)}
+        selectTime={async () => '09:00'}
+      />,
     );
   });
   await ReactTestRenderer.act(() =>
@@ -177,6 +217,9 @@ test('ignores repeated saves until the first save completes', async () => {
       .find(button => button.props.title === title)!
       .props.onPress();
   await ReactTestRenderer.act(() => press('Next'));
+  await ReactTestRenderer.act(async () =>
+    findAction(view, 'Select a time').props.onPress(),
+  );
   await ReactTestRenderer.act(() => press('Review'));
   await ReactTestRenderer.act(() => {
     press('Save medicine');
@@ -194,7 +237,13 @@ test('creates a reminder without medicine instructions', async () => {
   let view!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     view = ReactTestRenderer.create(
-      <MedicineSetup onExit={() => {}} language="en" onSave={save} />,
+      <MedicineSetup
+        onExit={() => {}}
+        language="en"
+        onSave={save}
+        now={new Date(2026, 5, 1, 8)}
+        selectTime={async () => '09:00'}
+      />,
     );
   });
   const press = async (title: string) => {
@@ -206,6 +255,7 @@ test('creates a reminder without medicine instructions', async () => {
     view.root.findByType(TextInput).props.onChangeText('Water'),
   );
   await press('Next');
+  await press('Select a time');
   await press('Review');
   expect(
     view.root
@@ -231,7 +281,13 @@ test.each(['Reminder', 'Medicine'])(
     let view!: ReactTestRenderer.ReactTestRenderer;
     await ReactTestRenderer.act(() => {
       view = ReactTestRenderer.create(
-        <MedicineSetup onExit={() => {}} language="en" onSave={save} />,
+        <MedicineSetup
+          onExit={() => {}}
+          language="en"
+          onSave={save}
+          now={new Date(2026, 5, 1, 8)}
+          selectTime={async () => '09:00'}
+        />,
       );
     });
     const press = async (title: string) => {
@@ -263,6 +319,9 @@ test.each(['Reminder', 'Medicine'])(
           option.props.accessibilityLabel === 'Alarm',
       )[0].props.accessibilityState.checked,
     ).toBe(true);
+    await ReactTestRenderer.act(async () =>
+      findAction(view, 'Select a time').props.onPress(),
+    );
     await press('Review');
     expect(
       view.root
@@ -348,6 +407,7 @@ test.each([
           language={language}
           now={new Date(2026, 5, 1, 12)}
           onSave={save}
+          selectTime={async () => '09:00'}
           selectDate={async () => '2026-06-03'}
         />,
       );
@@ -362,7 +422,12 @@ test.each([
       view.root.findAllByType(TextInput)[0].props.onChangeText('Example'),
     );
     await press(next);
+    await chooseFrequency(
+      view,
+      language === 'en' ? 'Every day' : 'Todos los días',
+    );
     await press(setEnd);
+    await press(language === 'en' ? 'Select a time' : 'Elegir una hora');
     await press(review);
     expect(
       view.root
@@ -393,6 +458,8 @@ test.each([
           language={language as 'en' | 'es'}
           onExit={exit}
           onSave={jest.fn()}
+          now={new Date(2026, 5, 1, 8)}
+          selectTime={async () => '09:00'}
         />,
       );
     });
@@ -412,6 +479,12 @@ test.each([
       view.root.findAllByType(TextInput)[0].props.onChangeText('Aspirin'),
     );
     await pressAction(next);
+    await ReactTestRenderer.act(async () =>
+      findAction(
+        view,
+        language === 'en' ? 'Select a time' : 'Elegir una hora',
+      ).props.onPress(),
+    );
     await pressAction(review);
     await pressBack();
     await pressBack();
@@ -543,20 +616,13 @@ test.each([
       view.root.findAllByType(TextInput)[0].props.onChangeText('Test'),
     );
     await press(next);
-    const option = view.root.findAll(
-      node =>
-        node.props.accessibilityRole === 'radio' &&
-        node
-          .findAllByType(Text)
-          .some(
-            text =>
-              Array.isArray(text.props.children) &&
-              text.props.children.includes(once),
-          ),
-    )[0];
-    await ReactTestRenderer.act(() => option.props.onPress());
+    expect(
+      findAction(view, language === 'en' ? 'Repeat' : 'Repetir').props
+        .accessibilityLabel,
+    ).toContain(once);
     await press(dateLabel);
-    await press(timeLabel);
+    expect(timeLabel).toBeTruthy();
+    await press(language === 'en' ? 'Select a time' : 'Elegir una hora');
     await press(review);
     expect(
       view.root
@@ -594,6 +660,8 @@ test('a one-off reminder in the past cannot be reviewed or saved', async () => {
         language="en"
         now={new Date(2026, 5, 1, 12)}
         onSave={save}
+        selectDate={async () => '2026-06-01'}
+        selectTime={async () => '09:00'}
       />,
     );
   });
@@ -604,18 +672,8 @@ test('a one-off reminder in the past cannot be reviewed or saved', async () => {
     view.root.findByType(TextInput).props.onChangeText('Test'),
   );
   await press('Next');
-  const option = view.root.findAll(
-    node =>
-      node.props.accessibilityRole === 'radio' &&
-      node
-        .findAllByType(Text)
-        .some(
-          text =>
-            Array.isArray(text.props.children) &&
-            text.props.children.includes('Once'),
-        ),
-  )[0];
-  await ReactTestRenderer.act(() => option.props.onPress());
+  await press('Date');
+  await press('Select a time');
   await press('Review');
   expect(
     view.root
@@ -653,18 +711,9 @@ test('editing a saved one-off shows Once and preserves its date and time', async
     ReactTestRenderer.act(() => findAction(view, title).props.onPress());
   await press('Reminder');
   await press('Next');
-  const once = view.root.findAll(
-    node =>
-      node.props.accessibilityRole === 'radio' &&
-      node
-        .findAllByType(Text)
-        .some(
-          text =>
-            Array.isArray(text.props.children) &&
-            text.props.children.includes('Once'),
-        ),
-  )[0];
-  expect(once.props.accessibilityState.checked).toBe(true);
+  expect(findAction(view, 'Repeat').props.accessibilityLabel).toBe(
+    'Repeat: Once',
+  );
   await press('Review');
   await press('Save reminder');
   expect(save).toHaveBeenCalledWith(
@@ -756,6 +805,106 @@ test.each([
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({ times: ['10:30'] }),
     );
+    await ReactTestRenderer.act(() => view.unmount());
+  },
+);
+
+test.each([
+  [
+    'en',
+    'Reminder',
+    'Next',
+    'Once',
+    'Review',
+    'Select a time for this reminder.',
+  ],
+  [
+    'en',
+    'Medicine',
+    'Next',
+    'Every day',
+    'Review',
+    'Select a time for this reminder.',
+  ],
+  [
+    'en',
+    'Reminder',
+    'Next',
+    'Every X hours',
+    'Review',
+    'Select a time for this reminder.',
+  ],
+  [
+    'es',
+    'Recordatorio',
+    'Continuar',
+    'Una vez',
+    'Revisar',
+    'Elige una hora para este recordatorio.',
+  ],
+  [
+    'es',
+    'Medicamento',
+    'Continuar',
+    'Todos los días',
+    'Revisar',
+    'Elige una hora para este recordatorio.',
+  ],
+  [
+    'es',
+    'Recordatorio',
+    'Continuar',
+    'Cada X horas',
+    'Revisar',
+    'Elige una hora para este recordatorio.',
+  ],
+] as const)(
+  '%s %s requires an explicitly selected time for %s',
+  async (language, type, next, frequency, review, message) => {
+    const save = jest.fn();
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(() => {
+      view = ReactTestRenderer.create(
+        <MedicineSetup
+          language={language}
+          onExit={() => {}}
+          onSave={save}
+          selectTime={async () => null}
+        />,
+      );
+    });
+    const press = async (title: string) =>
+      ReactTestRenderer.act(async () =>
+        findAction(view, title).props.onPress(),
+      );
+    await press(type);
+    await ReactTestRenderer.act(() =>
+      view.root.findAllByType(TextInput)[0].props.onChangeText('Example'),
+    );
+    await press(next);
+    if (frequency !== 'Once' && frequency !== 'Una vez')
+      await chooseFrequency(view, frequency);
+    await press(review);
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(node => node.props.children === message),
+    ).toBe(true);
+    const timeField = view.root.findAll(
+      node =>
+        node.props.accessibilityRole === 'button' &&
+        typeof node.props.accessibilityLabel === 'string' &&
+        (node.props.accessibilityLabel.includes('Select a time') ||
+          node.props.accessibilityLabel.includes('Elegir una hora')),
+    )[0];
+    await ReactTestRenderer.act(async () => timeField.props.onPress());
+    await press(review);
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(node => node.props.children === message),
+    ).toBe(true);
+    expect(save).not.toHaveBeenCalled();
     await ReactTestRenderer.act(() => view.unmount());
   },
 );
