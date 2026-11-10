@@ -246,7 +246,11 @@ export default function App() {
     };
   }, [refresh]);
   const sortedUpcoming = (state?.upcoming ?? [])
-    .filter(item => item.scheduledAt > Date.now())
+    .filter(
+      item =>
+        item.scheduledAt > Date.now() &&
+        new Date(item.scheduledAt).toDateString() === new Date().toDateString(),
+    )
     .sort((a, b) => a.scheduledAt - b.scheduledAt);
   const nextUpcoming = sortedUpcoming[0];
   const language = state?.language ?? 'en';
