@@ -1,7 +1,7 @@
 import { PillAction } from '../src/PillAction';
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Text, TextInput } from 'react-native';
+import { BackHandler, Text, TextInput } from 'react-native';
 import { MedicineSetup } from '../src/MedicineSetup';
 
 test('requires a name and previews three daily reminders before saving', async () => {
@@ -429,3 +429,43 @@ test.each([
     await ReactTestRenderer.act(() => view.unmount());
   },
 );
+
+test('system Back moves through setup and exits from the first step', async () => {
+  let handler: Parameters<typeof BackHandler.addEventListener>[1] | undefined;
+  const remove = jest.fn();
+  const listener = jest
+    .spyOn(BackHandler, 'addEventListener')
+    .mockImplementation((_event, callback) => {
+      handler = callback;
+      return { remove };
+    });
+  const exit = jest.fn();
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    view = ReactTestRenderer.create(
+      <MedicineSetup language="en" onExit={exit} onSave={jest.fn()} />,
+    );
+  });
+  await ReactTestRenderer.act(() =>
+    view.root
+      .findAllByType(PillAction)
+      .find(button => button.props.title === 'Reminder')!
+      .props.onPress(),
+  );
+  await ReactTestRenderer.act(() => {
+    expect(handler!({ type: 'hardwareBackPress', timeStamp: 0 })).toBe(true);
+  });
+  expect(exit).not.toHaveBeenCalled();
+  expect(
+    view.root
+      .findAllByType(PillAction)
+      .some(button => button.props.title === 'Medicine'),
+  ).toBe(true);
+  await ReactTestRenderer.act(() => {
+    expect(handler!({ type: 'hardwareBackPress', timeStamp: 0 })).toBe(true);
+  });
+  expect(exit).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(() => view.unmount());
+  expect(remove).toHaveBeenCalled();
+  listener.mockRestore();
+});
