@@ -1,4 +1,4 @@
-package com.pillreminder
+package com.myreminders
 
 import android.app.AlarmManager
 import android.app.Notification
@@ -69,7 +69,7 @@ class ReminderFoundationTest {
     try {
       ReminderScheduler.recoverInterruptedDelivery(context, item.id, now - 1000, "retry-transition")
       val intent = Intent(context, ReminderReceiver::class.java)
-        .setData(Uri.parse("pillreminder://medicine/${item.id}/retry-transition"))
+        .setData(Uri.parse("myreminders://medicine/${item.id}/retry-transition"))
       val pending = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
       requireNotNull(pending).send()
       repeat(80) {
@@ -436,7 +436,7 @@ class ReminderFoundationTest {
   private fun cancel(context: Context, alarm: MedicineRepository.Alarm) {
     val manager = context.getSystemService(AlarmManager::class.java)
     listOf(ReminderReceiver::class.java to "medicine", ReminderWatchdogReceiver::class.java to "watchdog").forEach { (receiver, path) ->
-      val intent = Intent(context, receiver).setData(Uri.parse("pillreminder://$path/${alarm.medicineId}/${alarm.token}"))
+      val intent = Intent(context, receiver).setData(Uri.parse("myreminders://$path/${alarm.medicineId}/${alarm.token}"))
       PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)?.let {
         manager.cancel(it)
         it.cancel()
@@ -517,7 +517,7 @@ class ReminderFoundationTest {
         dueTimes.add(at)
         MedicineRepository(context).use { it.setAlarm(item.id, at, token) }
         val intent = Intent(context, ReminderReceiver::class.java)
-          .setData(Uri.parse("pillreminder://test/${item.id}/$token"))
+          .setData(Uri.parse("myreminders://test/${item.id}/$token"))
           .putExtra("medicineId", item.id).putExtra("scheduledAt", at).putExtra("token", token)
         val operation = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         scheduledIntents.add(operation)

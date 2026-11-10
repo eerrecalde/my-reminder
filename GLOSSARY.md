@@ -1,4 +1,4 @@
-# Pill Reminder
+# My Reminders
 
 Language for reminders, medicines, scheduled occurrences, and outcomes.
 

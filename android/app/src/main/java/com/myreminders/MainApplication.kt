@@ -1,4 +1,4 @@
-package com.pillreminder
+package com.myreminders
 
 import android.app.Application
 import com.facebook.react.PackageList

@@ -1,4 +1,4 @@
-package com.pillreminder
+package com.myreminders
 
 import android.app.AlarmManager
 import android.app.NotificationChannel
@@ -28,7 +28,7 @@ object ReminderScheduler {
 
   private fun snoozeIntent(context: Context, item: MedicineRepository.Snooze, watchdog: Boolean = false): PendingIntent {
     val intent = Intent(context, SnoozeReceiver::class.java)
-      .setData(Uri.parse("pillreminder://${if (watchdog) "snooze-watchdog" else "snooze"}/${item.medicineId}/${item.at}/${item.token}"))
+      .setData(Uri.parse("myreminders://${if (watchdog) "snooze-watchdog" else "snooze"}/${item.medicineId}/${item.at}/${item.token}"))
       .putExtra("id", item.medicineId).putExtra("at", item.at).putExtra("token", item.token)
     return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
   }
@@ -115,14 +115,14 @@ object ReminderScheduler {
   }
   private fun pending(context: Context, alarm: MedicineRepository.Alarm): PendingIntent {
     val intent = Intent(context, ReminderReceiver::class.java)
-      .setData(Uri.parse("pillreminder://medicine/${alarm.medicineId}/${alarm.token}"))
+      .setData(Uri.parse("myreminders://medicine/${alarm.medicineId}/${alarm.token}"))
       .putExtra("medicineId", alarm.medicineId).putExtra("scheduledAt", alarm.at).putExtra("token", alarm.token)
     return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
   }
 
   private fun watchdog(context: Context, alarm: MedicineRepository.Alarm): PendingIntent {
     val intent = Intent(context, ReminderWatchdogReceiver::class.java)
-      .setData(Uri.parse("pillreminder://watchdog/${alarm.medicineId}/${alarm.token}"))
+      .setData(Uri.parse("myreminders://watchdog/${alarm.medicineId}/${alarm.token}"))
       .putExtra("medicineId", alarm.medicineId).putExtra("scheduledAt", alarm.at).putExtra("token", alarm.token)
     return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
   }
@@ -163,7 +163,7 @@ object ReminderScheduler {
   }
 
   private fun transitionWatchdog(context: Context, id: String): PendingIntent {
-    val intent = Intent(context, TransitionReceiver::class.java).setData(Uri.parse("pillreminder://transition/$id"))
+    val intent = Intent(context, TransitionReceiver::class.java).setData(Uri.parse("myreminders://transition/$id"))
     return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
   }
 
@@ -215,7 +215,7 @@ object ReminderScheduler {
       }
       medicines.filter { it.status == "active" }.forEach { medicine ->
         if (invalidate) {
-          val legacyIntent = Intent(context, ReminderReceiver::class.java).setData(Uri.parse("pillreminder://medicine/${medicine.id}"))
+          val legacyIntent = Intent(context, ReminderReceiver::class.java).setData(Uri.parse("myreminders://medicine/${medicine.id}"))
           val legacy = PendingIntent.getBroadcast(context, 0, legacyIntent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
           if (legacy != null) { alarmManager(context).cancel(legacy); legacy.cancel() }
           val oldAlarm = repo.alarm(medicine.id)
@@ -360,7 +360,7 @@ object ReminderScheduler {
 
   private fun outcomeIntent(context: Context, id: String, at: Long, outcome: String): PendingIntent {
     val intent = Intent(context, OutcomeReceiver::class.java)
-      .setData(Uri.parse("pillreminder://outcome/$id/$at/$outcome"))
+      .setData(Uri.parse("myreminders://outcome/$id/$at/$outcome"))
       .putExtra("id", id).putExtra("at", at).putExtra("outcome", outcome)
     return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
   }

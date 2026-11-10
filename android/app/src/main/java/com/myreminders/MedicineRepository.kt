@@ -1,4 +1,4 @@
-package com.pillreminder
+package com.myreminders
 
 import android.content.ContentValues
 import android.content.Context

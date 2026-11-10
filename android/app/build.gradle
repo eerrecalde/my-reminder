@@ -2,6 +2,11 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
+// The React Native entry point reads the registered component name from app.json.
+tasks.withType(com.facebook.react.tasks.BundleHermesCTask).configureEach {
+    inputs.file(file("../../app.json"))
+}
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -77,9 +82,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.pillreminder"
+    namespace "com.myreminders"
     defaultConfig {
-        applicationId "com.pillreminder"
+        applicationId "com.myreminders"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

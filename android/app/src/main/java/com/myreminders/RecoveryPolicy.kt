@@ -1,4 +1,4 @@
-package com.pillreminder
+package com.myreminders
 
 object RecoveryPolicy {
   fun shouldInvalidate(recovery: Boolean, available: Boolean, wasAvailable: Boolean, bootChanged: Boolean, pending: Boolean): Boolean =

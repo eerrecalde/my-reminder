@@ -1,4 +1,4 @@
-package com.pillreminder
+package com.myreminders
 
 import java.time.Instant
 import java.time.LocalDate
