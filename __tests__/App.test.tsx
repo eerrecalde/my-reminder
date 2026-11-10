@@ -864,3 +864,37 @@ test('does not show a past occurrence as the next reminder', async () => {
   await ReactTestRenderer.act(() => view.unmount());
   subscription.mockRestore();
 });
+
+test('does not show tomorrow’s reminder on Today', async () => {
+  const subscription = jest
+    .spyOn(AppState, 'addEventListener')
+    .mockReturnValue({ remove: jest.fn() });
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const repo = require('../src/reminderRepository');
+  repo.reminderRepository = {
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      notifications: true,
+      exactAlarms: true,
+      language: 'en',
+      medicines: [
+        { id: 'r', name: 'Compost', type: 'reminder', times: ['18:05'] },
+      ],
+      todayDoses: [],
+      history: [],
+      upcoming: [{ medicineId: 'r', scheduledAt: tomorrow.getTime() }],
+    }),
+  };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    view = ReactTestRenderer.create(<App />);
+  });
+  expect(
+    view.root
+      .findAllByType(Text)
+      .some(text => text.props.children === 'Next reminder'),
+  ).toBe(false);
+  await ReactTestRenderer.act(() => view.unmount());
+  subscription.mockRestore();
+});
