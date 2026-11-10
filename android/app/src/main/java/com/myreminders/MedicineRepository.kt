@@ -10,16 +10,22 @@ import java.util.UUID
 data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification", val status: String = "active", val changedAt: Long = 0, val startDate: String? = null, val endDate: String? = null, val scheduleKind: String = "daily", val weekdays: List<Int> = emptyList(), val intervalHours: Int? = null, val intervalAnchor: Long? = null, val monthlyDay: Int? = null, val shortMonthPolicy: String = "last")
 
 /** Shared by the React Native bridge and Android receivers. */
-class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 15) {
+class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 16) {
   override fun onCreate(db: SQLiteDatabase) {
     db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification', status TEXT NOT NULL DEFAULT 'active', changed_at INTEGER NOT NULL DEFAULT 0, start_date TEXT, end_date TEXT, schedule_kind TEXT NOT NULL DEFAULT 'daily', weekdays TEXT NOT NULL DEFAULT '[]', interval_hours INTEGER, interval_anchor INTEGER, monthly_day INTEGER, short_month_policy TEXT NOT NULL DEFAULT 'last')")
+    createSoundChoices(db)
     db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0, outcome TEXT, cleared INTEGER NOT NULL DEFAULT 0, missed_acknowledged INTEGER NOT NULL DEFAULT 0, silenced INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0, outstanding INTEGER NOT NULL DEFAULT 0, name TEXT, instructions TEXT, type TEXT, mode TEXT, times TEXT, retained INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE snoozes (medicine_id TEXT NOT NULL, occurrence_at INTEGER NOT NULL, alert_at INTEGER NOT NULL, token TEXT NOT NULL, PRIMARY KEY (medicine_id, occurrence_at))")
     db.execSQL("CREATE TABLE reminder_transitions (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER, token TEXT, registered INTEGER, changed_at INTEGER NOT NULL, committed INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE occurrence_tracking (medicine_id TEXT PRIMARY KEY, starts_after INTEGER NOT NULL)")
   }
+  private fun createSoundChoices(db: SQLiteDatabase) {
+    db.execSQL("CREATE TABLE IF NOT EXISTS reminder_sound_choices (medicine_id TEXT NOT NULL, mode TEXT NOT NULL, choice TEXT NOT NULL, PRIMARY KEY (medicine_id, mode))")
+  }
+
   override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+    if (oldVersion < 16) createSoundChoices(db)
     if (oldVersion < 15) {
       db.execSQL("ALTER TABLE medicines ADD COLUMN schedule_kind TEXT NOT NULL DEFAULT 'daily'")
       db.execSQL("ALTER TABLE medicines ADD COLUMN weekdays TEXT NOT NULL DEFAULT '[]'")
@@ -68,6 +74,28 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
       db.execSQL("ALTER TABLE doses ADD COLUMN retained INTEGER NOT NULL DEFAULT 0")
       db.execSQL("UPDATE doses SET name = (SELECT name FROM medicines WHERE id = medicine_id), instructions = (SELECT instructions FROM medicines WHERE id = medicine_id), type = (SELECT type FROM medicines WHERE id = medicine_id), mode = (SELECT mode FROM medicines WHERE id = medicine_id), times = (SELECT times FROM medicines WHERE id = medicine_id)")
     }
+  }
+
+  /** Null inherits the app default; an empty string is an explicit silent choice. */
+  fun soundChoice(id: String, mode: String): String? {
+    require(mode == "notification" || mode == "alarm")
+    return readableDatabase.rawQuery("SELECT choice FROM reminder_sound_choices WHERE medicine_id = ? AND mode = ?", arrayOf(id, mode)).use { cursor ->
+      if (cursor.moveToFirst()) cursor.getString(0) else null
+    }
+  }
+
+  fun setSoundChoice(id: String, mode: String, choice: String?) {
+    require(mode == "notification" || mode == "alarm")
+    val db = writableDatabase
+    db.beginTransaction()
+    try {
+      check(db.rawQuery("SELECT 1 FROM medicines WHERE id = ? AND status != 'deleted'", arrayOf(id)).use { it.moveToFirst() })
+      if (choice == null) db.delete("reminder_sound_choices", "medicine_id = ? AND mode = ?", arrayOf(id, mode))
+      else db.insertWithOnConflict("reminder_sound_choices", null, ContentValues().apply {
+        put("medicine_id", id); put("mode", mode); put("choice", choice)
+      }, SQLiteDatabase.CONFLICT_REPLACE)
+      db.setTransactionSuccessful()
+    } finally { db.endTransaction() }
   }
 
   data class Occurrence(val medicineId: String, val at: Long, val outcome: String?, val cleared: Boolean = false, val outstanding: Boolean = false, val name: String? = null, val instructions: String? = null, val type: String? = null, val mode: String? = null, val times: List<String>? = null, val retained: Boolean = false)
