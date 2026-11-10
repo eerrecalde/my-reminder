@@ -421,14 +421,16 @@ export default function App() {
       <SafeAreaView style={styles.screen}>
         {screen === 'setup' ? (
           <>
-            <PillAction
-              secondary
-              title={t.cancel}
-              onPress={() => {
-                setEditing(undefined);
-                setScreen('today');
-              }}
-            />
+            <View style={styles.setupCancel}>
+              <PillAction
+                secondary
+                title={t.cancel}
+                onPress={() => {
+                  setEditing(undefined);
+                  setScreen('today');
+                }}
+              />
+            </View>
             <MedicineSetup
               initial={editing}
               selectTime={time => reminderRepository.selectTime(time)}
@@ -1018,6 +1020,7 @@ export default function App() {
 }
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fbf6eb' },
+  setupCancel: { paddingHorizontal: 24, paddingTop: 12 },
   content: {
     paddingHorizontal: 20,
     paddingTop: 18,
