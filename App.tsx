@@ -172,6 +172,7 @@ export default function App() {
   >('today');
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [editing, setEditing] = useState<Medicine>();
   const [undo, setUndo] = useState<{
     occurrence: Occurrence;
@@ -613,23 +614,104 @@ export default function App() {
                       {t.earlier}
                     </Text>
                   )}
-                  {[...state.todayDoses]
-                    .filter(item => item.outcome != null)
-                    .sort((a, b) => b.scheduledAt - a.scheduledAt)
-                    .map(item =>
-                      occurrenceView(
-                        item,
-                        state.medicines.find(m => m.id === item.medicineId) ?? {
-                          id: item.medicineId,
-                          name: item.name ?? '',
-                          instructions: item.instructions ?? '',
-                          type: item.type ?? 'reminder',
-                          times: [],
-                          mode: 'notification',
-                        },
-                        true,
-                      ),
-                    )}
+                  {(
+                    [
+                      {
+                        key: 'done',
+                        label: t.done,
+                        outcome: 'completed',
+                        type: 'reminder',
+                      },
+                      {
+                        key: 'taken',
+                        label: t.taken,
+                        outcome: 'completed',
+                        type: 'medicine',
+                      },
+                      {
+                        key: 'skipped',
+                        label: t.skipped,
+                        outcome: 'skipped',
+                        type: null,
+                      },
+                      {
+                        key: 'missed',
+                        label: t.missed,
+                        outcome: 'missed',
+                        type: null,
+                      },
+                    ] as const
+                  ).map(group => {
+                    const items = state.todayDoses
+                      .filter(item => {
+                        const medicine = state.medicines.find(
+                          m => m.id === item.medicineId,
+                        );
+                        const type =
+                          item.type ??
+                          medicine?.type ??
+                          (medicine ? 'medicine' : 'reminder');
+                        return (
+                          item.outcome === group.outcome &&
+                          (group.type == null || group.type === type)
+                        );
+                      })
+                      .sort((a, b) => b.scheduledAt - a.scheduledAt);
+                    if (!items.length) return null;
+                    const isExpanded = expandedGroups.includes(group.key);
+                    return (
+                      <View key={group.key} style={styles.outcomeGroup}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${group.label} (${items.length})`}
+                          accessibilityState={{ expanded: isExpanded }}
+                          onPress={() =>
+                            setExpandedGroups(current =>
+                              current.includes(group.key)
+                                ? current.filter(key => key !== group.key)
+                                : [...current, group.key],
+                            )
+                          }
+                          style={[
+                            styles.outcomeHeader,
+                            group.key === 'skipped' && styles.outcomeSkipped,
+                            group.key === 'missed' && styles.outcomeMissed,
+                          ]}
+                        >
+                          <Text style={styles.outcomeIcon}>
+                            {group.key === 'skipped'
+                              ? '×'
+                              : group.key === 'missed'
+                              ? '!'
+                              : '✓'}
+                          </Text>
+                          <Text style={styles.outcomeLabel}>
+                            {group.label} ({items.length})
+                          </Text>
+                          <Text style={styles.outcomeChevron}>
+                            {isExpanded ? '⌄' : '›'}
+                          </Text>
+                        </Pressable>
+                        {isExpanded &&
+                          items.map(item =>
+                            occurrenceView(
+                              item,
+                              state.medicines.find(
+                                m => m.id === item.medicineId,
+                              ) ?? {
+                                id: item.medicineId,
+                                name: item.name ?? '',
+                                instructions: item.instructions ?? '',
+                                type: item.type ?? 'reminder',
+                                times: [],
+                                mode: 'notification',
+                              },
+                              true,
+                            ),
+                          )}
+                      </View>
+                    );
+                  })}
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t.settings}
@@ -1123,6 +1205,26 @@ const styles = StyleSheet.create({
     borderColor: '#e5e1cf',
   },
   occurrenceCompact: { marginTop: 0, borderRadius: 14 },
+  outcomeGroup: { gap: 6 },
+  outcomeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 48,
+    paddingHorizontal: 14,
+    borderRadius: 13,
+    backgroundColor: '#e1ebc8',
+    gap: 10,
+  },
+  outcomeSkipped: { backgroundColor: '#f4e4cc' },
+  outcomeMissed: { backgroundColor: '#f4ded6' },
+  outcomeIcon: {
+    color: '#203b21',
+    fontSize: 24,
+    width: 25,
+    textAlign: 'center',
+  },
+  outcomeLabel: { color: '#1b2a1c', fontSize: 17, fontWeight: '700', flex: 1 },
+  outcomeChevron: { color: '#203b21', fontSize: 27, lineHeight: 30 },
   spacer: { height: 12 },
   error: { color: '#a01818', fontSize: 18 },
 });
