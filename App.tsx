@@ -245,9 +245,9 @@ export default function App() {
       listener.remove();
     };
   }, [refresh]);
-  const sortedUpcoming = [...(state?.upcoming ?? [])].sort(
-    (a, b) => a.scheduledAt - b.scheduledAt,
-  );
+  const sortedUpcoming = (state?.upcoming ?? [])
+    .filter(item => item.scheduledAt > Date.now())
+    .sort((a, b) => a.scheduledAt - b.scheduledAt);
   const nextUpcoming = sortedUpcoming[0];
   const language = state?.language ?? 'en';
   const t = words[language];
