@@ -1,4 +1,4 @@
-package com.pillreminder
+package com.myreminders
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -128,8 +128,8 @@ class AlarmSoundService : Service() {
   companion object {
     private const val CHANNEL = "alarm_sound_session"
     private const val NOTIFICATION_ID = 119348
-    private const val STOP = "com.pillreminder.STOP_SOUND"
-    private const val STOP_OCCURRENCE = "com.pillreminder.STOP_OCCURRENCE"
+    private const val STOP = "com.myreminders.STOP_SOUND"
+    private const val STOP_OCCURRENCE = "com.myreminders.STOP_OCCURRENCE"
     fun stopOccurrence(context: Context, id: String, at: Long) {
       context.sendBroadcast(Intent(STOP_OCCURRENCE).setPackage(context.packageName).putExtra("id", id).putExtra("at", at))
     }

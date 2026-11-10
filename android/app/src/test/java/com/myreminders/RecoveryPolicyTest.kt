@@ -1,4 +1,4 @@
-package com.pillreminder
+package com.myreminders
 
 import org.junit.Assert.*
 import org.junit.Test

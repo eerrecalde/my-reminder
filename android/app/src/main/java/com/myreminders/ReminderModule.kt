@@ -1,4 +1,4 @@
-package com.pillreminder
+package com.myreminders
 
 import android.content.Intent
 import android.net.Uri

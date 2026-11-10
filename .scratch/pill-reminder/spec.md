@@ -1,6 +1,6 @@
 # Android reminder MVP
 
-Product behaviour for a fully local reminder app with medicine support. Use React Native, persistent on-device storage, and Kotlin reminder handling. Preserve existing medicines, schedules, identities, and installed-app identity. Choose the app name separately.
+Product behaviour for a fully local reminder app with medicine support. Use React Native, persistent on-device storage, and Kotlin reminder handling. The app display name is My Reminders. The change to the My Reminders Android application ID starts a separate fresh installation; existing data in the previous app is not migrated. Preserve medicines, schedules, identities, and installed-app identity on subsequent upgrades.
 
 ## Experience
 

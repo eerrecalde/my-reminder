@@ -437,7 +437,7 @@ export default function App() {
                       style={styles.brandLeaf}
                       resizeMode="contain"
                     />
-                    <Text style={styles.brandText}>Pill Reminder</Text>
+                    <Text style={styles.brandText}>My Reminders</Text>
                   </View>
                   <Pressable
                     accessibilityRole="button"

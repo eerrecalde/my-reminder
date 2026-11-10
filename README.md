@@ -1,6 +1,8 @@
-# Pill Reminder
+# My Reminders
 
-An offline Android reminder app with medicine support, built with React Native, TypeScript and Kotlin. It supports Android 8.0 (API 26) and later. The current app name is **Pill Reminder**.
+An offline Android reminder app with medicine support, built with React Native, TypeScript and Kotlin. It supports Android 8.0 (API 26) and later. The current app name is **My Reminders**.
+
+My Reminders uses a new Android application ID and installs separately from the previous app. It starts with no reminders; the old app and its reminders remain on the device until removed separately.
 
 ## Local setup
 
@@ -35,10 +37,10 @@ See the [React Native environment guide](https://reactnative.dev/docs/set-up-you
 
    ```sh
    adb install -r android/app/build/outputs/apk/release/app-release.apk
-   adb shell am start -W -n com.pillreminder/.MainActivity
+   adb shell am start -W -n com.myreminders/.MainActivity
    ```
 
-   If multiple devices are listed, add `-s <serial>` after `adb` in both commands. Check that **Pill Reminder** is visible. This APK runs independently of Metro.
+   If multiple devices are listed, add `-s <serial>` after `adb` in both commands. Check that **My Reminders** is visible. This APK runs independently of Metro.
 
 ## Develop and test
 
