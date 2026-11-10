@@ -47,6 +47,7 @@ type Props = {
   initial?: DailyMedicineInput;
   now?: Date;
   onSave: (medicine: DailyMedicineInput) => void | Promise<void>;
+  onExit: () => void;
   selectDate?: (date: string) => Promise<string | null>;
   selectTime?: (time: string) => Promise<string | null>;
 };
@@ -169,6 +170,7 @@ export function MedicineSetup({
   initial,
   now,
   onSave,
+  onExit,
   selectTime,
   selectDate,
 }: Props) {
@@ -325,6 +327,25 @@ export function MedicineSetup({
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t.back}
+        onPress={() => {
+          setError('');
+          if (step === 0) onExit();
+          else setStep(step - 1);
+        }}
+        style={styles.back}
+      >
+        <Text
+          style={styles.backText}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          ←
+        </Text>
+        <Text style={styles.backText}>{t.back}</Text>
+      </Pressable>
       <Text accessibilityRole="header" style={styles.heading}>
         {
           [
@@ -637,16 +658,6 @@ export function MedicineSetup({
         </Text>
       )}
       <View style={styles.actions}>
-        {step > 0 && (
-          <PillAction
-            secondary
-            title={t.back}
-            onPress={() => {
-              setError('');
-              setStep(step - 1);
-            }}
-          />
-        )}
         {step > 0 && step < 3 ? (
           <PillAction title={step === 1 ? t.next : t.review} onPress={next} />
         ) : step === 3 ? (
@@ -691,6 +702,15 @@ export function MedicineSetup({
 }
 const styles = StyleSheet.create({
   content: { padding: 24, backgroundColor: '#fbf6eb', flexGrow: 1 },
+  back: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 48,
+    marginBottom: 8,
+  },
+  backText: { color: '#36542b', fontSize: 18, fontWeight: '600' },
   heading: {
     color: '#162524',
     fontSize: 28,
