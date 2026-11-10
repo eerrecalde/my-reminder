@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import { Button } from 'react-native';
-import App from '../App';
+import App, { PillAction } from '../App';
 import { MedicineSetup } from '../src/MedicineSetup';
 
 jest.mock(
@@ -46,7 +46,7 @@ test.each([false, true])(
     );
     await ReactTestRenderer.act(() =>
       view.root
-        .findAllByType(Button)
+        .findAllByType(editing ? Button : PillAction)
         .find(b => b.props.title === (editing ? 'Edit' : 'Add reminder'))!
         .props.onPress(),
     );

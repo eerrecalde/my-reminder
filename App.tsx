@@ -46,6 +46,27 @@ const words = {
     exact: 'Allow exact alarms',
     explanation:
       'Reminders resume after you unlock your phone for the first time after a restart.',
+    storage:
+      'Reminders are stored only on this phone. They may be lost if you uninstall the app, clear its data, or lose your phone.',
+    daily: 'Every day',
+    weekdays: [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ],
+    everyHours: 'Every',
+    hours: 'hours',
+    monthly: 'Monthly',
+    lastDay: 'last day',
+    anchor: 'Interval reference',
+    starts: 'Starts',
+    ends: 'Ends',
+    shortLast: 'Use last day in shorter months',
+    shortSkip: 'Skip shorter months',
     cancel: 'Cancel',
     empty: 'No reminders added yet',
     emptyHelp: 'Add a reminder for a task, an event, or a medicine.',
@@ -99,6 +120,27 @@ const words = {
     exact: 'Permitir alarmas exactas',
     explanation:
       'Los recordatorios se reanudan después de desbloquear el teléfono por primera vez tras reiniciarlo.',
+    storage:
+      'Los recordatorios se guardan solo en este teléfono. Pueden perderse si desinstalas la aplicación, borras sus datos o pierdes el teléfono.',
+    daily: 'Todos los días',
+    weekdays: [
+      'Lunes',
+      'Martes',
+      'Miércoles',
+      'Jueves',
+      'Viernes',
+      'Sábado',
+      'Domingo',
+    ],
+    everyHours: 'Cada',
+    hours: 'horas',
+    monthly: 'Mensual',
+    lastDay: 'último día',
+    anchor: 'Referencia del intervalo',
+    starts: 'Comienza',
+    ends: 'Termina',
+    shortLast: 'Usar el último día en meses más cortos',
+    shortSkip: 'Omitir meses más cortos',
     cancel: 'Cancelar',
     empty: 'Aún no hay recordatorios',
     emptyHelp:
@@ -253,6 +295,41 @@ export default function App() {
       hour: '2-digit',
       minute: '2-digit',
     });
+  const scheduleLabel = (medicine: Medicine) => {
+    const kind = medicine.scheduleKind ?? 'daily';
+    const when =
+      kind === 'interval'
+        ? `${t.everyHours} ${medicine.intervalHours} ${t.hours}${
+            medicine.intervalAnchor != null
+              ? ` · ${t.anchor}: ${new Date(
+                  medicine.intervalAnchor,
+                ).toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                })}`
+              : ''
+          }`
+        : `${
+            kind === 'weekday'
+              ? (medicine.weekdays ?? [])
+                  .map(day => t.weekdays[day - 1])
+                  .join(', ')
+              : kind === 'monthly'
+              ? `${t.monthly}: ${medicine.monthlyDay ?? t.lastDay}${
+                  medicine.monthlyDay != null && medicine.monthlyDay >= 29
+                    ? ` · ${
+                        medicine.shortMonthPolicy === 'skip'
+                          ? t.shortSkip
+                          : t.shortLast
+                      }`
+                    : ''
+                }`
+              : t.daily
+          } · ${medicine.times.join(', ')}`;
+    return `${when}${
+      medicine.startDate ? ` · ${t.starts}: ${medicine.startDate}` : ''
+    }${medicine.endDate ? ` · ${t.ends}: ${medicine.endDate}` : ''}`;
+  };
   const occurrenceView = (
     occurrence: Occurrence,
     medicine: Medicine,
@@ -723,8 +800,7 @@ export default function App() {
                 </>
               ) : screen === 'reminders' ? (
                 <>
-                  <Button
-                    color="#527457"
+                  <PillAction
                     title={t.add}
                     onPress={() => {
                       setEditing(undefined);
@@ -732,7 +808,10 @@ export default function App() {
                     }}
                   />
                   {state.medicines.length === 0 ? (
-                    <Text style={styles.text}>{t.empty}</Text>
+                    <View style={styles.emptyCard}>
+                      <Text style={styles.emptyTitle}>{t.empty}</Text>
+                      <Text style={styles.emptyHelp}>{t.emptyHelp}</Text>
+                    </View>
                   ) : (
                     state.medicines.map(medicine => (
                       <View key={medicine.id} style={styles.medicine}>
@@ -740,6 +819,20 @@ export default function App() {
                         {medicine.status === 'paused' && (
                           <Text style={styles.text}>{t.paused}</Text>
                         )}
+                        <Text style={styles.text}>
+                          {medicine.type === 'reminder'
+                            ? t.reminder
+                            : t.medicine}
+                        </Text>
+                        {medicine.type === 'medicine' &&
+                          !!medicine.instructions && (
+                            <Text style={styles.text}>
+                              {medicine.instructions}
+                            </Text>
+                          )}
+                        <Text style={styles.text}>
+                          {scheduleLabel(medicine)}
+                        </Text>
                         <Button
                           title={t.edit}
                           color="#527457"
@@ -791,20 +884,6 @@ export default function App() {
                             ])
                           }
                         />
-                        <Text style={styles.text}>
-                          {medicine.type === 'reminder'
-                            ? t.reminder
-                            : t.medicine}
-                        </Text>
-                        {medicine.type === 'medicine' &&
-                          !!medicine.instructions && (
-                            <Text style={styles.text}>
-                              {medicine.instructions}
-                            </Text>
-                          )}
-                        <Text style={styles.text}>
-                          {medicine.times.join(', ')}
-                        </Text>
                       </View>
                     ))
                   )}
@@ -821,30 +900,51 @@ export default function App() {
                   {(state.history ?? []).length === 0 && (
                     <Text style={styles.text}>{t.noHistory}</Text>
                   )}
-                  {[...(state.history ?? [])].reverse().map(occurrence => {
-                    const medicine = state.medicines.find(
-                      item => item.id === occurrence.medicineId,
-                    );
-                    const details = medicine ?? {
-                      id: occurrence.medicineId,
-                      name: occurrence.name ?? '',
-                      instructions: occurrence.instructions ?? '',
-                      type: occurrence.type ?? 'reminder',
-                      times: [],
-                      mode: 'notification' as const,
-                    };
-                    return (
-                      <View
-                        key={`${occurrence.medicineId}:${occurrence.scheduledAt}`}
-                        style={styles.medicine}
-                      >
-                        <Text style={styles.title}>
-                          {occurrence.name ?? details.name}
-                        </Text>
-                        {occurrenceView(occurrence, details)}
-                      </View>
-                    );
-                  })}
+                  {[...(state.history ?? [])]
+                    .sort((a, b) => b.scheduledAt - a.scheduledAt)
+                    .map((occurrence, index, items) => {
+                      const date = new Date(
+                        occurrence.scheduledAt,
+                      ).toLocaleDateString(
+                        language === 'es' ? 'es-MX' : 'en-GB',
+                        { dateStyle: 'full' },
+                      );
+                      const previousDate =
+                        index > 0
+                          ? new Date(
+                              items[index - 1].scheduledAt,
+                            ).toLocaleDateString(
+                              language === 'es' ? 'es-MX' : 'en-GB',
+                              { dateStyle: 'full' },
+                            )
+                          : null;
+                      const medicine = state.medicines.find(
+                        item => item.id === occurrence.medicineId,
+                      );
+                      const details = medicine ?? {
+                        id: occurrence.medicineId,
+                        name: occurrence.name ?? '',
+                        instructions: occurrence.instructions ?? '',
+                        type: occurrence.type ?? 'reminder',
+                        times: [],
+                        mode: 'notification' as const,
+                      };
+                      return (
+                        <View
+                          key={`${occurrence.medicineId}:${occurrence.scheduledAt}`}
+                        >
+                          {date !== previousDate && (
+                            <Text
+                              accessibilityRole="header"
+                              style={styles.sectionTitle}
+                            >
+                              {date}
+                            </Text>
+                          )}
+                          {occurrenceView(occurrence, details, true)}
+                        </View>
+                      );
+                    })}
                   <Button
                     color="#527457"
                     title={t.clearHistory}
@@ -879,6 +979,7 @@ export default function App() {
               ) : (
                 <>
                   <Text style={styles.text}>{t.explanation}</Text>
+                  <Text style={styles.text}>{t.storage}</Text>
                   <Text style={styles.text}>
                     {t.notifications}:{' '}
                     {state.notifications ? t.allowed : t.notAllowed}
@@ -1193,7 +1294,14 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
-  medicine: { borderWidth: 1, borderColor: '#324b49', padding: 16 },
+  medicine: {
+    borderWidth: 1,
+    borderColor: '#e5e1cf',
+    backgroundColor: '#fffaf1',
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
+  },
   occurrence: {
     gap: 9,
     marginTop: 0,
