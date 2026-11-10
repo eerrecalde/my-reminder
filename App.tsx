@@ -47,8 +47,18 @@ const words = {
     offAlarms: 'Allow exact alarms so your reminders can arrive on time.',
     test: 'Send a test reminder',
     settings: 'Reminder access',
-    notifications: 'Allow notifications',
-    exact: 'Allow exact alarms',
+    notifications: 'Notifications',
+    exact: 'Exact alarms',
+    accessIntro:
+      'Notifications and exact alarms are needed for reminders to arrive on time.',
+    notificationHelp: 'Lets reminders appear on your phone.',
+    exactHelp: 'Lets reminders arrive at the scheduled time.',
+    allowNotifications: 'Allow notifications',
+    notificationSettings: 'Notification settings',
+    allowExact: 'Allow exact alarms',
+    exactSettings: 'Exact alarm settings',
+    accessReady: 'Both permissions are allowed.',
+    exactAutomatic: 'Automatically allowed on this phone.',
     explanation:
       'Reminders resume after you unlock your phone for the first time after a restart.',
     storage:
@@ -116,8 +126,8 @@ const words = {
     unconfirmedReminder: 'Recordatorio sin confirmar',
     medicine: 'Medicamento',
     reminder: 'Recordatorio',
-    allowed: 'Permitido',
-    notAllowed: 'No permitido',
+    allowed: 'Permitidas',
+    notAllowed: 'No permitidas',
     enable: 'Revisar acceso a recordatorios',
     offBoth:
       'Permite las notificaciones y las alarmas exactas para recibir recordatorios a tiempo.',
@@ -127,8 +137,18 @@ const words = {
       'Permite las alarmas exactas para recibir tus recordatorios a tiempo.',
     test: 'Enviar recordatorio de prueba',
     settings: 'Acceso a recordatorios',
-    notifications: 'Permitir notificaciones',
-    exact: 'Permitir alarmas exactas',
+    notifications: 'Notificaciones',
+    exact: 'Alarmas exactas',
+    accessIntro:
+      'Se necesitan notificaciones y alarmas exactas para recibir recordatorios a tiempo.',
+    notificationHelp: 'Permite que los recordatorios aparezcan en tu teléfono.',
+    exactHelp: 'Permite que los recordatorios lleguen a la hora programada.',
+    allowNotifications: 'Permitir notificaciones',
+    notificationSettings: 'Configuración de notificaciones',
+    allowExact: 'Permitir alarmas exactas',
+    exactSettings: 'Configuración de alarmas exactas',
+    accessReady: 'Ambos permisos están habilitados.',
+    exactAutomatic: 'Se permiten automáticamente en este teléfono.',
     explanation:
       'Los recordatorios se reanudan después de desbloquear el teléfono por primera vez tras reiniciarlo.',
     storage:
@@ -967,30 +987,122 @@ export default function App() {
                 </>
               ) : (
                 <>
-                  <Text style={styles.text}>{t.explanation}</Text>
-                  <Text style={styles.text}>{t.storage}</Text>
-                  <Text style={styles.text}>
-                    {t.notifications}:{' '}
-                    {state.notifications ? t.allowed : t.notAllowed}
-                  </Text>
+                  <Text style={styles.accessIntro}>{t.accessIntro}</Text>
+                  {!state.enabled && (
+                    <View style={styles.warning}>
+                      <View style={styles.warningHeader}>
+                        <View
+                          accessible={false}
+                          importantForAccessibility="no-hide-descendants"
+                          style={styles.warningIcon}
+                        >
+                          <Text style={styles.warningIconText}>!</Text>
+                        </View>
+                        <Text
+                          accessibilityRole="alert"
+                          style={styles.warningTitle}
+                        >
+                          {t.off}
+                        </Text>
+                      </View>
+                      <Text style={styles.warningText}>
+                        {!state.notifications && !state.exactAlarms
+                          ? t.offBoth
+                          : !state.notifications
+                          ? t.offNotifications
+                          : t.offAlarms}
+                      </Text>
+                    </View>
+                  )}
+                  {state.enabled && (
+                    <Text style={styles.accessReady}>{t.accessReady}</Text>
+                  )}
+                  {[
+                    {
+                      key: 'notifications',
+                      title: t.notifications,
+                      allowed: state.notifications,
+                      help: t.notificationHelp,
+                      action: state.notifications
+                        ? t.notificationSettings
+                        : t.allowNotifications,
+                      onPress: state.notifications
+                        ? () => reminderRepository.openNotificationSettings()
+                        : allowNotifications,
+                    },
+                    {
+                      key: 'exact',
+                      title: t.exact,
+                      allowed: state.exactAlarms,
+                      help: t.exactHelp,
+                      action: state.exactAlarms
+                        ? t.exactSettings
+                        : t.allowExact,
+                      onPress: () => reminderRepository.openAlarmSettings(),
+                      automatic:
+                        Platform.OS === 'android' &&
+                        Number(Platform.Version) < 31,
+                    },
+                  ].map(permission => (
+                    <View
+                      key={permission.key}
+                      testID={`access-${permission.key}`}
+                      style={styles.permissionCard}
+                    >
+                      <View style={styles.permissionHeader}>
+                        <View
+                          accessible={false}
+                          importantForAccessibility="no-hide-descendants"
+                          style={[
+                            styles.permissionIcon,
+                            permission.allowed
+                              ? styles.permissionAllowed
+                              : styles.permissionDenied,
+                          ]}
+                        >
+                          <Text style={styles.permissionIconText}>
+                            {permission.allowed ? '✓' : '×'}
+                          </Text>
+                        </View>
+                        <View style={styles.permissionHeading}>
+                          <Text style={styles.permissionTitle}>
+                            {permission.title}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.permissionStatus,
+                              permission.allowed
+                                ? styles.allowedText
+                                : styles.deniedText,
+                            ]}
+                          >
+                            {permission.allowed ? t.allowed : t.notAllowed}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.permissionHelp}>
+                        {permission.help}
+                      </Text>
+                      {permission.automatic ? (
+                        <Text style={styles.permissionHelp}>
+                          {t.exactAutomatic}
+                        </Text>
+                      ) : (
+                        <PillAction
+                          secondary={permission.allowed}
+                          title={permission.action}
+                          onPress={permission.onPress}
+                        />
+                      )}
+                    </View>
+                  ))}
                   <PillAction
-                    title={t.notifications}
-                    onPress={allowNotifications}
-                  />
-                  <View style={styles.spacer} />
-                  <Text style={styles.text}>
-                    {t.exact}: {state.exactAlarms ? t.allowed : t.notAllowed}
-                  </Text>
-                  <PillAction
-                    title={t.exact}
-                    onPress={() => reminderRepository.openAlarmSettings()}
-                  />
-                  <View style={styles.spacer} />
-                  <PillAction
+                    secondary
                     title={t.test}
                     onPress={() => reminderRepository.testReminder()}
                   />
-                  <View style={styles.spacer} />
+                  <Text style={styles.accessFoot}>{t.explanation}</Text>
+                  <Text style={styles.accessFoot}>{t.storage}</Text>
                   <PillAction
                     secondary
                     title={t.cancel}
@@ -1260,6 +1372,39 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   warningText: { color: '#4b2925', fontSize: 16, lineHeight: 23 },
+  accessIntro: { color: '#41483d', fontSize: 16, lineHeight: 23 },
+  accessReady: { color: '#326a35', fontSize: 16, fontWeight: '600' },
+  permissionCard: {
+    backgroundColor: '#fffdf7',
+    borderColor: '#e4dfd0',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
+  permissionHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  permissionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  permissionAllowed: { backgroundColor: '#3c773d' },
+  permissionDenied: { backgroundColor: '#b83229' },
+  permissionIconText: {
+    color: '#fff',
+    fontSize: 21,
+    fontWeight: '700',
+    lineHeight: 26,
+  },
+  permissionHeading: { flex: 1, gap: 2 },
+  permissionTitle: { color: '#162524', fontSize: 18, fontWeight: '700' },
+  permissionStatus: { fontSize: 15, fontWeight: '600' },
+  allowedText: { color: '#326a35' },
+  deniedText: { color: '#a13027' },
+  permissionHelp: { color: '#41483d', fontSize: 16, lineHeight: 22 },
+  accessFoot: { color: '#41483d', fontSize: 15, lineHeight: 22 },
   medicine: {
     borderWidth: 1,
     borderColor: '#e5e1cf',
@@ -1299,6 +1444,5 @@ const styles = StyleSheet.create({
   },
   outcomeLabel: { color: '#1b2a1c', fontSize: 17, fontWeight: '700', flex: 1 },
   outcomeChevron: { color: '#203b21', fontSize: 27, lineHeight: 30 },
-  spacer: { height: 12 },
   error: { color: '#a01818', fontSize: 18 },
 });
