@@ -383,6 +383,9 @@ test('shows and corrects a deleted reminder occurrence using its saved details',
   await ReactTestRenderer.act(async () => {
     view = ReactTestRenderer.create(<App />);
   });
+  await ReactTestRenderer.act(() => {
+    view.root.findByProps({ accessibilityLabel: 'Taken (1)' }).props.onPress();
+  });
   expect(
     view.root
       .findAllByType(Text)
@@ -410,16 +413,14 @@ test.each([
 ])('navigation has clear accessible names in %s', async (language, labels) => {
   const repository = require('../src/reminderRepository');
   repository.reminderRepository = {
-    state: jest
-      .fn()
-      .mockResolvedValue({
-        enabled: true,
-        language,
-        medicines: [],
-        todayDoses: [],
-        history: [],
-        upcoming: [],
-      }),
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      language,
+      medicines: [],
+      todayDoses: [],
+      history: [],
+      upcoming: [],
+    }),
   };
   let view!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
@@ -432,3 +433,98 @@ test.each([
   }
   await ReactTestRenderer.act(() => view.unmount());
 });
+
+test.each([
+  ['en', 'Done', 'Taken', 'Skipped', 'Missed'],
+  ['es', 'Hecho', 'Tomado', 'Omitido', 'No confirmado a tiempo'],
+])(
+  'groups earlier outcomes separately and expands their details in %s',
+  async (language, done, taken, skipped, missed) => {
+    const repository = require('../src/reminderRepository');
+    repository.reminderRepository = {
+      state: jest.fn().mockResolvedValue({
+        enabled: true,
+        language,
+        medicines: [],
+        upcoming: [],
+        history: [],
+        todayDoses: [
+          {
+            medicineId: 'r',
+            name: 'Water plants',
+            type: 'reminder',
+            scheduledAt: 1000,
+            outcome: 'completed',
+          },
+          {
+            medicineId: 'm1',
+            name: 'Vitamin A',
+            type: 'medicine',
+            scheduledAt: 2000,
+            outcome: 'completed',
+          },
+          {
+            medicineId: 'm2',
+            name: 'Vitamin B',
+            type: 'medicine',
+            scheduledAt: 3000,
+            outcome: 'completed',
+          },
+          {
+            medicineId: 's',
+            name: 'Walk',
+            type: 'reminder',
+            scheduledAt: 4000,
+            outcome: 'skipped',
+          },
+          {
+            medicineId: 'x',
+            name: 'Exercise',
+            type: 'reminder',
+            scheduledAt: 5000,
+            outcome: 'missed',
+          },
+        ],
+      }),
+    };
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      view = ReactTestRenderer.create(<App />);
+    });
+    for (const label of [
+      `${done} (1)`,
+      `${taken} (2)`,
+      `${skipped} (1)`,
+      `${missed} (1)`,
+    ]) {
+      expect(
+        view.root.findByProps({ accessibilityLabel: label }).props
+          .accessibilityState.expanded,
+      ).toBe(false);
+    }
+    const hasName = (name: string) =>
+      view.root
+        .findAllByType(Text)
+        .some(node => JSON.stringify(node.props.children).includes(name));
+    expect(hasName('Vitamin A')).toBe(false);
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findByProps({ accessibilityLabel: `${taken} (2)` })
+        .props.onPress(),
+    );
+    expect(hasName('Vitamin A')).toBe(true);
+    expect(hasName('Vitamin B')).toBe(true);
+    expect(hasName('Water plants')).toBe(false);
+    expect(
+      view.root.findByProps({ accessibilityLabel: `${taken} (2)` }).props
+        .accessibilityState.expanded,
+    ).toBe(true);
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findByProps({ accessibilityLabel: `${taken} (2)` })
+        .props.onPress(),
+    );
+    expect(hasName('Vitamin A')).toBe(false);
+    await ReactTestRenderer.act(() => view.unmount());
+  },
+);
