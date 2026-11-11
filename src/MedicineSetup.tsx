@@ -1,3 +1,4 @@
+import { AppIcon } from './AppIcon';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
@@ -546,9 +547,10 @@ export function MedicineSetup({
                 style={styles.fieldControl}
               >
                 <Text style={styles.fieldValue}>{t[scheduleKind]}</Text>
-                <Text style={styles.fieldAction}>
-                  {frequencyOpen ? '⌃' : '⌄'}
-                </Text>
+                <AppIcon
+                  name={frequencyOpen ? 'chevronUp' : 'chevronDown'}
+                  color="#36542b"
+                />
               </Pressable>
               {frequencyOpen && (
                 <View
