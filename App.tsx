@@ -1,3 +1,4 @@
+import { AppIcon } from './src/AppIcon';
 import { SoundChoice } from './src/SoundChoice';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -386,9 +387,11 @@ export default function App() {
       >
         <View style={styles.occurrenceHeading}>
           <View style={styles.iconCircle}>
-            <Text style={styles.iconText}>
-              {medicine.type === 'medicine' ? '✚' : '◷'}
-            </Text>
+            {medicine.type === 'medicine' ? (
+              <Text style={styles.iconText}>✚</Text>
+            ) : (
+              <AppIcon name="clock" color="#4d6d38" />
+            )}
           </View>
           <View style={styles.occurrenceCopy}>
             <Text style={styles.itemName}>
@@ -803,9 +806,10 @@ export default function App() {
                           <Text style={styles.outcomeLabel}>
                             {group.label} ({items.length})
                           </Text>
-                          <Text style={styles.outcomeChevron}>
-                            {isExpanded ? '⌄' : '›'}
-                          </Text>
+                          <AppIcon
+                            name={isExpanded ? 'chevronUp' : 'chevronDown'}
+                            color="#203b21"
+                          />
                         </Pressable>
                         {isExpanded &&
                           items.map(item =>
@@ -1194,9 +1198,7 @@ export default function App() {
                       ) : tab === 'reminders' ? (
                         <Text style={styles.listIcon}>☷</Text>
                       ) : (
-                        <View style={styles.clockIcon}>
-                          <View style={styles.clockHand} />
-                        </View>
+                        <AppIcon name="clock" color="#12251a" />
                       )}
                     </View>
                     <Text style={styles.navText}>{t[tab]}</Text>
@@ -1262,22 +1264,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   listIcon: { fontSize: 24, lineHeight: 27, color: '#12251a' },
-  clockIcon: {
-    width: 19,
-    height: 19,
-    borderWidth: 1.8,
-    borderColor: '#12251a',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  clockHand: {
-    width: 5,
-    height: 7,
-    borderLeftWidth: 1.5,
-    borderBottomWidth: 1.5,
-    borderColor: '#12251a',
-    marginTop: 2,
-  },
   navText: {
     textAlign: 'center',
     color: '#253b29',
@@ -1491,6 +1477,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   outcomeLabel: { color: '#1b2a1c', fontSize: 17, fontWeight: '700', flex: 1 },
-  outcomeChevron: { color: '#203b21', fontSize: 27, lineHeight: 30 },
   error: { color: '#a01818', fontSize: 18 },
 });

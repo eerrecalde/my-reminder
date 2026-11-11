@@ -10,9 +10,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "lucide-react-native": "^1.72.0",
     "react": "19.3.0",
     "react-native": "0.88.1",
-    "react-native-safe-area-context": "^5.5.2"
+    "react-native-safe-area-context": "^5.5.2",
+    "react-native-svg": "^15.16.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
