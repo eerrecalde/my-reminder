@@ -93,7 +93,7 @@ class AlarmSoundService : Service() {
       else -> false
     }
     if (!allowed || reminderChannel == null || reminderChannel.importance == NotificationManager.IMPORTANCE_NONE) { finish(); return }
-    val uri = when (val selected = sessionSound) { null -> reminderChannel.sound; "" -> null; else -> android.net.Uri.parse(selected) }
+    val uri = if (!ReminderSounds.channelAllowsSound(reminderChannel)) null else when (val selected = sessionSound) { null -> reminderChannel.sound; "" -> null; else -> android.net.Uri.parse(selected) }
     if (uri != null && audio.ringerMode == AudioManager.RINGER_MODE_NORMAL && audio.getStreamVolume(AudioManager.STREAM_NOTIFICATION) > 0) {
       val newPlayer = MediaPlayer()
       try {

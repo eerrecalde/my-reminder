@@ -19,6 +19,9 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       if (resultCode != android.app.Activity.RESULT_OK || data == null) { promise.resolve(null); return }
       @Suppress("DEPRECATION")
       val uri = data.getParcelableExtra<Uri>(android.media.RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+      if (uri != null && data.flags and Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION != 0) {
+        try { reactContext.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) { }
+      }
       promise.resolve(uri?.toString() ?: "")
     }
   }

@@ -31,6 +31,10 @@ object ReminderSounds {
     if (choice.isNullOrEmpty() || !available(context, choice)) return null
     return try { RingtoneManager.getRingtone(context, Uri.parse(choice))?.getTitle(context) } catch (_: Exception) { null }
   }
+  fun channelAllowsSound(channel: NotificationChannel): Boolean = channel.importance >= NotificationManager.IMPORTANCE_DEFAULT && channel.sound != null
+  fun useLegacyControls(legacy: NotificationChannel, selected: NotificationChannel): Boolean =
+    selected.importance != NotificationManager.IMPORTANCE_NONE &&
+      ((selected.shouldVibrate() && !legacy.shouldVibrate()) || selected.importance > legacy.importance)
   fun channel(context: Context, choice: String?): String {
     if (choice == null) return LEGACY
     val manager = context.getSystemService(NotificationManager::class.java)
@@ -38,7 +42,9 @@ object ReminderSounds {
     val id = "reminder_sound_$hash"
     val legacy = manager.getNotificationChannel(LEGACY)
     val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
-    manager.createNotificationChannel(NotificationChannel(id, context.getString(R.string.reminder_channel), legacy?.importance ?: NotificationManager.IMPORTANCE_HIGH).apply {
+    val soundName = if (choice.isEmpty()) context.getString(R.string.sound_silent) else title(context, choice) ?: context.getString(R.string.sound_selected)
+    val channelName = "${context.getString(R.string.reminder_channel)} – $soundName"
+    manager.createNotificationChannel(NotificationChannel(id, channelName, legacy?.importance ?: NotificationManager.IMPORTANCE_HIGH).apply {
       setSound(if (choice.isEmpty()) null else Uri.parse(choice), attributes)
       enableVibration(legacy?.shouldVibrate() ?: true)
     })
