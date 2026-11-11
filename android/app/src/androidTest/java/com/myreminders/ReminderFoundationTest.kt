@@ -247,7 +247,7 @@ class ReminderFoundationTest {
       }
     }
   }
-  @Test fun notificationActionsPersistUndoAndKeepFutureScheduleForBothTypes() {
+  @Test fun notificationActionsDismissWithoutConfirmationAndKeepFutureScheduleForBothTypes() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val manager = context.getSystemService(NotificationManager::class.java)
     assertTrue(ReminderScheduler.enabled(context))
@@ -269,11 +269,10 @@ class ReminderFoundationTest {
         repeat(50) { if (MedicineRepository(context).use { it.outcome(item.id, due) } != "completed") Thread.sleep(50) }
         assertEquals("completed", MedicineRepository(context).use { it.outcome(item.id, due) })
         action.send()
-        repeat(50) { if (manager.activeNotifications.find { it.id == notificationId }?.notification?.actions?.singleOrNull()?.title?.toString() != context.getString(R.string.undo)) Thread.sleep(50) }
-        val undo = requireNotNull(manager.activeNotifications.find { it.id == notificationId }).notification.actions.single().actionIntent
+        repeat(50) { if (manager.activeNotifications.any { it.id == notificationId }) Thread.sleep(50) }
+        assertFalse(manager.activeNotifications.any { it.id == notificationId })
         assertEquals(future, MedicineRepository(context).use { it.alarm(item.id) })
-        undo.send()
-        repeat(50) { if (MedicineRepository(context).use { it.outcome(item.id, due) } != null) Thread.sleep(50) }
+        ReminderScheduler.recordOutcome(context, item.id, due, null)
         assertNull(MedicineRepository(context).use { it.outcome(item.id, due) })
         assertEquals(future, MedicineRepository(context).use { it.alarm(item.id) })
       } finally {

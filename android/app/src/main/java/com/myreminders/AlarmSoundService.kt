@@ -69,7 +69,7 @@ class AlarmSoundService : Service() {
     val manager = getSystemService(NotificationManager::class.java)
     manager.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.alarm_channel), NotificationManager.IMPORTANCE_LOW).apply { setSound(null, null) })
     val stop = PendingIntent.getService(this, 1, Intent(this, AlarmSoundService::class.java).setAction(STOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-    val notification = NotificationCompat.Builder(this, CHANNEL).setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+    val notification = NotificationCompat.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_notification)
       .setContentTitle(getString(R.string.alarm_playing)).setOngoing(true)
       .addAction(0, getString(R.string.stop_sound), stop).build()
     startForeground(NOTIFICATION_ID, notification)

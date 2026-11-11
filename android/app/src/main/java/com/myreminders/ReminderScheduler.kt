@@ -350,12 +350,7 @@ object ReminderScheduler {
       return
     }
     if (outcome !in listOf("completed", "skipped")) return
-    val change = recordOutcome(context, id, at, outcome, true) ?: return
-    val medicine = MedicineRepository(context).use { repo -> repo.all().find { it.id == id } } ?: return
-    val notification = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle(medicine.name).setContentText(context.getString(if (outcome == "skipped") R.string.skipped else if (medicine.type == "medicine") R.string.taken else R.string.completed))
-      .setSilent(true).setAutoCancel(true).addAction(0, context.getString(R.string.undo), outcomeIntent(context, id, at, "undo_${change.revision}")).build()
-    try { NotificationManagerCompat.from(context).notify(notificationId(id, at), notification) } catch (_: SecurityException) { }
+    recordOutcome(context, id, at, outcome, true)
   }
 
   private fun outcomeIntent(context: Context, id: String, at: Long, outcome: String): PendingIntent {
@@ -388,7 +383,7 @@ object ReminderScheduler {
     val suppressAlert = selectedSettings != null && legacyChannel != null &&
       ((useLegacy && (selectedSettings.sound == null || (!selectedSettings.shouldVibrate() && legacyChannel.shouldVibrate()))) ||
         (!useLegacy && selectedSettings.shouldVibrate() && !legacyChannel.shouldVibrate()))
-    val notification = NotificationCompat.Builder(context, channel).setSmallIcon(android.R.drawable.ic_dialog_info)
+    val notification = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notification)
       .setContentTitle(medicine.name).setContentText(body).setContentIntent(open).setAutoCancel(false)
       .setCategory(NotificationCompat.CATEGORY_REMINDER).setSilent(medicine.mode == "alarm" || systemMuted || suppressAlert).setPriority(NotificationCompat.PRIORITY_HIGH)
       .addAction(0, context.getString(if (medicine.type == "medicine") R.string.taken else R.string.completed), outcomeIntent(context, medicine.id, at, "completed"))
@@ -446,7 +441,7 @@ object ReminderScheduler {
     val manager = context.getSystemService(NotificationManager::class.java)
     manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.reminder_channel), NotificationManager.IMPORTANCE_HIGH).apply { enableVibration(true) })
     val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-    val notification = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info)
+    val notification = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.ic_notification)
       .setContentTitle(title).setContentText(text).setContentIntent(open).setAutoCancel(true).setCategory(NotificationCompat.CATEGORY_REMINDER).setSilent(silent).setPriority(NotificationCompat.PRIORITY_HIGH).build()
     try { NotificationManagerCompat.from(context).notify(id, notification) } catch (_: SecurityException) { }
   }
