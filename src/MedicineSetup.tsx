@@ -446,7 +446,10 @@ export function MedicineSetup({
         <Text style={styles.fieldValue}>
           {value ? formatDate(value) : t.noEnd}
         </Text>
-        <Text style={styles.fieldAction}>{action} ›</Text>
+        <View style={styles.fieldActionRow}>
+          <Text style={styles.fieldAction}>{action}</Text>
+          <AppIcon name="chevronRight" color="#36542b" />
+        </View>
       </Pressable>
     </View>
   );
@@ -459,14 +462,7 @@ export function MedicineSetup({
           onPress={goBack}
           style={styles.back}
         >
-          <View
-            style={styles.arrowIcon}
-            accessible={false}
-            importantForAccessibility="no-hide-descendants"
-          >
-            <View style={styles.arrowShaft} />
-            <View style={styles.arrowHead} />
-          </View>
+          <AppIcon name="arrowLeft" color="#36542b" />
           <Text style={styles.backText}>{t.back}</Text>
         </Pressable>
         <View style={styles.brand}>
@@ -570,10 +566,11 @@ export function MedicineSetup({
                       }}
                       style={styles.scheduleOption}
                     >
-                      <Text style={styles.modeText}>
-                        {scheduleKind === kind ? '● ' : '○ '}
-                        {t[kind]}
-                      </Text>
+                      <AppIcon
+                        name={scheduleKind === kind ? 'circleDot' : 'circle'}
+                        color="#36542b"
+                      />
+                      <Text style={styles.modeText}>{t[kind]}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -594,10 +591,13 @@ export function MedicineSetup({
                   }
                   style={styles.modeOption}
                 >
-                  <Text style={styles.modeText}>
-                    {weekdays.includes(index + 1) ? '☑ ' : '□ '}
-                    {label}
-                  </Text>
+                  <AppIcon
+                    name={
+                      weekdays.includes(index + 1) ? 'squareCheck' : 'square'
+                    }
+                    color="#36542b"
+                  />
+                  <Text style={styles.modeText}>{label}</Text>
                 </Pressable>
               ))}
             {scheduleKind === 'interval' && (
@@ -634,9 +634,12 @@ export function MedicineSetup({
                     <Text style={styles.fieldValue}>
                       {anchorTime || t.selectTime}
                     </Text>
-                    <Text style={styles.fieldAction}>
-                      {anchorTime ? t.change : t.select} ›
-                    </Text>
+                    <View style={styles.fieldActionRow}>
+                      <Text style={styles.fieldAction}>
+                        {anchorTime ? t.change : t.select}
+                      </Text>
+                      <AppIcon name="chevronRight" color="#36542b" />
+                    </View>
                   </Pressable>
                 </View>
               </>
@@ -657,10 +660,11 @@ export function MedicineSetup({
                   onPress={() => setMonthlyDay('last')}
                   style={styles.modeOption}
                 >
-                  <Text style={styles.modeText}>
-                    {monthlyDay === 'last' ? '● ' : '○ '}
-                    {t.lastDay}
-                  </Text>
+                  <AppIcon
+                    name={monthlyDay === 'last' ? 'circleDot' : 'circle'}
+                    color="#36542b"
+                  />
+                  <Text style={styles.modeText}>{t.lastDay}</Text>
                 </Pressable>
                 {Number(monthlyDay) >= 29 && monthlyDay !== 'last' && (
                   <>
@@ -675,8 +679,13 @@ export function MedicineSetup({
                         onPress={() => setShortMonthPolicy(policy)}
                         style={styles.modeOption}
                       >
+                        <AppIcon
+                          name={
+                            shortMonthPolicy === policy ? 'circleDot' : 'circle'
+                          }
+                          color="#36542b"
+                        />
                         <Text style={styles.modeText}>
-                          {shortMonthPolicy === policy ? '● ' : '○ '}
                           {policy === 'last' ? t.useLast : t.skipMonth}
                         </Text>
                       </Pressable>
@@ -715,9 +724,12 @@ export function MedicineSetup({
                     <Text style={styles.fieldValue}>
                       {onceTime || t.selectTime}
                     </Text>
-                    <Text style={styles.fieldAction}>
-                      {onceTime ? t.change : t.select} ›
-                    </Text>
+                    <View style={styles.fieldActionRow}>
+                      <Text style={styles.fieldAction}>
+                        {onceTime ? t.change : t.select}
+                      </Text>
+                      <AppIcon name="chevronRight" color="#36542b" />
+                    </View>
                   </Pressable>
                 </View>
               </>
@@ -777,7 +789,10 @@ export function MedicineSetup({
                           style={[styles.fieldControl, styles.timeControl]}
                         >
                           <Text style={styles.fieldValue}>{time}</Text>
-                          <Text style={styles.fieldAction}>{t.change} ›</Text>
+                          <View style={styles.fieldActionRow}>
+                            <Text style={styles.fieldAction}>{t.change}</Text>
+                            <AppIcon name="chevronRight" color="#36542b" />
+                          </View>
                         </Pressable>
                         {times.length > 1 && (
                           <Pressable
@@ -812,11 +827,17 @@ export function MedicineSetup({
                       }
                     >
                       {times.length ? (
-                        <Text style={styles.linkText}>＋ {t.addTime}</Text>
+                        <View style={styles.fieldActionRow}>
+                          <AppIcon name="plus" color="#36542b" />
+                          <Text style={styles.linkText}>{t.addTime}</Text>
+                        </View>
                       ) : (
                         <>
                           <Text style={styles.fieldValue}>{t.selectTime}</Text>
-                          <Text style={styles.fieldAction}>{t.select} ›</Text>
+                          <View style={styles.fieldActionRow}>
+                            <Text style={styles.fieldAction}>{t.select}</Text>
+                            <AppIcon name="chevronRight" color="#36542b" />
+                          </View>
                         </>
                       )}
                     </Pressable>
@@ -837,10 +858,11 @@ export function MedicineSetup({
                   onPress={() => setMode(choice)}
                   style={styles.modeOption}
                 >
-                  <Text style={styles.modeText}>
-                    {mode === choice ? '● ' : '○ '}
-                    {t[choice]}
-                  </Text>
+                  <AppIcon
+                    name={mode === choice ? 'circleDot' : 'circle'}
+                    color="#36542b"
+                  />
+                  <Text style={styles.modeText}>{t[choice]}</Text>
                 </Pressable>
               ))}
             </View>
@@ -997,26 +1019,6 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 48,
   },
-  arrowIcon: { width: 24, height: 24 },
-  arrowShaft: {
-    position: 'absolute',
-    left: 3,
-    top: 11,
-    width: 19,
-    height: 2,
-    backgroundColor: '#36542b',
-  },
-  arrowHead: {
-    position: 'absolute',
-    left: 4,
-    top: 7,
-    width: 10,
-    height: 10,
-    borderLeftWidth: 2,
-    borderBottomWidth: 2,
-    borderColor: '#36542b',
-    transform: [{ rotate: '45deg' }],
-  },
   backText: { color: '#36542b', fontSize: 18, fontWeight: '600' },
   heading: {
     color: '#162524',
@@ -1046,7 +1048,9 @@ const styles = StyleSheet.create({
   },
   scheduleOption: {
     minHeight: 48,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   fieldGroup: { gap: 8, marginVertical: 8 },
   fieldLabel: { color: '#162524', fontSize: 17, fontWeight: '600' },
@@ -1064,6 +1068,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   fieldValue: { color: '#162524', fontSize: 17, flexShrink: 1 },
+  fieldActionRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   fieldAction: { color: '#36542b', fontSize: 15, fontWeight: '600' },
   timeRow: { flexDirection: 'row', gap: 8, alignItems: 'stretch' },
   timeControl: { flex: 1 },
@@ -1083,6 +1088,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   linkText: { color: '#36542b', fontSize: 16, fontWeight: '700' },
-  modeOption: { minHeight: 48, justifyContent: 'center' },
+  modeOption: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   modeText: { color: '#162524', fontSize: 18 },
 });

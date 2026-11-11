@@ -387,11 +387,10 @@ export default function App() {
       >
         <View style={styles.occurrenceHeading}>
           <View style={styles.iconCircle}>
-            {medicine.type === 'medicine' ? (
-              <Text style={styles.iconText}>✚</Text>
-            ) : (
-              <AppIcon name="clock" color="#4d6d38" />
-            )}
+            <AppIcon
+              name={medicine.type === 'medicine' ? 'pill' : 'clock'}
+              color="#4d6d38"
+            />
           </View>
           <View style={styles.occurrenceCopy}>
             <Text style={styles.itemName}>
@@ -548,7 +547,7 @@ export default function App() {
                     onPress={() => setScreen('access')}
                     hitSlop={12}
                   >
-                    <Text style={styles.moreIcon}>⋮</Text>
+                    <AppIcon name="moreVertical" color="#142219" />
                   </Pressable>
                 </View>
               )}
@@ -597,7 +596,7 @@ export default function App() {
                           importantForAccessibility="no-hide-descendants"
                           style={styles.warningIcon}
                         >
-                          <Text style={styles.warningIconText}>!</Text>
+                          <AppIcon name="warning" color="#fff" />
                         </View>
                         <Text
                           accessibilityRole="alert"
@@ -686,7 +685,7 @@ export default function App() {
                           </Text>
                           <View style={styles.nextBody}>
                             <View style={styles.iconCircle}>
-                              <Text style={styles.iconText}>◷</Text>
+                              <AppIcon name="clock" color="#4d6d38" />
                             </View>
                             <View style={styles.occurrenceCopy}>
                               <Text style={styles.itemName}>
@@ -796,13 +795,16 @@ export default function App() {
                             group.key === 'missed' && styles.outcomeMissed,
                           ]}
                         >
-                          <Text style={styles.outcomeIcon}>
-                            {group.key === 'skipped'
-                              ? '×'
-                              : group.key === 'missed'
-                              ? '!'
-                              : '✓'}
-                          </Text>
+                          <AppIcon
+                            name={
+                              group.key === 'skipped'
+                                ? 'xCircle'
+                                : group.key === 'missed'
+                                ? 'warning'
+                                : 'checkCircle'
+                            }
+                            color="#203b21"
+                          />
                           <Text style={styles.outcomeLabel}>
                             {group.label} ({items.length})
                           </Text>
@@ -837,7 +839,8 @@ export default function App() {
                     onPress={() => setScreen('access')}
                     style={styles.accessLink}
                   >
-                    <Text style={styles.accessLinkText}>{t.settings} ›</Text>
+                    <Text style={styles.accessLinkText}>{t.settings}</Text>
+                    <AppIcon name="chevronRight" color="#526d40" />
                   </Pressable>
                 </>
               ) : screen === 'reminders' ? (
@@ -1048,7 +1051,7 @@ export default function App() {
                           importantForAccessibility="no-hide-descendants"
                           style={styles.warningIcon}
                         >
-                          <Text style={styles.warningIconText}>!</Text>
+                          <AppIcon name="warning" color="#fff" />
                         </View>
                         <Text
                           accessibilityRole="alert"
@@ -1112,9 +1115,10 @@ export default function App() {
                               : styles.permissionDenied,
                           ]}
                         >
-                          <Text style={styles.permissionIconText}>
-                            {permission.allowed ? '✓' : '×'}
-                          </Text>
+                          <AppIcon
+                            name={permission.allowed ? 'check' : 'x'}
+                            color="#fff"
+                          />
                         </View>
                         <View style={styles.permissionHeading}>
                           <Text style={styles.permissionTitle}>
@@ -1190,16 +1194,16 @@ export default function App() {
                     ]}
                   >
                     <View accessible={false} style={styles.navIconBox}>
-                      {tab === 'today' ? (
-                        <View style={styles.calendarIcon}>
-                          <View style={styles.calendarTop} />
-                          <Text style={styles.calendarNumber}>·</Text>
-                        </View>
-                      ) : tab === 'reminders' ? (
-                        <Text style={styles.listIcon}>☷</Text>
-                      ) : (
-                        <AppIcon name="clock" color="#12251a" />
-                      )}
+                      <AppIcon
+                        name={
+                          tab === 'today'
+                            ? 'calendar'
+                            : tab === 'reminders'
+                            ? 'list'
+                            : 'clock'
+                        }
+                        color="#12251a"
+                      />
                     </View>
                     <Text style={styles.navText}>{t[tab]}</Text>
                   </Pressable>
@@ -1245,25 +1249,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  calendarIcon: {
-    width: 17,
-    height: 17,
-    borderWidth: 1.8,
-    borderColor: '#12251a',
-    borderRadius: 2,
-  },
-  calendarTop: {
-    height: 5,
-    borderBottomWidth: 1.5,
-    borderBottomColor: '#12251a',
-  },
-  calendarNumber: {
-    color: '#12251a',
-    textAlign: 'center',
-    lineHeight: 8,
-    fontWeight: '700',
-  },
-  listIcon: { fontSize: 24, lineHeight: 27, color: '#12251a' },
   navText: {
     textAlign: 'center',
     color: '#253b29',
@@ -1280,7 +1265,6 @@ const styles = StyleSheet.create({
   brandName: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   brandLeaf: { width: 48, height: 36, marginHorizontal: -7 },
   brandText: { color: '#17231a', fontSize: 17, fontWeight: '700' },
-  moreIcon: { color: '#142219', fontSize: 27, lineHeight: 32 },
   headerArt: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1341,7 +1325,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconText: { fontSize: 25, color: '#4d6d38', fontWeight: '600' },
   occurrenceCopy: { flex: 1 },
   occurrenceHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   metaText: { color: '#383b31', fontSize: 15, marginTop: 3 },
@@ -1370,6 +1353,8 @@ const styles = StyleSheet.create({
   emptyAction: { marginTop: 24, minWidth: 220, maxWidth: '100%' },
   accessLink: {
     alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
@@ -1392,12 +1377,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#b83229',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  warningIconText: {
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: '700',
-    lineHeight: 26,
   },
   warningTitle: {
     color: '#8f241e',
@@ -1426,12 +1405,6 @@ const styles = StyleSheet.create({
   },
   permissionAllowed: { backgroundColor: '#3c773d' },
   permissionDenied: { backgroundColor: '#b83229' },
-  permissionIconText: {
-    color: '#fff',
-    fontSize: 21,
-    fontWeight: '700',
-    lineHeight: 26,
-  },
   permissionHeading: { flex: 1, gap: 2 },
   permissionTitle: { color: '#162524', fontSize: 18, fontWeight: '700' },
   permissionStatus: { fontSize: 15, fontWeight: '600' },
@@ -1470,12 +1443,6 @@ const styles = StyleSheet.create({
   },
   outcomeSkipped: { backgroundColor: '#f4e4cc' },
   outcomeMissed: { backgroundColor: '#f4ded6' },
-  outcomeIcon: {
-    color: '#203b21',
-    fontSize: 24,
-    width: 25,
-    textAlign: 'center',
-  },
   outcomeLabel: { color: '#1b2a1c', fontSize: 17, fontWeight: '700', flex: 1 },
   error: { color: '#a01818', fontSize: 18 },
 });
