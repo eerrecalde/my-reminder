@@ -21,6 +21,8 @@ class AlarmSoundService : Service() {
   private val active = mutableMapOf<String, Long>()
   private var player: MediaPlayer? = null
   private var vibrator: Vibrator? = null
+  private var sessionSound: String? = null
+  private var sessionStarted = false
   private val settingsChanged = object : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
       stopOutputs()
@@ -71,7 +73,11 @@ class AlarmSoundService : Service() {
       .setContentTitle(getString(R.string.alarm_playing)).setOngoing(true)
       .addAction(0, getString(R.string.stop_sound), stop).build()
     startForeground(NOTIFICATION_ID, notification)
-    if (player == null && vibrator == null) startSound(manager)
+    if (!sessionStarted) {
+      sessionSound = MedicineRepository(this).use { ReminderSounds.resolve(this, "alarm", it.soundChoice(id, "alarm")) }
+      sessionStarted = true
+      startSound(manager)
+    }
     return START_NOT_STICKY
   }
 
@@ -87,7 +93,7 @@ class AlarmSoundService : Service() {
       else -> false
     }
     if (!allowed || reminderChannel == null || reminderChannel.importance == NotificationManager.IMPORTANCE_NONE) { finish(); return }
-    val uri = reminderChannel?.sound
+    val uri = when (val selected = sessionSound) { null -> reminderChannel.sound; "" -> null; else -> android.net.Uri.parse(selected) }
     if (uri != null && audio.ringerMode == AudioManager.RINGER_MODE_NORMAL && audio.getStreamVolume(AudioManager.STREAM_NOTIFICATION) > 0) {
       val newPlayer = MediaPlayer()
       try {
@@ -109,7 +115,6 @@ class AlarmSoundService : Service() {
         device.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 500), 0))
       }
     }
-    if (player == null && vibrator == null) finish()
   }
 
   private fun finish() { stopSelf() }

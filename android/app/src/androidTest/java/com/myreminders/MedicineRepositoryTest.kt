@@ -68,6 +68,24 @@ class MedicineRepositoryTest {
     context.deleteDatabase(db)
   }
 
+  @Test fun savingAndEditingPersistBothSoundModes() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "sound-save-test.db"
+    context.deleteDatabase(db)
+    val id = MedicineRepository(context, db).use { repo ->
+      val saved = repo.save("Water", "", listOf("09:00"), 1000, "reminder", soundChoices = MedicineRepository.SoundChoices("", "content://sound/alarm"))
+      assertEquals("", repo.soundChoice(saved.id, "notification"))
+      assertEquals("content://sound/alarm", repo.soundChoice(saved.id, "alarm"))
+      repo.edit(saved.id, "Water", "", listOf("09:00"), "reminder", "alarm", soundChoices = MedicineRepository.SoundChoices(null, "content://sound/alarm"))
+      saved.id
+    }
+    MedicineRepository(context, db).use { repo ->
+      assertNull(repo.soundChoice(id, "notification"))
+      assertEquals("content://sound/alarm", repo.soundChoice(id, "alarm"))
+    }
+    context.deleteDatabase(db)
+  }
+
   @Test fun version15UpgradePreservesReminderAndOccurrences() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val db = "sound-upgrade-test.db"

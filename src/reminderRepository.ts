@@ -29,6 +29,21 @@ export type ReminderState = {
 };
 export interface ReminderRepository {
   state(): Promise<ReminderState>;
+  selectSound(
+    mode: 'notification' | 'alarm',
+    current: string | null,
+  ): Promise<string | null>;
+  soundInfo(
+    choice: string,
+  ): Promise<{ available: boolean; title: string | null }>;
+  soundDefaults(): Promise<{
+    notification: string | null;
+    alarm: string | null;
+  }>;
+  setSoundDefault(
+    mode: 'notification' | 'alarm',
+    choice: string | null,
+  ): Promise<void>;
   snooze(id: string, at: number, minutes: number): Promise<void>;
   setOutcome(
     id: string,
@@ -87,8 +102,41 @@ export interface ReminderRepository {
     startDate: string,
     endDate: string | null,
   ): Promise<void>;
-  saveScheduled(type: ReminderType, name: string, instructions: string, times: string[], mode: 'notification' | 'alarm', startDate: string, endDate: string | null, scheduleKind: 'daily' | 'weekday' | 'interval' | 'monthly', weekdays: number[], intervalHours: number | null, intervalAnchor: number | null, monthlyDay: number | null, shortMonthPolicy: 'last' | 'skip'): Promise<void>;
-  editScheduled(id: string, type: ReminderType, name: string, instructions: string, times: string[], mode: 'notification' | 'alarm', startDate: string, endDate: string | null, scheduleKind: 'daily' | 'weekday' | 'interval' | 'monthly', weekdays: number[], intervalHours: number | null, intervalAnchor: number | null, monthlyDay: number | null, shortMonthPolicy: 'last' | 'skip'): Promise<void>;
+  saveScheduled(
+    type: ReminderType,
+    name: string,
+    instructions: string,
+    times: string[],
+    mode: 'notification' | 'alarm',
+    startDate: string,
+    endDate: string | null,
+    scheduleKind: 'daily' | 'weekday' | 'interval' | 'monthly',
+    weekdays: number[],
+    intervalHours: number | null,
+    intervalAnchor: number | null,
+    monthlyDay: number | null,
+    shortMonthPolicy: 'last' | 'skip',
+    notificationSound: string | null,
+    alarmSound: string | null,
+  ): Promise<string>;
+  editScheduled(
+    id: string,
+    type: ReminderType,
+    name: string,
+    instructions: string,
+    times: string[],
+    mode: 'notification' | 'alarm',
+    startDate: string,
+    endDate: string | null,
+    scheduleKind: 'daily' | 'weekday' | 'interval' | 'monthly',
+    weekdays: number[],
+    intervalHours: number | null,
+    intervalAnchor: number | null,
+    monthlyDay: number | null,
+    shortMonthPolicy: 'last' | 'skip',
+    notificationSound: string | null,
+    alarmSound: string | null,
+  ): Promise<void>;
   selectDate(date: string): Promise<string | null>;
   selectTime(time: string): Promise<string | null>;
 }

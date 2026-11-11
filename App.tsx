@@ -1,3 +1,4 @@
+import { SoundChoice } from './src/SoundChoice';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   AppState,
@@ -218,6 +219,17 @@ export default function App() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [editing, setEditing] = useState<Medicine>();
+  const [soundDefaults, setSoundDefaults] = useState<{
+    notification: string | null;
+    alarm: string | null;
+  }>({ notification: null, alarm: null });
+  useEffect(() => {
+    if (screen === 'access' && reminderRepository.soundDefaults)
+      reminderRepository
+        .soundDefaults()
+        .then(setSoundDefaults)
+        .catch(() => {});
+  }, [screen]);
   const [setupOrigin, setSetupOrigin] = useState<'today' | 'reminders'>(
     'today',
   );
@@ -496,6 +508,8 @@ export default function App() {
                     medicine.intervalAnchor ?? null,
                     medicine.monthlyDay ?? null,
                     medicine.shortMonthPolicy ?? 'last',
+                    medicine.notificationSound ?? null,
+                    medicine.alarmSound ?? null,
                   );
                   await refresh();
                   setEditing(undefined);
@@ -997,6 +1011,31 @@ export default function App() {
               ) : (
                 <>
                   <Text style={styles.accessIntro}>{t.accessIntro}</Text>
+                  {(['notification', 'alarm'] as const).map(mode => (
+                    <SoundChoice
+                      key={mode}
+                      mode={mode}
+                      value={soundDefaults[mode]}
+                      language={language}
+                      isDefault
+                      onChange={choice => {
+                        reminderRepository
+                          .setSoundDefault(mode, choice)
+                          .then(() =>
+                            setSoundDefaults(current => ({
+                              ...current,
+                              [mode]: choice,
+                            })),
+                          )
+                          .catch(() => setError(t.error));
+                      }}
+                    />
+                  ))}
+                  <Text>
+                    {language === 'es'
+                      ? 'El sonido también depende de la configuración de notificaciones del teléfono.'
+                      : 'Sound also depends on your phone’s notification settings.'}
+                  </Text>
                   {!state.enabled && (
                     <View style={styles.warning}>
                       <View style={styles.warningHeader}>

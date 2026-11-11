@@ -76,6 +76,8 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     }
   }
 
+  data class SoundChoices(val notification: String?, val alarm: String?)
+
   /** Null inherits the app default; an empty string is an explicit silent choice. */
   fun soundChoice(id: String, mode: String): String? {
     require(mode == "notification" || mode == "alarm")
@@ -188,7 +190,7 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     }
   }
 
-  fun save(name: String, instructions: String, times: List<String>, now: Long, type: String = "medicine", mode: String = "notification", startDate: String? = null, endDate: String? = null, scheduleKind: String = "daily", weekdays: List<Int> = emptyList(), intervalHours: Int? = null, intervalAnchor: Long? = null, monthlyDay: Int? = null, shortMonthPolicy: String = "last"): Medicine {
+  fun save(name: String, instructions: String, times: List<String>, now: Long, type: String = "medicine", mode: String = "notification", startDate: String? = null, endDate: String? = null, scheduleKind: String = "daily", weekdays: List<Int> = emptyList(), intervalHours: Int? = null, intervalAnchor: Long? = null, monthlyDay: Int? = null, shortMonthPolicy: String = "last", soundChoices: SoundChoices? = null): Medicine {
     require(name.isNotBlank() && times.isNotEmpty() && type in listOf("medicine", "reminder") && mode in listOf("notification", "alarm"))
     times.forEach { java.time.LocalTime.parse(it) }
     validateDates(startDate, endDate)
@@ -203,6 +205,7 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     db.beginTransaction()
     try {
       db.insertOrThrow("medicines", null, values)
+      soundChoices?.let { setSoundChoice(medicine.id, "notification", it.notification); setSoundChoice(medicine.id, "alarm", it.alarm) }
       db.insertOrThrow("occurrence_tracking", null, ContentValues().apply { put("medicine_id", medicine.id); put("starts_after", now) })
       db.setTransactionSuccessful()
     } finally { db.endTransaction() }
@@ -329,7 +332,7 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     require(start == null || end == null || end >= start)
   }
 
-  fun edit(id: String, name: String, instructions: String, times: List<String>, type: String, mode: String, now: Long? = null, startDate: String? = null, endDate: String? = null, scheduleKind: String = "daily", weekdays: List<Int> = emptyList(), intervalHours: Int? = null, intervalAnchor: Long? = null, monthlyDay: Int? = null, shortMonthPolicy: String = "last") {
+  fun edit(id: String, name: String, instructions: String, times: List<String>, type: String, mode: String, now: Long? = null, startDate: String? = null, endDate: String? = null, scheduleKind: String = "daily", weekdays: List<Int> = emptyList(), intervalHours: Int? = null, intervalAnchor: Long? = null, monthlyDay: Int? = null, shortMonthPolicy: String = "last", soundChoices: SoundChoices? = null) {
     require(name.isNotBlank() && times.isNotEmpty() && type in listOf("medicine", "reminder") && mode in listOf("notification", "alarm"))
     times.forEach { java.time.LocalTime.parse(it) }
     validateDates(startDate, endDate)
@@ -346,6 +349,7 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
       values.put("changed_at", cutoff)
       retireTransitionAlarm(id, cutoff)
       check(db.update("medicines", values, "id = ? AND status != 'deleted'", arrayOf(id)) == 1)
+      soundChoices?.let { setSoundChoice(id, "notification", it.notification); setSoundChoice(id, "alarm", it.alarm) }
       db.execSQL("UPDATE occurrence_tracking SET starts_after = ? WHERE medicine_id = ?", arrayOf<Any>(cutoff, id))
       db.setTransactionSuccessful()
     } finally { db.endTransaction() }

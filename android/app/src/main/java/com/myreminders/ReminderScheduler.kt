@@ -279,13 +279,13 @@ object ReminderScheduler {
     }
   }
 
-  @Synchronized fun edit(context: Context, id: String, name: String, instructions: String, times: List<String>, type: String, mode: String, startDate: String? = null, endDate: String? = null, scheduleKind: String = "daily", weekdays: List<Int> = emptyList(), intervalHours: Int? = null, intervalAnchor: Long? = null, monthlyDay: Int? = null, shortMonthPolicy: String = "last") {
+  @Synchronized fun edit(context: Context, id: String, name: String, instructions: String, times: List<String>, type: String, mode: String, startDate: String? = null, endDate: String? = null, scheduleKind: String = "daily", weekdays: List<Int> = emptyList(), intervalHours: Int? = null, intervalAnchor: Long? = null, monthlyDay: Int? = null, shortMonthPolicy: String = "last", soundChoices: MedicineRepository.SoundChoices? = null) {
     rebuild(context)
     MedicineRepository(context).use { repo ->
       val old = requireNotNull(repo.all().find { it.id == id && it.status != "deleted" })
       try {
         beginTransition(context, repo, id)
-        repo.edit(id, name, instructions, times, type, mode, startDate = startDate, endDate = endDate, scheduleKind = scheduleKind, weekdays = weekdays, intervalHours = intervalHours, intervalAnchor = intervalAnchor, monthlyDay = monthlyDay, shortMonthPolicy = shortMonthPolicy)
+        repo.edit(id, name, instructions, times, type, mode, startDate = startDate, endDate = endDate, scheduleKind = scheduleKind, weekdays = weekdays, intervalHours = intervalHours, intervalAnchor = intervalAnchor, monthlyDay = monthlyDay, shortMonthPolicy = shortMonthPolicy, soundChoices = soundChoices)
         if (old.status == "active") schedule(context, requireNotNull(repo.all().find { it.id == id }))
         repo.transition(id)?.let { finishTransition(context, repo, it) }
       } catch (error: Exception) {
@@ -371,9 +371,14 @@ object ReminderScheduler {
     val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     val body = medicine.instructions.takeIf { medicine.type == "medicine" && it.isNotBlank() }
       ?: context.getString(if (medicine.type == "medicine") R.string.reminder_due else R.string.general_reminder_due)
-    val notification = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info)
+    val choice = MedicineRepository(context).use { it.soundChoice(medicine.id, "notification") }
+    val sound = ReminderSounds.resolve(context, "notification", choice)
+    val channel = if (medicine.mode == "notification") ReminderSounds.channel(context, sound) else CHANNEL
+    val legacyChannel = manager.getNotificationChannel(CHANNEL)
+    val systemMuted = legacyChannel != null && (legacyChannel.sound == null || legacyChannel.importance < NotificationManager.IMPORTANCE_DEFAULT)
+    val notification = NotificationCompat.Builder(context, channel).setSmallIcon(android.R.drawable.ic_dialog_info)
       .setContentTitle(medicine.name).setContentText(body).setContentIntent(open).setAutoCancel(false)
-      .setCategory(NotificationCompat.CATEGORY_REMINDER).setSilent(medicine.mode == "alarm").setPriority(NotificationCompat.PRIORITY_HIGH)
+      .setCategory(NotificationCompat.CATEGORY_REMINDER).setSilent(medicine.mode == "alarm" || systemMuted).setPriority(NotificationCompat.PRIORITY_HIGH)
       .addAction(0, context.getString(if (medicine.type == "medicine") R.string.taken else R.string.completed), outcomeIntent(context, medicine.id, at, "completed"))
       .addAction(0, context.getString(R.string.skip), outcomeIntent(context, medicine.id, at, "skipped"))
       .addAction(0, context.getString(R.string.snooze_ten), outcomeIntent(context, medicine.id, at, "snooze"))
