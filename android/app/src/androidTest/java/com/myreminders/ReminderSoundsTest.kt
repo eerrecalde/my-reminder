@@ -123,6 +123,20 @@ class ReminderSoundsTest {
       Thread.sleep(500)
       assertTrue(manager.activeNotifications.any { it.id == 119348 })
       assertTrue(audio.activePlaybackConfigurations.none { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
+      @Suppress("DEPRECATION")
+      val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+      if (vibrator.hasVibrator() && manager.getNotificationChannel("medicine_reminders").shouldVibrate() && audio.ringerMode != android.media.AudioManager.RINGER_MODE_SILENT) {
+        val automation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+        var vibrating = false
+        repeat(20) {
+          if (!vibrating) {
+            val output = android.os.ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand("dumpsys vibrator_manager")).bufferedReader().use { it.readText() }
+            vibrating = output.contains("currentState = VIBRATING")
+            if (!vibrating) Thread.sleep(100)
+          }
+        }
+        assertTrue("A silent alarm should still vibrate when the device allows it", vibrating)
+      }
     } finally {
       ReminderSounds.setDefault(context, "alarm", null)
       ids.forEach { ReminderScheduler.setStatus(context, it, "deleted") }
@@ -134,6 +148,83 @@ class ReminderSoundsTest {
         repo.writableDatabase.delete("reminder_sound_choices", "medicine_id = ?", arrayOf(id))
         repo.writableDatabase.delete("medicines", "id = ?", arrayOf(id))
       } }
+    }
+  }
+
+  @Test fun snoozedAlarmUsesTheNewDefaultWhenItRestarts() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(NotificationManager::class.java)
+    val audio = context.getSystemService(android.media.AudioManager::class.java)
+    val now = System.currentTimeMillis()
+    val time = java.time.LocalTime.now().plusHours(2).format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    val item = MedicineRepository(context).use { it.save("Snoozed alarm sound", "", listOf(time), now - 10000, "medicine", "alarm") }
+    val at = now - 1000
+    try {
+      ReminderSounds.setDefault(context, "alarm", "")
+      MedicineRepository(context).use { it.setAlarm(item.id, at, "alarm-snooze") }
+      ReminderScheduler.deliver(context, item.id, at, "alarm-snooze")
+      repeat(50) { if (manager.activeNotifications.none { it.id == 119348 }) Thread.sleep(50) }
+      assertTrue(manager.activeNotifications.any { it.id == 119348 })
+      assertTrue(ReminderScheduler.snooze(context, item.id, at, 10))
+      repeat(100) { if (manager.activeNotifications.any { it.id == 119348 }) Thread.sleep(50) }
+      assertFalse(manager.activeNotifications.any { it.id == 119348 })
+      ReminderSounds.setDefault(context, "alarm", RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION).toString())
+      val token = MedicineRepository(context).use { repo ->
+        val snooze = requireNotNull(repo.snooze(item.id, at))
+        repo.writableDatabase.execSQL("UPDATE snoozes SET alert_at = ? WHERE medicine_id = ?", arrayOf(now - 1, item.id))
+        snooze.token
+      }
+      ReminderScheduler.deliverSnooze(context, item.id, at, token)
+      repeat(100) { if (audio.activePlaybackConfigurations.none { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION }) Thread.sleep(50) }
+      assertTrue("The restarted alarm should use the new audible default", audio.activePlaybackConfigurations.any { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
+    } finally {
+      ReminderSounds.setDefault(context, "alarm", null)
+      ReminderScheduler.setStatus(context, item.id, "deleted")
+      context.stopService(android.content.Intent(context, AlarmSoundService::class.java))
+      manager.cancel(("${item.id}:$at").hashCode())
+      MedicineRepository(context).use { repo ->
+        repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("reminder_sound_choices", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
+
+  @Test fun doNotDisturbSuppressesSelectedAlarmSound() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(NotificationManager::class.java)
+    val audio = context.getSystemService(android.media.AudioManager::class.java)
+    val automation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+    val hadAccess = manager.isNotificationPolicyAccessGranted
+    val priorFilter = manager.currentInterruptionFilter
+    val now = System.currentTimeMillis()
+    val time = java.time.LocalTime.now().plusHours(2).format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    val item = MedicineRepository(context).use { it.save("DND sound test", "", listOf(time), now - 10000, "reminder", "alarm", soundChoices = MedicineRepository.SoundChoices(null, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION).toString())) }
+    val at = now - 1000
+    try {
+      if (!hadAccess) automation.executeShellCommand("cmd notification allow_dnd ${context.packageName}").close()
+      repeat(30) { if (!manager.isNotificationPolicyAccessGranted) Thread.sleep(100) }
+      assertTrue(manager.isNotificationPolicyAccessGranted)
+      manager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
+      repeat(30) { if (manager.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_NONE) Thread.sleep(100) }
+      MedicineRepository(context).use { it.setAlarm(item.id, at, "dnd-sound") }
+      ReminderScheduler.deliver(context, item.id, at, "dnd-sound")
+      Thread.sleep(1000)
+      assertFalse(manager.activeNotifications.any { it.id == 119348 })
+      assertTrue(audio.activePlaybackConfigurations.none { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
+    } finally {
+      manager.setInterruptionFilter(priorFilter)
+      if (!hadAccess) automation.executeShellCommand("cmd notification disallow_dnd ${context.packageName}").close()
+      ReminderScheduler.setStatus(context, item.id, "deleted")
+      context.stopService(android.content.Intent(context, AlarmSoundService::class.java))
+      manager.cancel(("${item.id}:$at").hashCode())
+      MedicineRepository(context).use { repo ->
+        repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("reminder_sound_choices", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
     }
   }
 
