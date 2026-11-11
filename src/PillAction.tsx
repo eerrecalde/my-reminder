@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppIcon } from './AppIcon';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
 export function PillAction({
   title,
@@ -30,10 +31,7 @@ export function PillAction({
       ]}
     >
       {showPlus && (
-        <View accessible={false} style={styles.plusIcon}>
-          <View style={styles.plusHorizontal} />
-          <View style={styles.plusVertical} />
-        </View>
+        <AppIcon name="plus" color={secondary ? '#36542b' : '#fffdf4'} />
       )}
       <Text style={[styles.pillLabel, secondary && styles.pillSecondaryLabel]}>
         {title}
@@ -68,24 +66,4 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   pillSecondaryLabel: { color: '#36542b' },
-  plusIcon: {
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  plusHorizontal: {
-    position: 'absolute',
-    width: 20,
-    height: 2,
-    backgroundColor: '#fffdf4',
-    borderRadius: 1,
-  },
-  plusVertical: {
-    position: 'absolute',
-    height: 20,
-    width: 2,
-    backgroundColor: '#fffdf4',
-    borderRadius: 1,
-  },
 });

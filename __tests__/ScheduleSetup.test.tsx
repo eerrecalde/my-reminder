@@ -95,8 +95,9 @@ test.each([
           .findAllByType(Text)
           .some(
             t =>
-              Array.isArray(t.props.children) &&
-              t.props.children.includes(label),
+              t.props.children === label ||
+              (Array.isArray(t.props.children) &&
+                t.props.children.includes(label)),
           ),
     )[0];
     expect(option).toBeDefined();
@@ -159,8 +160,9 @@ test('discarding invalid interval and monthly settings allows another schedule t
               .findAllByType(Text)
               .some(
                 t =>
-                  Array.isArray(t.props.children) &&
-                  t.props.children.includes(label),
+                  t.props.children === label ||
+                  (Array.isArray(t.props.children) &&
+                    t.props.children.includes(label)),
               ),
         )[0]
         .props.onPress(),

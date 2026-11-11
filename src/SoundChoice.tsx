@@ -1,3 +1,4 @@
+import { AppIcon } from './AppIcon';
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { reminderRepository } from './reminderRepository';
@@ -78,7 +79,8 @@ export function SoundChoice({
         }}
         style={styles.button}
       >
-        <Text style={styles.value}>{label} ›</Text>
+        <Text style={styles.value}>{label}</Text>
+        <AppIcon name="chevronRight" color="#305f55" />
       </Pressable>
       {value !== null && (
         <Pressable accessibilityRole="button" onPress={() => onChange(null)}>
@@ -114,7 +116,7 @@ export function SoundChoice({
 const styles = StyleSheet.create({
   container: { marginVertical: 12 },
   title: { color: '#162524', fontSize: 18 },
-  button: { paddingVertical: 14 },
-  value: { color: '#305f55', fontSize: 16 },
+  button: { paddingVertical: 14, flexDirection: 'row', alignItems: 'center' },
+  value: { color: '#305f55', fontSize: 16, flexShrink: 1 },
   reset: { color: '#305f55' },
 });

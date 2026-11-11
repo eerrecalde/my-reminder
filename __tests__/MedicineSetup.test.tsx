@@ -37,8 +37,9 @@ async function chooseFrequency(
         .findAllByType(Text)
         .some(
           text =>
-            Array.isArray(text.props.children) &&
-            text.props.children.includes(label),
+            text.props.children === label ||
+            (Array.isArray(text.props.children) &&
+              text.props.children.includes(label)),
         ),
   )[0];
   await ReactTestRenderer.act(() => option.props.onPress());
