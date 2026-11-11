@@ -10,7 +10,22 @@ import com.facebook.react.uimanager.ViewManager
 import java.util.Locale
 
 class ReminderModule(private val reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext), LifecycleEventListener {
-  init { reactContext.addLifecycleEventListener(this) }
+  private var pickerPromise: Promise? = null
+  private val pickerListener = object : BaseActivityEventListener() {
+    override fun onActivityResult(activity: android.app.Activity, requestCode: Int, resultCode: Int, data: Intent?) {
+      if (requestCode != 21931) return
+      val promise = pickerPromise ?: return
+      pickerPromise = null
+      if (resultCode != android.app.Activity.RESULT_OK || data == null) { promise.resolve(null); return }
+      @Suppress("DEPRECATION")
+      val uri = data.getParcelableExtra<Uri>(android.media.RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+      if (uri != null && data.flags and Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION != 0) {
+        try { reactContext.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) { }
+      }
+      promise.resolve(uri?.toString() ?: "")
+    }
+  }
+  init { reactContext.addLifecycleEventListener(this); reactContext.addActivityEventListener(pickerListener) }
   override fun getName() = "ReminderRepository"
   override fun onHostResume() { ReminderScheduler.rebuild(reactContext) }
   override fun onHostPause() = Unit
@@ -27,6 +42,7 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       val medicines = Arguments.createArray()
       MedicineRepository(reactContext).use { repo -> repo.all().filter { it.status != "deleted" }.forEach { medicine ->
         medicines.pushMap(Arguments.createMap().apply {
+          putString("notificationSound", repo.soundChoice(medicine.id, "notification")); putString("alarmSound", repo.soundChoice(medicine.id, "alarm"))
           putString("id", medicine.id); putString("status", medicine.status); putString("type", medicine.type); putString("mode", medicine.mode); putString("name", medicine.name); putString("instructions", medicine.instructions)
           putString("startDate", medicine.startDate); putString("endDate", medicine.endDate)
           putString("scheduleKind", medicine.scheduleKind)
@@ -72,6 +88,37 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       promise.resolve(result)
     } catch (error: Exception) { promise.reject("state_failed", error) }
   }
+  @ReactMethod fun soundInfo(choice: String?, promise: Promise) {
+    promise.resolve(Arguments.createMap().apply {
+      putBoolean("available", ReminderSounds.available(reactContext, choice))
+      putString("title", ReminderSounds.title(reactContext, choice))
+    })
+  }
+  @ReactMethod fun soundDefaults(promise: Promise) {
+    promise.resolve(Arguments.createMap().apply {
+      putString("notification", ReminderSounds.default(reactContext, "notification"))
+      putString("alarm", ReminderSounds.default(reactContext, "alarm"))
+    })
+  }
+  @ReactMethod fun setSoundDefault(mode: String, choice: String?, promise: Promise) {
+    try { ReminderSounds.setDefault(reactContext, mode, choice); promise.resolve(null) }
+    catch (error: Exception) { promise.reject("sound_failed", error) }
+  }
+  @ReactMethod fun selectSound(mode: String, current: String?, promise: Promise) {
+    if (mode !in listOf("notification", "alarm")) { promise.reject("invalid_mode", "Invalid sound mode"); return }
+    reactContext.runOnUiQueueThread {
+      val activity = reactContext.currentActivity
+      if (activity == null || pickerPromise != null) { promise.reject("picker_unavailable", "Sound picker unavailable"); return@runOnUiQueueThread }
+      val intent = Intent(android.media.RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+        putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_TYPE, if (mode == "alarm") android.media.RingtoneManager.TYPE_ALARM else android.media.RingtoneManager.TYPE_NOTIFICATION)
+        putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
+        putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+        putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, if (current == "") null else if (current == null) android.media.RingtoneManager.getDefaultUri(if (mode == "alarm") android.media.RingtoneManager.TYPE_ALARM else android.media.RingtoneManager.TYPE_NOTIFICATION) else Uri.parse(current))
+      }
+      try { pickerPromise = promise; activity.startActivityForResult(intent, 21931) }
+      catch (error: Exception) { pickerPromise = null; promise.reject("picker_failed", error) }
+    }
+  }
   @ReactMethod fun snooze(id: String, at: Double, minutes: Int, promise: Promise) {
     try { check(ReminderScheduler.snooze(reactContext, id, at.toLong(), minutes)) { "Unable to snooze occurrence" }; promise.resolve(null) }
     catch (error: Exception) { promise.reject("snooze_failed", error) }
@@ -114,7 +161,7 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
   @ReactMethod fun saveDated(type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, promise: Promise) {
     saveWithMode(type, name, instructions, times, mode, startDate, endDate, promise)
   }
-  @ReactMethod fun saveScheduled(type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, scheduleKind: String, weekdays: ReadableArray, intervalHours: Double?, intervalAnchor: Double?, monthlyDay: Double?, shortMonthPolicy: String, promise: Promise) {
+  @ReactMethod fun saveScheduled(type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, scheduleKind: String, weekdays: ReadableArray, intervalHours: Double?, intervalAnchor: Double?, monthlyDay: Double?, shortMonthPolicy: String, notificationSound: String?, alarmSound: String?, promise: Promise) {
     try {
       require(intervalHours == null || (intervalHours.isFinite() && intervalHours > 0 && intervalHours <= Int.MAX_VALUE && intervalHours % 1.0 == 0.0))
       require(monthlyDay == null || (monthlyDay.isFinite() && monthlyDay % 1.0 == 0.0 && monthlyDay in 1.0..31.0))
@@ -124,18 +171,18 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       ReminderScheduler.rebuild(reactContext)
       ReminderScheduler.ensureReconciliation(reactContext)
       MedicineRepository(reactContext).use { repo ->
-        val medicine = repo.save(name, instructions, clockTimes, System.currentTimeMillis(), type, mode, startDate, endDate, scheduleKind, days, intervalHours?.toInt(), intervalAnchor?.toLong(), monthlyDay?.toInt(), shortMonthPolicy)
+        val medicine = repo.save(name, instructions, clockTimes, System.currentTimeMillis(), type, mode, startDate, endDate, scheduleKind, days, intervalHours?.toInt(), intervalAnchor?.toLong(), monthlyDay?.toInt(), shortMonthPolicy, MedicineRepository.SoundChoices(notificationSound, alarmSound))
         ReminderScheduler.schedule(reactContext, medicine)
+        promise.resolve(medicine.id)
       }
-      promise.resolve(null)
     } catch (error: Exception) { promise.reject("save_failed", error) }
   }
-  @ReactMethod fun editScheduled(id: String, type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, scheduleKind: String, weekdays: ReadableArray, intervalHours: Double?, intervalAnchor: Double?, monthlyDay: Double?, shortMonthPolicy: String, promise: Promise) {
+  @ReactMethod fun editScheduled(id: String, type: String, name: String, instructions: String, times: ReadableArray, mode: String, startDate: String, endDate: String?, scheduleKind: String, weekdays: ReadableArray, intervalHours: Double?, intervalAnchor: Double?, monthlyDay: Double?, shortMonthPolicy: String, notificationSound: String?, alarmSound: String?, promise: Promise) {
     try {
       require(intervalHours == null || (intervalHours.isFinite() && intervalHours > 0 && intervalHours <= Int.MAX_VALUE && intervalHours % 1.0 == 0.0))
       require(monthlyDay == null || (monthlyDay.isFinite() && monthlyDay % 1.0 == 0.0 && monthlyDay in 1.0..31.0))
       require(intervalAnchor == null || (intervalAnchor.isFinite() && intervalAnchor % 1.0 == 0.0))
-      ReminderScheduler.edit(reactContext, id, name, instructions, (0 until times.size()).map { requireNotNull(times.getString(it)) }, type, mode, startDate, endDate, scheduleKind, (0 until weekdays.size()).map { weekdays.getInt(it) }, intervalHours?.toInt(), intervalAnchor?.toLong(), monthlyDay?.toInt(), shortMonthPolicy)
+      ReminderScheduler.edit(reactContext, id, name, instructions, (0 until times.size()).map { requireNotNull(times.getString(it)) }, type, mode, startDate, endDate, scheduleKind, (0 until weekdays.size()).map { weekdays.getInt(it) }, intervalHours?.toInt(), intervalAnchor?.toLong(), monthlyDay?.toInt(), shortMonthPolicy, MedicineRepository.SoundChoices(notificationSound, alarmSound))
       promise.resolve(null)
     } catch (error: Exception) { promise.reject("edit_failed", error) }
   }

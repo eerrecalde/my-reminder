@@ -47,6 +47,68 @@ class MedicineRepositoryTest {
     context.deleteDatabase(db)
     }
   }
+  @Test fun soundChoicesSurviveRestartAndKeepModesIndependent() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "sound-choices-test.db"
+    context.deleteDatabase(db)
+    val id = MedicineRepository(context, db).use { repo ->
+      val item = repo.save("Water", "", listOf("09:00"), 1000, "reminder")
+      assertNull(repo.soundChoice(item.id, "notification"))
+      repo.setSoundChoice(item.id, "notification", "content://sounds/one")
+      repo.setSoundChoice(item.id, "alarm", "")
+      item.id
+    }
+    MedicineRepository(context, db).use { repo ->
+      assertEquals("content://sounds/one", repo.soundChoice(id, "notification"))
+      assertEquals("", repo.soundChoice(id, "alarm"))
+      repo.setSoundChoice(id, "notification", null)
+      assertNull(repo.soundChoice(id, "notification"))
+      assertEquals("", repo.soundChoice(id, "alarm"))
+    }
+    context.deleteDatabase(db)
+  }
+
+  @Test fun savingAndEditingPersistBothSoundModes() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "sound-save-test.db"
+    context.deleteDatabase(db)
+    val id = MedicineRepository(context, db).use { repo ->
+      val saved = repo.save("Water", "", listOf("09:00"), 1000, "reminder", soundChoices = MedicineRepository.SoundChoices("", "content://sound/alarm"))
+      assertEquals("", repo.soundChoice(saved.id, "notification"))
+      assertEquals("content://sound/alarm", repo.soundChoice(saved.id, "alarm"))
+      repo.edit(saved.id, "Water", "", listOf("09:00"), "reminder", "alarm", soundChoices = MedicineRepository.SoundChoices(null, "content://sound/alarm"))
+      saved.id
+    }
+    MedicineRepository(context, db).use { repo ->
+      assertNull(repo.soundChoice(id, "notification"))
+      assertEquals("content://sound/alarm", repo.soundChoice(id, "alarm"))
+    }
+    context.deleteDatabase(db)
+  }
+
+  @Test fun version15UpgradePreservesReminderAndOccurrences() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "sound-upgrade-test.db"
+    context.deleteDatabase(db)
+    val item = MedicineRepository(context, db).use { repo ->
+      val saved = repo.save("Water", "", listOf("09:00"), 1000, "reminder")
+      repo.recordDue(saved.id, 2000)
+      repo.setOutcome(saved.id, 2000, "completed")
+      repo.setAlarm(saved.id, 3000, "future")
+      repo.writableDatabase.execSQL("DROP TABLE reminder_sound_choices")
+      repo.writableDatabase.version = 15
+      saved
+    }
+    MedicineRepository(context, db).use { repo ->
+      assertEquals(item, repo.all().single())
+      assertEquals("completed", repo.outcome(item.id, 2000))
+      assertEquals("future", repo.alarm(item.id)?.token)
+      assertNull(repo.soundChoice(item.id, "notification"))
+      assertNull(repo.soundChoice(item.id, "alarm"))
+    }
+    context.deleteDatabase(db)
+  }
+
   @Test fun transitionPersistsOldAlarmUntilEditIsCommitted() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val db = "transition-test.db"

@@ -13,4 +13,6 @@
     <string name="skipped">Omitido</string>
     <string name="undo">Deshacer</string>
     <string name="snooze_ten">Posponer 10 minutos</string>
+    <string name="sound_silent">Silencio</string>
+    <string name="sound_selected">Sonido seleccionado</string>
 </resources>

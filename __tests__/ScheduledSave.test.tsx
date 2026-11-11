@@ -80,6 +80,8 @@ test.each([false, true])(
       null,
       31,
       'skip',
+      null,
+      null,
     ];
     expect(editing ? editScheduled : saveScheduled).toHaveBeenCalledWith(
       ...(editing ? ['r', ...expected] : expected),

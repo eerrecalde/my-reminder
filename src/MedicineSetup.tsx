@@ -30,6 +30,7 @@ import {
 } from './monthlySchedule';
 import type { ReminderType } from './reminderRepository';
 import { PillAction } from './PillAction';
+import { SoundChoice } from './SoundChoice';
 
 export type DailyMedicineInput = {
   type: ReminderType;
@@ -40,6 +41,8 @@ export type DailyMedicineInput = {
   monthlyDay?: number | null;
   shortMonthPolicy?: 'last' | 'skip';
   mode: 'notification' | 'alarm';
+  notificationSound?: string | null;
+  alarmSound?: string | null;
   name: string;
   instructions: string;
   times: string[];
@@ -215,6 +218,12 @@ export function MedicineSetup({
   const [type, setType] = useState<ReminderType>(initial?.type ?? 'reminder');
   const [mode, setMode] = useState<'notification' | 'alarm'>(
     initial?.mode ?? 'notification',
+  );
+  const [notificationSound, setNotificationSound] = useState<string | null>(
+    initial?.notificationSound ?? null,
+  );
+  const [alarmSound, setAlarmSound] = useState<string | null>(
+    initial?.alarmSound ?? null,
   );
   const [name, setName] = useState(initial?.name ?? '');
   const [instructions, setInstructions] = useState(initial?.instructions ?? '');
@@ -833,6 +842,12 @@ export function MedicineSetup({
                 </Pressable>
               ))}
             </View>
+            <SoundChoice
+              mode={mode}
+              value={mode === 'alarm' ? alarmSound : notificationSound}
+              onChange={mode === 'alarm' ? setAlarmSound : setNotificationSound}
+              language={language}
+            />
           </>
         )}
         {step === 3 && (
@@ -929,6 +944,8 @@ export function MedicineSetup({
                         : null,
                     shortMonthPolicy,
                     mode,
+                    notificationSound,
+                    alarmSound,
                     name: name.trim(),
                     instructions: instructions.trim(),
                     times:
