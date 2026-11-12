@@ -76,11 +76,12 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     }
     if (oldVersion < 17) {
       db.execSQL("ALTER TABLE doses ADD COLUMN one_off INTEGER NOT NULL DEFAULT 0")
-      db.rawQuery("SELECT doses.id, doses.scheduled_at, medicines.start_date, medicines.times FROM doses JOIN medicines ON medicines.id = doses.medicine_id WHERE medicines.schedule_kind = 'daily' AND medicines.start_date IS NOT NULL AND medicines.start_date = medicines.end_date AND doses.scheduled_at >= medicines.changed_at", null).use { cursor ->
+      db.rawQuery("SELECT doses.id, doses.scheduled_at, medicines.start_date, medicines.times FROM doses JOIN medicines ON medicines.id = doses.medicine_id WHERE medicines.schedule_kind = 'daily' AND medicines.start_date IS NOT NULL AND medicines.start_date = medicines.end_date", null).use { cursor ->
         val zone = java.time.ZoneId.systemDefault()
         while (cursor.moveToNext()) {
-          val date = java.time.Instant.ofEpochMilli(cursor.getLong(1)).atZone(zone).toLocalDate().toString()
-          if (date == cursor.getString(2) && JSONArray(cursor.getString(3)).length() == 1) db.execSQL("UPDATE doses SET one_off = 1 WHERE id = ?", arrayOf(cursor.getString(0)))
+          val scheduled = java.time.Instant.ofEpochMilli(cursor.getLong(1)).atZone(zone)
+          val times = JSONArray(cursor.getString(3))
+          if (scheduled.toLocalDate().toString() == cursor.getString(2) && times.length() == 1 && scheduled.toLocalTime().withSecond(0).withNano(0) == java.time.LocalTime.parse(times.getString(0))) db.execSQL("UPDATE doses SET one_off = 1 WHERE id = ?", arrayOf(cursor.getString(0)))
         }
       }
     }

@@ -56,6 +56,8 @@ class MedicineRepositoryTest {
       val saved = repo.save("Water", "", listOf("09:00"), 1000, "reminder", startDate = "2026-06-01", endDate = "2026-06-01")
       repo.recordDue(saved.id, java.time.LocalDate.parse("2026-06-01").atTime(9, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli())
       repo.setAlarm(saved.id, 3000, "future")
+      repo.setStatus(saved.id, "paused", now = System.currentTimeMillis())
+      repo.setStatus(saved.id, "active", now = System.currentTimeMillis())
       repo.writableDatabase.execSQL("ALTER TABLE doses DROP COLUMN one_off")
       repo.writableDatabase.version = 16
       saved.id
