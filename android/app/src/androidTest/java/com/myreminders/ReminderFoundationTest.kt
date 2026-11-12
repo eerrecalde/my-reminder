@@ -497,6 +497,23 @@ class ReminderFoundationTest {
     }
   }
 
+  @Test fun androidAndAppLanguageSettingsStayInSync() {
+    if (android.os.Build.VERSION.SDK_INT < 33) return
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(android.app.LocaleManager::class.java)
+    try {
+      AppLanguage.set(context, "es")
+      assertEquals("es", manager.applicationLocales[0].language)
+      manager.applicationLocales = android.os.LocaleList.forLanguageTags("en")
+      assertEquals("en", AppLanguage.preference(context))
+      assertEquals("en", AppLanguage.effective(context))
+      AppLanguage.set(context, "system")
+      assertTrue(manager.applicationLocales.isEmpty)
+      manager.applicationLocales = android.os.LocaleList.forLanguageTags("es")
+      assertEquals("es", AppLanguage.preference(context))
+    } finally { AppLanguage.set(context, "system") }
+  }
+
   @Test fun languagePreferencePersistsAndSystemFallsBackToEnglish() {
     val base = ApplicationProvider.getApplicationContext<Context>()
     val config = android.content.res.Configuration(base.resources.configuration)
@@ -509,9 +526,8 @@ class ReminderFoundationTest {
       AppLanguage.set(base, "en")
       assertEquals("en", AppLanguage.effective(french))
       AppLanguage.set(base, "system")
-      assertEquals("en", AppLanguage.effective(french))
-      config.setLocale(java.util.Locale.forLanguageTag("es-MX"))
-      assertEquals("es", AppLanguage.effective(base.createConfigurationContext(config)))
+      val systemLanguage = android.content.res.Resources.getSystem().configuration.locales[0].language
+      assertEquals(if (systemLanguage == "es") "es" else "en", AppLanguage.effective(french))
     } finally { AppLanguage.set(base, "system") }
   }
 
@@ -532,7 +548,17 @@ class ReminderFoundationTest {
         val notificationId = ("${item.id}:$due").hashCode()
         try {
           MedicineRepository(context).use { it.setAlarm(item.id, due, "locale-test") }
-          AppLanguage.set(context, language)
+          val before = MedicineRepository(context).use { repo -> repo.all().first { it.id == item.id } to repo.alarm(item.id) }
+          if (android.os.Build.VERSION.SDK_INT >= 33) {
+            context.getSystemService(android.app.LocaleManager::class.java).applicationLocales =
+              android.os.LocaleList.forLanguageTags(language)
+          } else {
+            AppLanguage.set(context, language)
+          }
+          MedicineRepository(context).use { repo ->
+            assertEquals(before.first, repo.all().first { it.id == item.id })
+            assertEquals(before.second, repo.alarm(item.id))
+          }
           ReminderScheduler.deliver(context, item.id, due, "locale-test")
           val notification = requireNotNull(manager.activeNotifications.find { it.id == notificationId }).notification
           val expectedBody = if (language == "en") {
