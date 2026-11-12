@@ -1,5 +1,6 @@
 import { AppIcon } from './src/AppIcon';
 import { SoundChoice } from './src/SoundChoice';
+import { LanguageSelector } from './src/LanguageSelector';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   AppState,
@@ -1079,51 +1080,19 @@ export default function App() {
                   />
                   <Text style={styles.accessFoot}>{t.explanation}</Text>
                   <Text style={styles.accessFoot}>{t.storage}</Text>
-                  <View style={styles.permissionCard}>
-                    <View style={styles.permissionHeader}>
-                      <AppIcon name="languages" color="#203b21" />
-                      <Text style={styles.permissionTitle}>{t.language}</Text>
-                    </View>
-                    {(['system', 'en', 'es'] as const).map(choice => (
-                      <Pressable
-                        key={choice}
-                        testID={`language-${choice}`}
-                        accessibilityRole="radio"
-                        accessibilityState={{
-                          checked:
-                            (state.languagePreference ?? 'system') === choice,
-                        }}
-                        onPress={async () => {
-                          try {
-                            await reminderRepository.setLanguage(choice);
-                            await refresh();
-                          } catch {
-                            setError(t.error);
-                          }
-                        }}
-                        style={styles.permissionHeader}
-                      >
-                        <AppIcon
-                          name={
-                            (state.languagePreference ?? 'system') === choice
-                              ? 'circleDot'
-                              : 'circle'
-                          }
-                          color="#203b21"
-                        />
-                        {choice === 'system' && (
-                          <AppIcon name="globe" color="#203b21" />
-                        )}
-                        <Text>
-                          {choice === 'system'
-                            ? t.systemDefault
-                            : choice === 'en'
-                            ? 'English'
-                            : 'Español'}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
+                  <LanguageSelector
+                    title={t.language}
+                    systemDefault={t.systemDefault}
+                    value={state.languagePreference ?? 'system'}
+                    onChange={async choice => {
+                      try {
+                        await reminderRepository.setLanguage(choice);
+                        await refresh();
+                      } catch {
+                        setError(t.error);
+                      }
+                    }}
+                  />
                   <PillAction
                     secondary
                     title={t.cancel}
