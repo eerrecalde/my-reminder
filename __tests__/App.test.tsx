@@ -1,6 +1,13 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Alert, AppState, NativeModules, Platform, Text } from 'react-native';
+import {
+  Alert,
+  AppState,
+  NativeModules,
+  Platform,
+  StyleSheet,
+  Text,
+} from 'react-native';
 import App, { PillAction } from '../App';
 
 test('records and undoes a reminder outcome from Today', async () => {
@@ -927,6 +934,18 @@ test('shows active reminders before paused reminders in their original order', a
   await ReactTestRenderer.act(() => {
     view.root.findByProps({ testID: 'nav-reminders' }).props.onPress();
   });
+  const first = view.root
+    .findAllByType(Text)
+    .find(node => node.props.children === 'Active first')!;
+  const second = view.root
+    .findAllByType(Text)
+    .find(node => node.props.children === 'Active second')!;
+  expect(first.parent!.parent!.parent === second.parent!.parent!.parent).toBe(
+    true,
+  );
+  expect(
+    StyleSheet.flatten(first.parent!.parent!.parent!.props.style)?.gap,
+  ).toBeGreaterThan(0);
   const names = view.root
     .findAllByType(Text)
     .map(node => node.props.children)
