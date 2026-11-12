@@ -70,3 +70,18 @@ test.each([
     );
   },
 );
+
+test('uses local clock times on a daylight-saving transition date', () => {
+  const schedule = {
+    ...base,
+    times: ['00:30', '02:30'],
+    startDate: '2026-03-29',
+    endDate: '2026-03-29',
+  };
+  expect(hasFutureOccurrence(schedule, new Date(2026, 2, 29, 0, 45))).toBe(
+    true,
+  );
+  expect(hasFutureOccurrence(schedule, new Date(2026, 2, 29, 3, 0))).toBe(
+    false,
+  );
+});
