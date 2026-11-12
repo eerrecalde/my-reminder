@@ -84,7 +84,9 @@
     "resume": "Resume",
     "delete": "Delete",
     "paused": "Paused",
-    "deleteQuestion": "Delete this reminder?"
+    "deleteQuestion": "Delete this reminder?",
+    "language": "Language",
+    "systemDefault": "System default"
   },
   "setup": {
     "once": "Once",

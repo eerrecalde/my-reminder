@@ -23,6 +23,7 @@ export type ReminderState = {
   exactAlarms: boolean;
   notifications: boolean;
   language: 'en' | 'es';
+  languagePreference: 'system' | 'en' | 'es';
   medicines: Medicine[];
   todayDoses: Occurrence[];
   history: Occurrence[];
@@ -30,6 +31,7 @@ export type ReminderState = {
 };
 export interface ReminderRepository {
   state(): Promise<ReminderState>;
+  setLanguage(language: 'system' | 'en' | 'es'): Promise<void>;
   selectSound(
     mode: 'notification' | 'alarm',
     current: string | null,
