@@ -1154,7 +1154,9 @@ test.each([
       1,
       ')',
     ]);
-    const pauseCount = view.root.findAllByProps({ accessibilityLabel: pause }).length;
+    const pauseCount = view.root.findAllByProps({
+      accessibilityLabel: pause,
+    }).length;
     await ReactTestRenderer.act(() => section.props.onPress());
     expect(
       view.root
@@ -1165,6 +1167,101 @@ test.each([
       view.root.findAllByProps({ accessibilityLabel: pause }),
     ).toHaveLength(pauseCount);
     await ReactTestRenderer.act(() => view.unmount());
+    subscription.mockRestore();
+  },
+);
+
+test.each([
+  ['en', 'reminder', 'Edit', 'Delete'],
+  ['en', 'medicine', 'Edit', 'Delete'],
+  ['es', 'reminder', 'Editar', 'Eliminar'],
+  ['es', 'medicine', 'Editar', 'Eliminar'],
+])(
+  'edits and deletes a past %s %s',
+  async (language, type, editLabel, deleteLabel) => {
+    const { MedicineSetup } = require('../src/MedicineSetup');
+    const subscription = jest
+      .spyOn(AppState, 'addEventListener')
+      .mockReturnValue({ remove: jest.fn() });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const item = {
+      id: 'old',
+      name: 'Old item',
+      type,
+      instructions: '',
+      mode: 'notification',
+      times: ['09:00'],
+      startDate: '2020-01-01',
+      endDate: '2020-01-01',
+    };
+    const state = {
+      enabled: true,
+      exactAlarms: true,
+      notifications: true,
+      language,
+      medicines: [item],
+      todayDoses: [],
+      history: [],
+      upcoming: [],
+    };
+    const editScheduled = jest.fn(async () => {
+      item.startDate = '2099-01-01';
+      item.endDate = '2099-01-01';
+    });
+    const setStatus = jest.fn();
+    require('../src/reminderRepository').reminderRepository = {
+      state: jest.fn(async () => ({ ...state })),
+      editScheduled,
+      setStatus,
+    };
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      view = ReactTestRenderer.create(<App />);
+    });
+    await ReactTestRenderer.act(() =>
+      view.root.findByProps({ testID: 'nav-reminders' }).props.onPress(),
+    );
+    const section = view.root
+      .findAllByProps({ accessibilityRole: 'button' })
+      .find(node => node.props.accessibilityState?.expanded === false)!;
+    await ReactTestRenderer.act(() => section.props.onPress());
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findByProps({ accessibilityLabel: deleteLabel })
+        .props.onPress(),
+    );
+    expect(alert).toHaveBeenCalled();
+    expect(setStatus).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => {
+      await alert.mock.calls[0][2]!.find(
+        button => button.style === 'destructive',
+      )!.onPress!();
+    });
+    expect(setStatus).toHaveBeenCalledWith('old', 'deleted');
+    await ReactTestRenderer.act(() =>
+      view.root.findByProps({ accessibilityLabel: editLabel }).props.onPress(),
+    );
+    await ReactTestRenderer.act(async () =>
+      view.root.findByType(MedicineSetup).props.onSave({
+        ...item,
+        startDate: '2099-01-01',
+        endDate: '2099-01-01',
+      }),
+    );
+    expect(editScheduled).toHaveBeenCalled();
+    await ReactTestRenderer.act(() =>
+      view.root.findByProps({ testID: 'nav-reminders' }).props.onPress(),
+    );
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(node => node.props.children === 'Old item'),
+    ).toBe(true);
+    expect(
+      view.root.findAllByProps({ accessibilityState: { expanded: false } }),
+    ).toHaveLength(0);
+    await ReactTestRenderer.act(() => view.unmount());
+    alert.mockRestore();
     subscription.mockRestore();
   },
 );
