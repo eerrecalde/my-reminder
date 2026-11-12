@@ -28,6 +28,7 @@ class MedicineRepositoryTest {
         repo.writableDatabase.execSQL("ALTER TABLE medicines DROP COLUMN end_date")
       }
       if (version == 12) repo.writableDatabase.execSQL("DROP TABLE reminder_transitions")
+      repo.writableDatabase.execSQL("ALTER TABLE doses DROP COLUMN one_off")
       repo.writableDatabase.version = version
       saved
     }
@@ -45,6 +46,50 @@ class MedicineRepositoryTest {
       assertEquals("future", repo.transition(item.id)?.token)
     }
     context.deleteDatabase(db)
+    }
+  }
+  @Test fun version16UpgradePreservesOneOffOccurrenceAndAlarm() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "one-off-upgrade.db"
+    context.deleteDatabase(db)
+    val id = MedicineRepository(context, db).use { repo ->
+      val saved = repo.save("Water", "", listOf("09:00"), 1000, "reminder", startDate = "2026-06-01", endDate = "2026-06-01")
+      repo.recordDue(saved.id, java.time.LocalDate.parse("2026-06-01").atTime(9, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli())
+      repo.setAlarm(saved.id, 3000, "future")
+      repo.setStatus(saved.id, "paused", now = System.currentTimeMillis())
+      repo.setStatus(saved.id, "active", now = System.currentTimeMillis())
+      repo.writableDatabase.execSQL("ALTER TABLE doses DROP COLUMN one_off")
+      repo.writableDatabase.version = 16
+      saved.id
+    }
+    MedicineRepository(context, db).use { repo ->
+      assertEquals("future", repo.alarm(id)?.token)
+      val occurrence = repo.occurrences().single()
+      assertTrue(occurrence.oneOff)
+      repo.edit(id, "Water", "", listOf("09:00"), "reminder", "notification")
+      assertFalse(repo.markMissed(id, occurrence.at))
+      assertTrue(repo.occurrences().single().oneOff)
+    }
+    context.deleteDatabase(db)
+  }
+  @Test fun version16UpgradeResolvesOneOffInDaylightSavingGap() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "one-off-dst-upgrade.db"
+    val oldZone = java.util.TimeZone.getDefault()
+    context.deleteDatabase(db)
+    try {
+      java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Europe/London"))
+      val at = java.time.LocalDate.parse("2026-03-29").atTime(1, 30).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+      MedicineRepository(context, db).use { repo ->
+        val saved = repo.save("Gap", "", listOf("01:30"), at - 1000, "reminder", startDate = "2026-03-29", endDate = "2026-03-29")
+        repo.recordDue(saved.id, at)
+        repo.writableDatabase.execSQL("ALTER TABLE doses DROP COLUMN one_off")
+        repo.writableDatabase.version = 16
+      }
+      MedicineRepository(context, db).use { repo -> assertTrue(repo.occurrences().single().oneOff) }
+    } finally {
+      java.util.TimeZone.setDefault(oldZone)
+      context.deleteDatabase(db)
     }
   }
   @Test fun soundChoicesSurviveRestartAndKeepModesIndependent() {
@@ -96,6 +141,7 @@ class MedicineRepositoryTest {
       repo.setOutcome(saved.id, 2000, "completed")
       repo.setAlarm(saved.id, 3000, "future")
       repo.writableDatabase.execSQL("DROP TABLE reminder_sound_choices")
+      repo.writableDatabase.execSQL("ALTER TABLE doses DROP COLUMN one_off")
       repo.writableDatabase.version = 15
       saved
     }

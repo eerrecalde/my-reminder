@@ -15,6 +15,7 @@ export type Occurrence = {
   scheduledAt: number;
   outcome?: Outcome | null;
   outstanding?: boolean;
+  actionable?: boolean;
   snoozed?: boolean;
 };
 export type ReminderState = {

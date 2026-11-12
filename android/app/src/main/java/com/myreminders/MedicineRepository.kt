@@ -10,12 +10,12 @@ import java.util.UUID
 data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification", val status: String = "active", val changedAt: Long = 0, val startDate: String? = null, val endDate: String? = null, val scheduleKind: String = "daily", val weekdays: List<Int> = emptyList(), val intervalHours: Int? = null, val intervalAnchor: Long? = null, val monthlyDay: Int? = null, val shortMonthPolicy: String = "last")
 
 /** Shared by the React Native bridge and Android receivers. */
-class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 16) {
+class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 17) {
   override fun onCreate(db: SQLiteDatabase) {
     db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification', status TEXT NOT NULL DEFAULT 'active', changed_at INTEGER NOT NULL DEFAULT 0, start_date TEXT, end_date TEXT, schedule_kind TEXT NOT NULL DEFAULT 'daily', weekdays TEXT NOT NULL DEFAULT '[]', interval_hours INTEGER, interval_anchor INTEGER, monthly_day INTEGER, short_month_policy TEXT NOT NULL DEFAULT 'last')")
     createSoundChoices(db)
     db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
-    db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0, outcome TEXT, cleared INTEGER NOT NULL DEFAULT 0, missed_acknowledged INTEGER NOT NULL DEFAULT 0, silenced INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0, outstanding INTEGER NOT NULL DEFAULT 0, name TEXT, instructions TEXT, type TEXT, mode TEXT, times TEXT, retained INTEGER NOT NULL DEFAULT 0)")
+    db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0, outcome TEXT, cleared INTEGER NOT NULL DEFAULT 0, missed_acknowledged INTEGER NOT NULL DEFAULT 0, silenced INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0, outstanding INTEGER NOT NULL DEFAULT 0, name TEXT, instructions TEXT, type TEXT, mode TEXT, times TEXT, retained INTEGER NOT NULL DEFAULT 0, one_off INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE snoozes (medicine_id TEXT NOT NULL, occurrence_at INTEGER NOT NULL, alert_at INTEGER NOT NULL, token TEXT NOT NULL, PRIMARY KEY (medicine_id, occurrence_at))")
     db.execSQL("CREATE TABLE reminder_transitions (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER, token TEXT, registered INTEGER, changed_at INTEGER NOT NULL, committed INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE occurrence_tracking (medicine_id TEXT PRIMARY KEY, starts_after INTEGER NOT NULL)")
@@ -74,6 +74,17 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
       db.execSQL("ALTER TABLE doses ADD COLUMN retained INTEGER NOT NULL DEFAULT 0")
       db.execSQL("UPDATE doses SET name = (SELECT name FROM medicines WHERE id = medicine_id), instructions = (SELECT instructions FROM medicines WHERE id = medicine_id), type = (SELECT type FROM medicines WHERE id = medicine_id), mode = (SELECT mode FROM medicines WHERE id = medicine_id), times = (SELECT times FROM medicines WHERE id = medicine_id)")
     }
+    if (oldVersion < 17) {
+      db.execSQL("ALTER TABLE doses ADD COLUMN one_off INTEGER NOT NULL DEFAULT 0")
+      db.rawQuery("SELECT doses.id, doses.scheduled_at, medicines.start_date, medicines.times FROM doses JOIN medicines ON medicines.id = doses.medicine_id WHERE medicines.schedule_kind = 'daily' AND medicines.start_date IS NOT NULL AND medicines.start_date = medicines.end_date", null).use { cursor ->
+        val zone = java.time.ZoneId.systemDefault()
+        while (cursor.moveToNext()) {
+          val times = JSONArray(cursor.getString(3))
+          val scheduled = if (times.length() == 1) java.time.LocalDate.parse(cursor.getString(2)).atTime(java.time.LocalTime.parse(times.getString(0))).atZone(zone).toInstant().toEpochMilli() else null
+          if (scheduled == cursor.getLong(1)) db.execSQL("UPDATE doses SET one_off = 1 WHERE id = ?", arrayOf(cursor.getString(0)))
+        }
+      }
+    }
   }
 
   data class SoundChoices(val notification: String?, val alarm: String?)
@@ -100,7 +111,7 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     } finally { db.endTransaction() }
   }
 
-  data class Occurrence(val medicineId: String, val at: Long, val outcome: String?, val cleared: Boolean = false, val outstanding: Boolean = false, val name: String? = null, val instructions: String? = null, val type: String? = null, val mode: String? = null, val times: List<String>? = null, val retained: Boolean = false)
+  data class Occurrence(val medicineId: String, val at: Long, val outcome: String?, val cleared: Boolean = false, val outstanding: Boolean = false, val name: String? = null, val instructions: String? = null, val type: String? = null, val mode: String? = null, val times: List<String>? = null, val retained: Boolean = false, val missedAcknowledged: Boolean = false, val oneOff: Boolean = false)
 
   private fun update(sql: String, vararg args: Any?): Int = writableDatabase.compileStatement(sql).use { statement ->
     args.forEachIndexed { index, value -> when (value) {
@@ -113,10 +124,10 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
 
   fun occurrences(includeCleared: Boolean = false): List<Occurrence> {
     val result = mutableListOf<Occurrence>()
-    readableDatabase.rawQuery("SELECT medicine_id, scheduled_at, outcome, cleared, outstanding, name, instructions, type, mode, times, retained FROM doses ${if (includeCleared) "" else "WHERE cleared = 0"} ORDER BY scheduled_at", null).use { cursor ->
+    readableDatabase.rawQuery("SELECT medicine_id, scheduled_at, outcome, cleared, outstanding, name, instructions, type, mode, times, retained, missed_acknowledged, one_off FROM doses ${if (includeCleared) "" else "WHERE cleared = 0"} ORDER BY scheduled_at", null).use { cursor ->
       while (cursor.moveToNext()) {
         val times = cursor.getString(9)?.let { value -> JSONArray(value).let { array -> (0 until array.length()).map { array.getString(it) } } }
-        result.add(Occurrence(cursor.getString(0), cursor.getLong(1), cursor.getString(2), cursor.getInt(3) != 0, cursor.getInt(4) != 0, cursor.getString(5), cursor.getString(6), cursor.getString(7), cursor.getString(8), times, cursor.getInt(10) != 0))
+        result.add(Occurrence(cursor.getString(0), cursor.getLong(1), cursor.getString(2), cursor.getInt(3) != 0, cursor.getInt(4) != 0, cursor.getString(5), cursor.getString(6), cursor.getString(7), cursor.getString(8), times, cursor.getInt(10) != 0, cursor.getInt(11) != 0, cursor.getInt(12) != 0))
       }
     }
     return result
@@ -135,7 +146,7 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
   }
 
   fun markMissed(medicineId: String, at: Long): Boolean {
-    return update("UPDATE doses SET outcome = 'missed', silenced = 1, revision = revision + 1 WHERE id = ? AND outcome IS NULL AND cleared = 0 AND missed_acknowledged = 0", "$medicineId:$at") == 1
+    return update("UPDATE doses SET outcome = 'missed', silenced = 1, revision = revision + 1 WHERE id = ? AND outcome IS NULL AND cleared = 0 AND missed_acknowledged = 0 AND one_off = 0", "$medicineId:$at") == 1
   }
 
   fun latestOccurrence(medicineId: String): Long? {
@@ -308,6 +319,7 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     val item = requireNotNull(all().find { it.id == id })
     return ContentValues().apply {
       put("id", "$id:$at"); put("medicine_id", id); put("scheduled_at", at)
+      put("one_off", item.scheduleKind == "daily" && item.startDate != null && item.startDate == item.endDate && item.times.size == 1)
       put("name", item.name); put("instructions", item.instructions); put("type", item.type); put("mode", item.mode); put("times", JSONArray(item.times).toString())
     }
   }
