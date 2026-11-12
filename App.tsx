@@ -696,7 +696,7 @@ export default function App() {
                       );
                       if (!items.length) return null;
                       return (
-                        <View key={String(isPast)}>
+                        <View key={String(isPast)} style={styles.reminderGroup}>
                           {isPast && (
                             <Pressable
                               accessibilityRole="button"
@@ -1262,6 +1262,7 @@ const styles = StyleSheet.create({
   occurrenceCopy: { flex: 1 },
   occurrenceHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   metaText: { color: '#383b31', fontSize: 15, marginTop: 3 },
+  reminderGroup: { gap: 12 },
   compactCard: { backgroundColor: '#fffdf7', borderRadius: 14, padding: 14 },
   emptyCard: {
     alignItems: 'center',
