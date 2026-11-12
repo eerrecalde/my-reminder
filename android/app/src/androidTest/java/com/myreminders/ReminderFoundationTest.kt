@@ -37,7 +37,16 @@ class ReminderFoundationTest {
           assertFalse(occurrence.outstanding)
           assertNull(repo.alarm(item.id))
           assertFalse(context.getSystemService(NotificationManager::class.java).activeNotifications.any { it.id == ("${item.id}:$at").hashCode() })
+          repo.edit(item.id, "Edited", "", listOf("00:00"), type, "notification", now = at + 60_000)
+        }
+        val change = requireNotNull(ReminderScheduler.recordOutcome(context, item.id, at, "completed"))
+        assertTrue(ReminderScheduler.undoOutcome(context, item.id, at, null, change.revision))
+        MedicineRepository(context).use { repo ->
+          val restored = repo.occurrences().single { it.medicineId == item.id && it.at == at }
+          assertFalse(restored.missedAcknowledged)
+          assertTrue(TodayPolicy.actionable(restored, repo.all().single { it.id == item.id }, java.time.Instant.now(), zone))
           repo.setOutcome(item.id, at, "completed")
+          repo.edit(item.id, "Past one-off", "", listOf("09:00"), type, "notification", startDate = date.toString(), endDate = date.toString())
           repo.clearHistory()
         }
         ReminderScheduler.rebuild(context, recovery = true)

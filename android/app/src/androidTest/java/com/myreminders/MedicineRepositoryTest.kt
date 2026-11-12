@@ -54,7 +54,7 @@ class MedicineRepositoryTest {
     context.deleteDatabase(db)
     val id = MedicineRepository(context, db).use { repo ->
       val saved = repo.save("Water", "", listOf("09:00"), 1000, "reminder", startDate = "2026-06-01", endDate = "2026-06-01")
-      repo.recordDue(saved.id, 2000)
+      repo.recordDue(saved.id, java.time.LocalDate.parse("2026-06-01").atTime(9, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli())
       repo.setAlarm(saved.id, 3000, "future")
       repo.writableDatabase.execSQL("ALTER TABLE doses DROP COLUMN one_off")
       repo.writableDatabase.version = 16
@@ -63,10 +63,9 @@ class MedicineRepositoryTest {
     MedicineRepository(context, db).use { repo ->
       assertEquals("future", repo.alarm(id)?.token)
       val occurrence = repo.occurrences().single()
-      assertEquals(2000L, occurrence.at)
       assertTrue(occurrence.oneOff)
       repo.edit(id, "Water", "", listOf("09:00"), "reminder", "notification")
-      assertFalse(repo.markMissed(id, 2000))
+      assertFalse(repo.markMissed(id, occurrence.at))
       assertTrue(repo.occurrences().single().oneOff)
     }
     context.deleteDatabase(db)

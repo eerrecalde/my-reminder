@@ -336,7 +336,7 @@ object ReminderScheduler {
     val undone = MedicineRepository(context).use { repo ->
       val medicine = repo.all().find { it.id == id } ?: return false
       val next = DailySchedule.next(medicine, Instant.ofEpochMilli(maxOf(at, medicine.changedAt)), ZoneId.systemDefault())
-      repo.undoOutcome(id, at, revision, previous, previous == null && next != null && next <= Instant.now(), previousCleared)
+      repo.undoOutcome(id, at, revision, previous, previous == null && repo.occurrences(includeCleared = true).find { it.medicineId == id && it.at == at }?.oneOff != true && next != null && next <= Instant.now(), previousCleared)
     }
     if (undone) dismissOccurrence(context, id, at)
     return undone
