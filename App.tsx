@@ -28,194 +28,7 @@ import {
   Medicine,
 } from './src/reminderRepository';
 
-const words = {
-  en: {
-    today: 'Today',
-    reminders: 'Reminders',
-    attention: 'Needs attention',
-    earlier: 'Earlier',
-    change: 'Change outcome',
-    add: 'Add reminder',
-    off: 'Reminders off',
-    on: 'Reminders on',
-    unconfirmed: 'Unconfirmed dose',
-    unconfirmedReminder: 'Unconfirmed reminder',
-    medicine: 'Medicine',
-    reminder: 'Reminder',
-    allowed: 'Allowed',
-    notAllowed: 'Not allowed',
-    enable: 'Review reminder access',
-    offBoth:
-      'Allow notifications and exact alarms so reminders can arrive on time.',
-    offNotifications: 'Allow notifications so your reminders can appear.',
-    offAlarms: 'Allow exact alarms so your reminders can arrive on time.',
-    test: 'Send a test reminder',
-    settings: 'Reminder access',
-    notifications: 'Notifications',
-    exact: 'Exact alarms',
-    accessIntro:
-      'Notifications and exact alarms are needed for reminders to arrive on time.',
-    notificationHelp: 'Lets reminders appear on your phone.',
-    exactHelp: 'Lets reminders arrive at the scheduled time.',
-    allowNotifications: 'Allow notifications',
-    notificationSettings: 'Notification settings',
-    allowExact: 'Allow exact alarms',
-    exactSettings: 'Exact alarm settings',
-    accessReady: 'Both permissions are allowed.',
-    exactAutomatic: 'Automatically allowed on this phone.',
-    explanation:
-      'Reminders resume after you unlock your phone for the first time after a restart.',
-    storage:
-      'Reminders are stored only on this phone. They may be lost if you uninstall the app, clear its data, or lose your phone.',
-    once: 'Once',
-    daily: 'Every day',
-    weekdays: [
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
-    ],
-    everyHours: 'Every',
-    hours: 'hours',
-    monthly: 'Monthly',
-    lastDay: 'last day',
-    anchor: 'Interval reference',
-    starts: 'Starts',
-    ends: 'Ends',
-    shortLast: 'Use last day in shorter months',
-    shortSkip: 'Skip shorter months',
-    cancel: 'Cancel',
-    empty: 'No reminders added yet',
-    emptyHelp: 'Add a reminder for a task, an event, or a medicine.',
-    error: 'Could not save. Please try again.',
-    loading: 'Loading reminders…',
-    loadError: 'Unable to load reminders',
-    upcoming: 'Upcoming',
-    next: 'Next reminder',
-    done: 'Done',
-    taken: 'Taken',
-    skip: 'Skip',
-    skipped: 'Skipped',
-    missed: 'Missed',
-    overdue: 'Overdue',
-    past: 'Past',
-    undo: 'Undo',
-    unconfirm: 'Mark unconfirmed',
-    history: 'History',
-    clearHistory: 'Clear history',
-    clearQuestion: 'Clear all completed, skipped and missed history?',
-    clear: 'Clear',
-    noHistory: 'No history yet.',
-    actionError: 'Could not update the occurrence. Please try again.',
-    snooze: 'Snooze',
-    snoozed: 'Snoozed',
-    minutes: 'minutes',
-    edit: 'Edit',
-    pause: 'Pause',
-    resume: 'Resume',
-    delete: 'Delete',
-    paused: 'Paused',
-    deleteQuestion: 'Delete this reminder?',
-  },
-  es: {
-    today: 'Hoy',
-    reminders: 'Recordatorios',
-    attention: 'Necesitan atención',
-    earlier: 'Anteriores',
-    change: 'Cambiar resultado',
-    add: 'Agregar recordatorio',
-    off: 'Recordatorios desactivados',
-    on: 'Recordatorios activados',
-    unconfirmed: 'Dosis sin confirmar',
-    unconfirmedReminder: 'Recordatorio sin confirmar',
-    medicine: 'Medicamento',
-    reminder: 'Recordatorio',
-    allowed: 'Permitidas',
-    notAllowed: 'No permitidas',
-    enable: 'Revisar acceso a recordatorios',
-    offBoth:
-      'Permite las notificaciones y las alarmas exactas para recibir recordatorios a tiempo.',
-    offNotifications:
-      'Permite las notificaciones para que aparezcan tus recordatorios.',
-    offAlarms:
-      'Permite las alarmas exactas para recibir tus recordatorios a tiempo.',
-    test: 'Enviar recordatorio de prueba',
-    settings: 'Acceso a recordatorios',
-    notifications: 'Notificaciones',
-    exact: 'Alarmas exactas',
-    accessIntro:
-      'Se necesitan notificaciones y alarmas exactas para recibir recordatorios a tiempo.',
-    notificationHelp: 'Permite que los recordatorios aparezcan en tu teléfono.',
-    exactHelp: 'Permite que los recordatorios lleguen a la hora programada.',
-    allowNotifications: 'Permitir notificaciones',
-    notificationSettings: 'Configuración de notificaciones',
-    allowExact: 'Permitir alarmas exactas',
-    exactSettings: 'Configuración de alarmas exactas',
-    accessReady: 'Ambos permisos están habilitados.',
-    exactAutomatic: 'Se permiten automáticamente en este teléfono.',
-    explanation:
-      'Los recordatorios se reanudan después de desbloquear el teléfono por primera vez tras reiniciarlo.',
-    storage:
-      'Los recordatorios se guardan solo en este teléfono. Pueden perderse si desinstalas la aplicación, borras sus datos o pierdes el teléfono.',
-    once: 'Una vez',
-    daily: 'Todos los días',
-    weekdays: [
-      'Lunes',
-      'Martes',
-      'Miércoles',
-      'Jueves',
-      'Viernes',
-      'Sábado',
-      'Domingo',
-    ],
-    everyHours: 'Cada',
-    hours: 'horas',
-    monthly: 'Mensual',
-    lastDay: 'último día',
-    anchor: 'Referencia del intervalo',
-    starts: 'Comienza',
-    ends: 'Termina',
-    shortLast: 'Usar el último día en meses más cortos',
-    shortSkip: 'Omitir meses más cortos',
-    cancel: 'Cancelar',
-    empty: 'Aún no hay recordatorios',
-    emptyHelp:
-      'Agrega un recordatorio para una tarea, un evento o un medicamento.',
-    error: 'No se pudo guardar. Inténtalo de nuevo.',
-    loading: 'Cargando recordatorios…',
-    loadError: 'No se pudieron cargar los recordatorios',
-    upcoming: 'Próximo',
-    next: 'Próximo recordatorio',
-    done: 'Hecho',
-    taken: 'Tomado',
-    skip: 'Omitir',
-    skipped: 'Omitido',
-    missed: 'No confirmado a tiempo',
-    overdue: 'Vencido',
-    past: 'Anteriores',
-    undo: 'Deshacer',
-    unconfirm: 'Marcar sin confirmar',
-    history: 'Historial',
-    clearHistory: 'Borrar historial',
-    clearQuestion:
-      '¿Borrar todo el historial de recordatorios completados, omitidos y no confirmados a tiempo?',
-    clear: 'Borrar',
-    noHistory: 'Aún no hay historial.',
-    actionError: 'No se pudo actualizar. Inténtalo de nuevo.',
-    snooze: 'Posponer',
-    snoozed: 'Pospuesto',
-    minutes: 'minutos',
-    edit: 'Editar',
-    pause: 'Pausar',
-    resume: 'Reanudar',
-    delete: 'Eliminar',
-    paused: 'Pausado',
-    deleteQuestion: '¿Eliminar este recordatorio?',
-  },
-};
+import { translations } from './src/translations';
 export default function App() {
   const [state, setState] = useState<ReminderState>();
   const [screen, setScreen] = useState<
@@ -284,7 +97,7 @@ export default function App() {
       .map(m => m.id),
   );
   const language = state?.language ?? 'en';
-  const t = words[language];
+  const t = translations[language].app;
   const changeOutcome = async (
     occurrence: Occurrence,
     outcome: Outcome | null,
@@ -328,7 +141,7 @@ export default function App() {
     }
   };
   const timeLabel = (at: number) =>
-    new Date(at).toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
+    new Date(at).toLocaleString(translations[language].locale, {
       day: 'numeric',
       month: 'short',
       hour: '2-digit',
@@ -344,7 +157,7 @@ export default function App() {
             medicine.intervalAnchor != null
               ? ` · ${t.anchor}: ${new Date(
                   medicine.intervalAnchor,
-                ).toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
+                ).toLocaleString(translations[language].locale, {
                   dateStyle: 'short',
                   timeStyle: 'short',
                 })}`
@@ -576,7 +389,7 @@ export default function App() {
                     </Text>
                     <Text style={styles.date}>
                       {new Date().toLocaleDateString(
-                        language === 'es' ? 'es-MX' : 'en-GB',
+                        translations[language].locale,
                         { weekday: 'long', day: 'numeric', month: 'long' },
                       )}
                     </Text>
@@ -1055,16 +868,15 @@ export default function App() {
                     .map((occurrence, index, items) => {
                       const date = new Date(
                         occurrence.scheduledAt,
-                      ).toLocaleDateString(
-                        language === 'es' ? 'es-MX' : 'en-GB',
-                        { dateStyle: 'full' },
-                      );
+                      ).toLocaleDateString(translations[language].locale, {
+                        dateStyle: 'full',
+                      });
                       const previousDate =
                         index > 0
                           ? new Date(
                               items[index - 1].scheduledAt,
                             ).toLocaleDateString(
-                              language === 'es' ? 'es-MX' : 'en-GB',
+                              translations[language].locale,
                               { dateStyle: 'full' },
                             )
                           : null;
@@ -1149,11 +961,7 @@ export default function App() {
                       }}
                     />
                   ))}
-                  <Text>
-                    {language === 'es'
-                      ? 'El sonido también depende de la configuración de notificaciones del teléfono.'
-                      : 'Sound also depends on your phone’s notification settings.'}
-                  </Text>
+                  <Text>{translations[language].sound.help}</Text>
                   {!state.enabled && (
                     <View style={styles.warning}>
                       <View style={styles.warningHeader}>

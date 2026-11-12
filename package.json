@@ -7,7 +7,9 @@
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "translations:generate": "node scripts/translations.js",
+    "translations:check": "node scripts/translations.js --check"
   },
   "dependencies": {
     "lucide-react-native": "^1.72.0",

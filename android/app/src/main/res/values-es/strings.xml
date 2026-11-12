@@ -15,4 +15,5 @@
     <string name="snooze_ten">Posponer 10 minutos</string>
     <string name="sound_silent">Silencio</string>
     <string name="sound_selected">Sonido seleccionado</string>
+    <string name="app_name">My Reminders</string>
 </resources>

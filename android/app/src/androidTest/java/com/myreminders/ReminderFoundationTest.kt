@@ -497,6 +497,49 @@ class ReminderFoundationTest {
     }
   }
 
+  @Test fun directDeliveryUsesLocalizedTextAndActionsForBothTypes() {
+    val base = ApplicationProvider.getApplicationContext<Context>()
+    val manager = base.getSystemService(NotificationManager::class.java)
+    assertTrue(ReminderScheduler.enabled(base))
+    for (language in listOf("en", "es")) {
+      val config = android.content.res.Configuration(base.resources.configuration)
+      config.setLocale(java.util.Locale.forLanguageTag(language))
+      val context = base.createConfigurationContext(config)
+      for (type in listOf("reminder", "medicine")) {
+        val now = System.currentTimeMillis()
+        val time = LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))
+        val item = MedicineRepository(context).use { it.save("Personal name", "", listOf(time), now - 10_000, type) }
+        val due = now - 1_000
+        val notificationId = ("${item.id}:$due").hashCode()
+        try {
+          MedicineRepository(context).use { it.setAlarm(item.id, due, "locale-test") }
+          ReminderScheduler.deliver(context, item.id, due, "locale-test")
+          val notification = requireNotNull(manager.activeNotifications.find { it.id == notificationId }).notification
+          val expectedBody = if (language == "en") {
+            if (type == "medicine") "Your medicine is due" else "Your reminder is due"
+          } else {
+            if (type == "medicine") "Es hora de tomar tu medicamento" else "Es hora de tu recordatorio"
+          }
+          val expectedActions = if (language == "en") {
+            listOf(if (type == "medicine") "Taken" else "Done", "Skip", "Snooze 10 minutes")
+          } else {
+            listOf(if (type == "medicine") "Tomado" else "Hecho", "Omitir", "Posponer 10 minutos")
+          }
+          assertEquals("Personal name", notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
+          assertEquals(expectedBody, notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString())
+          assertEquals(expectedActions, notification.actions.map { it.title.toString() })
+        } finally {
+          manager.cancel(notificationId)
+          MedicineRepository(context).use { repo ->
+            repo.alarm(item.id)?.let { cancel(context, it) }
+            repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
+            repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+            repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+          }
+        }
+      }
+    }
+  }
   @Test fun bothTypesRecoverTheirDailyScheduleAndDeliverTheRightText() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     assertTrue("Enable notification and exact-alarm access before this test", ReminderScheduler.enabled(context))

@@ -48,6 +48,8 @@ For live editing, run `npm start` in one terminal and `npm run android` in anoth
 
 Run `npm run typecheck`, `npm run lint`, and `npm test -- --runInBand` to check the TypeScript project.
 
+Translations are maintained in `src/translations/en.json` and `src/translations/es.json`. After changing them, run `npm run translations:generate` to update Android resources and `npm run translations:check` to check completeness and generated output. Release builds also run this check. English is the fallback for missing text.
+
 ## Routine Android tests
 
 Use a disposable Android emulator for day-to-day Android changes. The emulator tests can install or replace the app and change its permissions, alarms and data; reserve the `pill_reminder_test` virtual device for disposable test data. Never run the instrumentation suite against a phone containing data to keep.
