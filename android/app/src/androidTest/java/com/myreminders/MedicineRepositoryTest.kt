@@ -28,6 +28,7 @@ class MedicineRepositoryTest {
         repo.writableDatabase.execSQL("ALTER TABLE medicines DROP COLUMN end_date")
       }
       if (version == 12) repo.writableDatabase.execSQL("DROP TABLE reminder_transitions")
+      repo.writableDatabase.execSQL("ALTER TABLE doses DROP COLUMN one_off")
       repo.writableDatabase.version = version
       saved
     }
@@ -46,6 +47,29 @@ class MedicineRepositoryTest {
     }
     context.deleteDatabase(db)
     }
+  }
+  @Test fun version16UpgradePreservesOneOffOccurrenceAndAlarm() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "one-off-upgrade.db"
+    context.deleteDatabase(db)
+    val id = MedicineRepository(context, db).use { repo ->
+      val saved = repo.save("Water", "", listOf("09:00"), 1000, "reminder", startDate = "2026-06-01", endDate = "2026-06-01")
+      repo.recordDue(saved.id, 2000)
+      repo.setAlarm(saved.id, 3000, "future")
+      repo.writableDatabase.execSQL("ALTER TABLE doses DROP COLUMN one_off")
+      repo.writableDatabase.version = 16
+      saved.id
+    }
+    MedicineRepository(context, db).use { repo ->
+      assertEquals("future", repo.alarm(id)?.token)
+      val occurrence = repo.occurrences().single()
+      assertEquals(2000L, occurrence.at)
+      assertTrue(occurrence.oneOff)
+      repo.edit(id, "Water", "", listOf("09:00"), "reminder", "notification")
+      assertFalse(repo.markMissed(id, 2000))
+      assertTrue(repo.occurrences().single().oneOff)
+    }
+    context.deleteDatabase(db)
   }
   @Test fun soundChoicesSurviveRestartAndKeepModesIndependent() {
     val context = ApplicationProvider.getApplicationContext<Context>()
@@ -96,6 +120,7 @@ class MedicineRepositoryTest {
       repo.setOutcome(saved.id, 2000, "completed")
       repo.setAlarm(saved.id, 3000, "future")
       repo.writableDatabase.execSQL("DROP TABLE reminder_sound_choices")
+      repo.writableDatabase.execSQL("ALTER TABLE doses DROP COLUMN one_off")
       repo.writableDatabase.version = 15
       saved
     }

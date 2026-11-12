@@ -325,7 +325,7 @@ object ReminderScheduler {
       else {
         val medicine = requireNotNull(repo.all().find { it.id == id })
         val next = DailySchedule.next(medicine, Instant.ofEpochMilli(maxOf(at, medicine.changedAt)), ZoneId.systemDefault())
-        repo.setOutcome(id, at, outcome, outcome == null && next != null && next <= Instant.now())
+        repo.setOutcome(id, at, outcome, outcome == null && repo.occurrences(includeCleared = true).find { it.medicineId == id && it.at == at }?.oneOff != true && next != null && next <= Instant.now())
       }
     }
     if (changed?.changed == true) dismissOccurrence(context, id, at)

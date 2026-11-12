@@ -12,11 +12,14 @@ class TodayPolicyTest {
     val now = Instant.parse("2026-06-03T12:00:00Z")
     for (type in listOf("reminder", "medicine")) {
       val medicine = Medicine("id", "Example", "", listOf("09:00"), 0, type, startDate = "2026-06-01", endDate = "2026-06-01")
-      val due = MedicineRepository.Occurrence("id", at, null)
+      val due = MedicineRepository.Occurrence("id", at, null, oneOff = true)
       assertTrue(TodayPolicy.includes(due, medicine, now, zone))
       assertFalse(TodayPolicy.includes(due.copy(outcome = "completed"), medicine, now, zone))
       assertFalse(TodayPolicy.includes(due.copy(outcome = "skipped"), medicine, now, zone))
       assertFalse(TodayPolicy.includes(due.copy(cleared = true), medicine, now, zone))
+      val edited = medicine.copy(startDate = null, endDate = null)
+      assertTrue(TodayPolicy.includes(due, edited, now, zone))
+      assertTrue(TodayPolicy.actionable(due, edited, now, zone))
     }
   }
   @Test fun actionableExcludesAnsweredClearedFutureAndSupersededOccurrences() {
