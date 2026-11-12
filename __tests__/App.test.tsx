@@ -1088,3 +1088,83 @@ test.each([
     subscription.mockRestore();
   },
 );
+
+test.each([
+  ['en', 'Past', 'Pause'],
+  ['es', 'Anteriores', 'Pausar'],
+])(
+  'groups ended reminders in a collapsed section in %s',
+  async (language, past, pause) => {
+    const subscription = jest
+      .spyOn(AppState, 'addEventListener')
+      .mockReturnValue({ remove: jest.fn() });
+    const repo = require('../src/reminderRepository');
+    repo.reminderRepository = {
+      state: jest.fn().mockResolvedValue({
+        enabled: true,
+        exactAlarms: true,
+        notifications: true,
+        language,
+        medicines: [
+          {
+            id: 'past',
+            name: 'Ended medicine',
+            type: 'medicine',
+            times: ['09:00'],
+            startDate: '2020-01-01',
+            endDate: '2020-01-01',
+          },
+          {
+            id: 'due',
+            name: 'Due reminder',
+            type: 'reminder',
+            times: ['09:00'],
+            startDate: '2020-01-01',
+            endDate: '2020-01-01',
+          },
+        ],
+        todayDoses: [{ medicineId: 'due', scheduledAt: 1, actionable: true }],
+        history: [],
+        upcoming: [],
+      }),
+    };
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      view = ReactTestRenderer.create(<App />);
+    });
+    await ReactTestRenderer.act(() => {
+      view.root.findByProps({ testID: 'nav-reminders' }).props.onPress();
+    });
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(node => node.props.children === 'Ended medicine'),
+    ).toBe(false);
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(node => node.props.children === 'Due reminder'),
+    ).toBe(true);
+    const section = view.root
+      .findAllByProps({ accessibilityRole: 'button' })
+      .find(node => node.props.accessibilityState?.expanded === false)!;
+    expect(section.findByType(Text).props.children).toEqual([
+      past,
+      ' (',
+      1,
+      ')',
+    ]);
+    const pauseCount = view.root.findAllByProps({ accessibilityLabel: pause }).length;
+    await ReactTestRenderer.act(() => section.props.onPress());
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(node => node.props.children === 'Ended medicine'),
+    ).toBe(true);
+    expect(
+      view.root.findAllByProps({ accessibilityLabel: pause }),
+    ).toHaveLength(pauseCount);
+    await ReactTestRenderer.act(() => view.unmount());
+    subscription.mockRestore();
+  },
+);
