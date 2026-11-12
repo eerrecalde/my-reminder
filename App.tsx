@@ -859,78 +859,122 @@ export default function App() {
                       <Text style={styles.emptyHelp}>{t.emptyHelp}</Text>
                     </View>
                   ) : (
-                    state.medicines.map(medicine => (
-                      <View key={medicine.id} style={styles.medicine}>
-                        <Text style={styles.title}>{medicine.name}</Text>
-                        {medicine.status === 'paused' && (
-                          <Text style={styles.text}>{t.paused}</Text>
-                        )}
-                        <Text style={styles.text}>
-                          {medicine.type === 'reminder'
-                            ? t.reminder
-                            : t.medicine}
-                        </Text>
-                        {medicine.type === 'medicine' &&
-                          !!medicine.instructions && (
-                            <Text style={styles.text}>
-                              {medicine.instructions}
-                            </Text>
+                    [...state.medicines]
+                      .sort(
+                        (a, b) =>
+                          Number(a.status === 'paused') -
+                          Number(b.status === 'paused'),
+                      )
+                      .map(medicine => (
+                        <View key={medicine.id} style={styles.medicine}>
+                          <Text style={styles.title}>{medicine.name}</Text>
+                          {medicine.status === 'paused' && (
+                            <Text style={styles.text}>{t.paused}</Text>
                           )}
-                        <Text style={styles.text}>
-                          {scheduleLabel(medicine)}
-                        </Text>
-                        <PillAction
-                          title={t.edit}
-                          onPress={() => {
-                            setEditing(medicine);
-                            setSetupOrigin('reminders');
-                            setScreen('setup');
-                          }}
-                        />
-                        <PillAction
-                          title={
-                            medicine.status === 'paused' ? t.resume : t.pause
-                          }
-                          onPress={async () => {
-                            try {
-                              await reminderRepository.setStatus(
-                                medicine.id,
+                          <Text style={styles.text}>
+                            {medicine.type === 'reminder'
+                              ? t.reminder
+                              : t.medicine}
+                          </Text>
+                          {medicine.type === 'medicine' &&
+                            !!medicine.instructions && (
+                              <Text style={styles.text}>
+                                {medicine.instructions}
+                              </Text>
+                            )}
+                          <Text style={styles.text}>
+                            {scheduleLabel(medicine)}
+                          </Text>
+                          <View style={styles.cardActions}>
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel={t.edit}
+                              style={styles.cardAction}
+                              onPress={() => {
+                                setEditing(medicine);
+                                setSetupOrigin('reminders');
+                                setScreen('setup');
+                              }}
+                            >
+                              <AppIcon name="edit" color="#315a36" />
+                              <Text style={styles.cardActionText}>
+                                {t.edit}
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel={
                                 medicine.status === 'paused'
-                                  ? 'active'
-                                  : 'paused',
-                              );
-                              await refresh();
-                            } catch {
-                              setError(t.error);
-                            }
-                          }}
-                        />
-                        <PillAction
-                          secondary
-                          title={t.delete}
-                          onPress={() =>
-                            Alert.alert(t.delete, t.deleteQuestion, [
-                              { text: t.cancel, style: 'cancel' },
-                              {
-                                text: t.delete,
-                                style: 'destructive',
-                                onPress: async () => {
-                                  try {
-                                    await reminderRepository.setStatus(
-                                      medicine.id,
-                                      'deleted',
-                                    );
-                                    await refresh();
-                                  } catch {
-                                    setError(t.error);
-                                  }
-                                },
-                              },
-                            ])
-                          }
-                        />
-                      </View>
-                    ))
+                                  ? t.resume
+                                  : t.pause
+                              }
+                              style={styles.cardAction}
+                              onPress={async () => {
+                                try {
+                                  await reminderRepository.setStatus(
+                                    medicine.id,
+                                    medicine.status === 'paused'
+                                      ? 'active'
+                                      : 'paused',
+                                  );
+                                  await refresh();
+                                } catch {
+                                  setError(t.error);
+                                }
+                              }}
+                            >
+                              <AppIcon
+                                name={
+                                  medicine.status === 'paused'
+                                    ? 'play'
+                                    : 'pause'
+                                }
+                                color="#315a36"
+                              />
+                              <Text style={styles.cardActionText}>
+                                {medicine.status === 'paused'
+                                  ? t.resume
+                                  : t.pause}
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel={t.delete}
+                              style={styles.cardAction}
+                              onPress={() =>
+                                Alert.alert(t.delete, t.deleteQuestion, [
+                                  { text: t.cancel, style: 'cancel' },
+                                  {
+                                    text: t.delete,
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                      try {
+                                        await reminderRepository.setStatus(
+                                          medicine.id,
+                                          'deleted',
+                                        );
+                                        await refresh();
+                                      } catch {
+                                        setError(t.error);
+                                      }
+                                    },
+                                  },
+                                ])
+                              }
+                            >
+                              <AppIcon name="delete" color="#a13027" />
+                              <Text
+                                style={[
+                                  styles.cardActionText,
+                                  styles.deleteText,
+                                ]}
+                              >
+                                {t.delete}
+                              </Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      ))
                   )}
                 </>
               ) : screen === 'history' ? (
@@ -1412,6 +1456,23 @@ const styles = StyleSheet.create({
   deniedText: { color: '#a13027' },
   permissionHelp: { color: '#41483d', fontSize: 16, lineHeight: 22 },
   accessFoot: { color: '#41483d', fontSize: 15, lineHeight: 22 },
+  cardActions: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e1cf',
+    marginTop: 4,
+    paddingTop: 4,
+  },
+  cardAction: {
+    flex: 1,
+    minWidth: 48,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+  },
+  cardActionText: { color: '#315a36', fontSize: 14, textAlign: 'center' },
+  deleteText: { color: '#a13027' },
   medicine: {
     borderWidth: 1,
     borderColor: '#e5e1cf',

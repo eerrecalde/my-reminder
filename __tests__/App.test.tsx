@@ -332,8 +332,7 @@ test.each([
   const press = async (title: string) =>
     ReactTestRenderer.act(async () => {
       await view.root
-        .findAllByType(PillAction)
-        .find(b => b.props.title === title)!
+        .findByProps({ accessibilityLabel: title })
         .props.onPress();
     });
   await ReactTestRenderer.act(() => {
@@ -896,5 +895,100 @@ test('does not show tomorrow’s reminder on Today', async () => {
       .some(text => text.props.children === 'Next reminder'),
   ).toBe(false);
   await ReactTestRenderer.act(() => view.unmount());
+  subscription.mockRestore();
+});
+
+test('shows active reminders before paused reminders in their original order', async () => {
+  const subscription = jest
+    .spyOn(AppState, 'addEventListener')
+    .mockReturnValue({ remove: jest.fn() });
+  const repo = require('../src/reminderRepository');
+  repo.reminderRepository = {
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      exactAlarms: true,
+      notifications: true,
+      language: 'en',
+      medicines: [
+        { id: 'p', name: 'Paused first', status: 'paused', times: ['09:00'] },
+        { id: 'a', name: 'Active first', status: 'active', times: ['10:00'] },
+        { id: 'b', name: 'Active second', status: 'active', times: ['11:00'] },
+        { id: 'q', name: 'Paused second', status: 'paused', times: ['12:00'] },
+      ],
+      todayDoses: [],
+      history: [],
+      upcoming: [],
+    }),
+  };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    view = ReactTestRenderer.create(<App />);
+  });
+  await ReactTestRenderer.act(() => {
+    view.root.findByProps({ testID: 'nav-reminders' }).props.onPress();
+  });
+  const names = view.root
+    .findAllByType(Text)
+    .map(node => node.props.children)
+    .filter(
+      value =>
+        typeof value === 'string' &&
+        /^(Active|Paused) (first|second)$/.test(value),
+    );
+  expect(names).toEqual([
+    'Active first',
+    'Active second',
+    'Paused first',
+    'Paused second',
+  ]);
+  await ReactTestRenderer.act(() => view.unmount());
+  subscription.mockRestore();
+});
+
+test.each([
+  ['en', 'Delete'],
+  ['es', 'Eliminar'],
+])('confirms deletion in %s', async (language, label) => {
+  const subscription = jest
+    .spyOn(AppState, 'addEventListener')
+    .mockReturnValue({ remove: jest.fn() });
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const setStatus = jest.fn().mockResolvedValue(undefined);
+  const repo = require('../src/reminderRepository');
+  repo.reminderRepository = {
+    state: jest
+      .fn()
+      .mockResolvedValue({
+        enabled: true,
+        exactAlarms: true,
+        notifications: true,
+        language,
+        medicines: [
+          { id: 'r', name: 'Water', type: 'reminder', times: ['09:00'] },
+        ],
+        todayDoses: [],
+        history: [],
+        upcoming: [],
+      }),
+    setStatus,
+  };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    view = ReactTestRenderer.create(<App />);
+  });
+  await ReactTestRenderer.act(() => {
+    view.root.findByProps({ testID: 'nav-reminders' }).props.onPress();
+  });
+  await ReactTestRenderer.act(() => {
+    view.root.findByProps({ accessibilityLabel: label }).props.onPress();
+  });
+  expect(setStatus).not.toHaveBeenCalled();
+  const buttons = alert.mock.calls[0][2]!;
+  await ReactTestRenderer.act(async () => {
+    await buttons.find(button => button.style === 'destructive')!.onPress!();
+  });
+  expect(setStatus).toHaveBeenCalledWith('r', 'deleted');
+  await ReactTestRenderer.act(() => view.unmount());
+  alert.mockRestore();
   subscription.mockRestore();
 });
