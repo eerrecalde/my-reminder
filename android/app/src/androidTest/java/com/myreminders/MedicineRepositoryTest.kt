@@ -72,6 +72,26 @@ class MedicineRepositoryTest {
     }
     context.deleteDatabase(db)
   }
+  @Test fun version16UpgradeResolvesOneOffInDaylightSavingGap() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "one-off-dst-upgrade.db"
+    val oldZone = java.util.TimeZone.getDefault()
+    context.deleteDatabase(db)
+    try {
+      java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Europe/London"))
+      val at = java.time.LocalDate.parse("2026-03-29").atTime(1, 30).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+      MedicineRepository(context, db).use { repo ->
+        val saved = repo.save("Gap", "", listOf("01:30"), at - 1000, "reminder", startDate = "2026-03-29", endDate = "2026-03-29")
+        repo.recordDue(saved.id, at)
+        repo.writableDatabase.execSQL("ALTER TABLE doses DROP COLUMN one_off")
+        repo.writableDatabase.version = 16
+      }
+      MedicineRepository(context, db).use { repo -> assertTrue(repo.occurrences().single().oneOff) }
+    } finally {
+      java.util.TimeZone.setDefault(oldZone)
+      context.deleteDatabase(db)
+    }
+  }
   @Test fun soundChoicesSurviveRestartAndKeepModesIndependent() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val db = "sound-choices-test.db"
