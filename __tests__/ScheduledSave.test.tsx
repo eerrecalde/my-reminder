@@ -44,10 +44,12 @@ test.each([false, true])(
       view.root.findByProps({ testID: 'nav-reminders' }).props.onPress(),
     );
     await ReactTestRenderer.act(() =>
-      view.root
-        .findAllByType(PillAction)
-        .find(b => b.props.title === (editing ? 'Edit' : 'Add reminder'))!
-        .props.onPress(),
+      (editing
+        ? view.root.findByProps({ accessibilityLabel: 'Edit' })
+        : view.root
+            .findAllByType(PillAction)
+            .find(b => b.props.title === 'Add reminder')!
+      ).props.onPress(),
     );
     await ReactTestRenderer.act(async () =>
       view.root.findByType(MedicineSetup).props.onSave({
