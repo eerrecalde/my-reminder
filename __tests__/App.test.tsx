@@ -956,20 +956,18 @@ test.each([
   const setStatus = jest.fn().mockResolvedValue(undefined);
   const repo = require('../src/reminderRepository');
   repo.reminderRepository = {
-    state: jest
-      .fn()
-      .mockResolvedValue({
-        enabled: true,
-        exactAlarms: true,
-        notifications: true,
-        language,
-        medicines: [
-          { id: 'r', name: 'Water', type: 'reminder', times: ['09:00'] },
-        ],
-        todayDoses: [],
-        history: [],
-        upcoming: [],
-      }),
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      exactAlarms: true,
+      notifications: true,
+      language,
+      medicines: [
+        { id: 'r', name: 'Water', type: 'reminder', times: ['09:00'] },
+      ],
+      todayDoses: [],
+      history: [],
+      upcoming: [],
+    }),
     setStatus,
   };
   let view!: ReactTestRenderer.ReactTestRenderer;
@@ -992,3 +990,101 @@ test.each([
   alert.mockRestore();
   subscription.mockRestore();
 });
+
+test.each([
+  ['en', 'Overdue'],
+  ['es', 'Vencido'],
+])(
+  'shows actionable overdue reminders first in %s',
+  async (language, label) => {
+    const subscription = jest
+      .spyOn(AppState, 'addEventListener')
+      .mockReturnValue({ remove: jest.fn() });
+    const repo = require('../src/reminderRepository');
+    repo.reminderRepository = {
+      state: jest.fn().mockResolvedValue({
+        enabled: true,
+        exactAlarms: true,
+        notifications: true,
+        language,
+        medicines: [
+          {
+            id: 'p',
+            name: 'Paused item',
+            status: 'paused',
+            type: 'reminder',
+            times: ['09:00'],
+          },
+          {
+            id: 'a',
+            name: 'Active',
+            status: 'active',
+            type: 'reminder',
+            times: ['09:00'],
+          },
+          {
+            id: 'm',
+            name: 'Medicine due',
+            status: 'active',
+            type: 'medicine',
+            times: ['09:00'],
+          },
+          {
+            id: 'r',
+            name: 'Reminder due',
+            status: 'active',
+            type: 'reminder',
+            times: ['09:00'],
+          },
+          {
+            id: 'h',
+            name: 'Missed only',
+            status: 'active',
+            type: 'reminder',
+            times: ['09:00'],
+          },
+        ],
+        todayDoses: [
+          { medicineId: 'm', scheduledAt: 2000, actionable: true },
+          { medicineId: 'r', scheduledAt: 3000, actionable: true },
+          {
+            medicineId: 'h',
+            scheduledAt: 1000,
+            outcome: 'missed',
+            actionable: false,
+          },
+        ],
+        history: [],
+        upcoming: [],
+      }),
+    };
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      view = ReactTestRenderer.create(<App />);
+    });
+    await ReactTestRenderer.act(() => {
+      view.root.findByProps({ testID: 'nav-reminders' }).props.onPress();
+    });
+    const text = view.root.findAllByType(Text).map(node => node.props.children);
+    expect(
+      text.filter(value =>
+        [
+          'Paused item',
+          'Active',
+          'Medicine due',
+          'Reminder due',
+          'Missed only',
+        ].includes(value),
+      ),
+    ).toEqual([
+      'Medicine due',
+      'Reminder due',
+      'Active',
+      'Missed only',
+      'Paused item',
+    ]);
+    expect(text.filter(value => value === label)).toHaveLength(2);
+    await ReactTestRenderer.act(() => view.unmount());
+    subscription.mockRestore();
+  },
+);

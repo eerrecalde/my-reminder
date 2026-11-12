@@ -17,6 +17,45 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ReminderFoundationTest {
+  @Test fun unansweredOneOffRemainsVisibleWithoutRestartingAlertsAndClearedHistoryStaysCleared() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val zone = java.time.ZoneId.systemDefault()
+    val date = java.time.LocalDate.now(zone).minusDays(2)
+    val at = date.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+    for (type in listOf("reminder", "medicine")) {
+      val item = MedicineRepository(context).use { repo ->
+        val saved = repo.save("Past one-off", "", listOf("09:00"), at - 60000, type, startDate = date.toString(), endDate = date.toString())
+        repo.recordDue(saved.id, at)
+        saved
+      }
+      try {
+        ReminderScheduler.rebuild(context, recovery = true)
+        MedicineRepository(context).use { repo ->
+          val occurrence = repo.occurrences().single { it.medicineId == item.id }
+          assertTrue(TodayPolicy.includes(occurrence, item, java.time.Instant.now(), zone))
+          assertTrue(TodayPolicy.actionable(occurrence, item, java.time.Instant.now(), zone))
+          assertFalse(occurrence.outstanding)
+          assertNull(repo.alarm(item.id))
+          assertFalse(context.getSystemService(NotificationManager::class.java).activeNotifications.any { it.id == ("${item.id}:$at").hashCode() })
+          repo.setOutcome(item.id, at, "completed")
+          repo.clearHistory()
+        }
+        ReminderScheduler.rebuild(context, recovery = true)
+        MedicineRepository(context).use { repo ->
+          assertTrue(repo.occurrences().none { it.medicineId == item.id })
+          val cleared = repo.occurrences(includeCleared = true).single { it.medicineId == item.id }
+          assertTrue(cleared.cleared)
+          assertFalse(TodayPolicy.includes(cleared, item, java.time.Instant.now(), zone))
+        }
+      } finally {
+        MedicineRepository(context).use { repo ->
+          repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+          repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
+          repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+        }
+      }
+    }
+  }
   @Test fun rebuildDismissesAlertLeftAfterInterruptedPauseCleanup() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val manager = context.getSystemService(NotificationManager::class.java)

@@ -100,7 +100,7 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     } finally { db.endTransaction() }
   }
 
-  data class Occurrence(val medicineId: String, val at: Long, val outcome: String?, val cleared: Boolean = false, val outstanding: Boolean = false, val name: String? = null, val instructions: String? = null, val type: String? = null, val mode: String? = null, val times: List<String>? = null, val retained: Boolean = false)
+  data class Occurrence(val medicineId: String, val at: Long, val outcome: String?, val cleared: Boolean = false, val outstanding: Boolean = false, val name: String? = null, val instructions: String? = null, val type: String? = null, val mode: String? = null, val times: List<String>? = null, val retained: Boolean = false, val missedAcknowledged: Boolean = false)
 
   private fun update(sql: String, vararg args: Any?): Int = writableDatabase.compileStatement(sql).use { statement ->
     args.forEachIndexed { index, value -> when (value) {
@@ -113,10 +113,10 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
 
   fun occurrences(includeCleared: Boolean = false): List<Occurrence> {
     val result = mutableListOf<Occurrence>()
-    readableDatabase.rawQuery("SELECT medicine_id, scheduled_at, outcome, cleared, outstanding, name, instructions, type, mode, times, retained FROM doses ${if (includeCleared) "" else "WHERE cleared = 0"} ORDER BY scheduled_at", null).use { cursor ->
+    readableDatabase.rawQuery("SELECT medicine_id, scheduled_at, outcome, cleared, outstanding, name, instructions, type, mode, times, retained, missed_acknowledged FROM doses ${if (includeCleared) "" else "WHERE cleared = 0"} ORDER BY scheduled_at", null).use { cursor ->
       while (cursor.moveToNext()) {
         val times = cursor.getString(9)?.let { value -> JSONArray(value).let { array -> (0 until array.length()).map { array.getString(it) } } }
-        result.add(Occurrence(cursor.getString(0), cursor.getLong(1), cursor.getString(2), cursor.getInt(3) != 0, cursor.getInt(4) != 0, cursor.getString(5), cursor.getString(6), cursor.getString(7), cursor.getString(8), times, cursor.getInt(10) != 0))
+        result.add(Occurrence(cursor.getString(0), cursor.getLong(1), cursor.getString(2), cursor.getInt(3) != 0, cursor.getInt(4) != 0, cursor.getString(5), cursor.getString(6), cursor.getString(7), cursor.getString(8), times, cursor.getInt(10) != 0, cursor.getInt(11) != 0))
       }
     }
     return result

@@ -99,6 +99,7 @@ const words = {
     skip: 'Skip',
     skipped: 'Skipped',
     missed: 'Missed',
+    overdue: 'Overdue',
     undo: 'Undo',
     unconfirm: 'Mark unconfirmed',
     history: 'History',
@@ -191,6 +192,7 @@ const words = {
     skip: 'Omitir',
     skipped: 'Omitido',
     missed: 'No confirmado a tiempo',
+    overdue: 'Vencido',
     undo: 'Deshacer',
     unconfirm: 'Marcar sin confirmar',
     history: 'Historial',
@@ -266,6 +268,11 @@ export default function App() {
     )
     .sort((a, b) => a.scheduledAt - b.scheduledAt);
   const nextUpcoming = sortedUpcoming[0];
+  const overdueIds = new Set(
+    (state?.todayDoses ?? [])
+      .filter(item => item.actionable)
+      .map(item => item.medicineId),
+  );
   const language = state?.language ?? 'en';
   const t = words[language];
   const changeOutcome = async (
@@ -862,12 +869,23 @@ export default function App() {
                     [...state.medicines]
                       .sort(
                         (a, b) =>
-                          Number(a.status === 'paused') -
-                          Number(b.status === 'paused'),
+                          (a.status === 'paused'
+                            ? 2
+                            : overdueIds.has(a.id)
+                            ? 0
+                            : 1) -
+                          (b.status === 'paused'
+                            ? 2
+                            : overdueIds.has(b.id)
+                            ? 0
+                            : 1),
                       )
                       .map(medicine => (
                         <View key={medicine.id} style={styles.medicine}>
                           <Text style={styles.title}>{medicine.name}</Text>
+                          {overdueIds.has(medicine.id) && (
+                            <Text style={styles.overdue}>{t.overdue}</Text>
+                          )}
                           {medicine.status === 'paused' && (
                             <Text style={styles.text}>{t.paused}</Text>
                           )}
@@ -1503,6 +1521,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   outcomeSkipped: { backgroundColor: '#f4e4cc' },
+  overdue: { color: '#80551c', fontWeight: '600' },
   outcomeMissed: { backgroundColor: '#f4ded6' },
   outcomeLabel: { color: '#1b2a1c', fontSize: 17, fontWeight: '700', flex: 1 },
   error: { color: '#a01818', fontSize: 18 },

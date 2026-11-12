@@ -6,6 +6,35 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class TodayPolicyTest {
+  @Test fun unansweredOneOffRemainsAccessibleWithoutAnAlert() {
+    val zone = ZoneId.of("UTC")
+    val at = Instant.parse("2026-06-01T09:00:00Z").toEpochMilli()
+    val now = Instant.parse("2026-06-03T12:00:00Z")
+    for (type in listOf("reminder", "medicine")) {
+      val medicine = Medicine("id", "Example", "", listOf("09:00"), 0, type, startDate = "2026-06-01", endDate = "2026-06-01")
+      val due = MedicineRepository.Occurrence("id", at, null)
+      assertTrue(TodayPolicy.includes(due, medicine, now, zone))
+      assertFalse(TodayPolicy.includes(due.copy(outcome = "completed"), medicine, now, zone))
+      assertFalse(TodayPolicy.includes(due.copy(outcome = "skipped"), medicine, now, zone))
+      assertFalse(TodayPolicy.includes(due.copy(cleared = true), medicine, now, zone))
+    }
+  }
+  @Test fun actionableExcludesAnsweredClearedFutureAndSupersededOccurrences() {
+    val zone = ZoneId.of("UTC")
+    val at = Instant.parse("2026-06-01T09:00:00Z").toEpochMilli()
+    val due = MedicineRepository.Occurrence("id", at, null)
+    val medicine = Medicine("id", "Example", "", listOf("09:00"), 0)
+    val beforeNext = Instant.parse("2026-06-02T08:59:00Z")
+    val afterNext = Instant.parse("2026-06-02T09:00:00Z")
+    assertTrue(TodayPolicy.actionable(due, medicine, beforeNext, zone))
+    assertFalse(TodayPolicy.actionable(due, medicine, afterNext, zone))
+    assertFalse(TodayPolicy.actionable(due.copy(retained = true), medicine, afterNext, zone))
+    assertTrue(TodayPolicy.actionable(due.copy(retained = true), medicine.copy(status = "paused"), afterNext, zone))
+    assertFalse(TodayPolicy.actionable(due.copy(outcome = "missed"), medicine, beforeNext, zone))
+    assertFalse(TodayPolicy.actionable(due.copy(missedAcknowledged = true), medicine.copy(status = "paused"), afterNext, zone))
+    assertFalse(TodayPolicy.actionable(due.copy(cleared = true), medicine, beforeNext, zone))
+    assertFalse(TodayPolicy.actionable(due, medicine, Instant.ofEpochMilli(at - 1), zone))
+  }
   @Test fun inactiveReminderKeepsOlderUnconfirmedOccurrencesAccessible() {
     val zone = ZoneId.of("Europe/London")
     val occurrence = MedicineRepository.Occurrence("id", Instant.parse("2026-06-01T09:00:00Z").toEpochMilli(), null)
