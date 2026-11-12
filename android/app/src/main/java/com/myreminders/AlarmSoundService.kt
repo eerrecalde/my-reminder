@@ -66,12 +66,13 @@ class AlarmSoundService : Service() {
     val previous = active[id]
     if (previous != null && at <= previous) return START_NOT_STICKY
     active[id] = at
+    val localized = AppLanguage.context(this)
     val manager = getSystemService(NotificationManager::class.java)
-    manager.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.alarm_channel), NotificationManager.IMPORTANCE_LOW).apply { setSound(null, null) })
+    manager.createNotificationChannel(NotificationChannel(CHANNEL, localized.getString(R.string.alarm_channel), NotificationManager.IMPORTANCE_LOW).apply { setSound(null, null) })
     val stop = PendingIntent.getService(this, 1, Intent(this, AlarmSoundService::class.java).setAction(STOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     val notification = NotificationCompat.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_notification)
-      .setContentTitle(getString(R.string.alarm_playing)).setOngoing(true)
-      .addAction(0, getString(R.string.stop_sound), stop).build()
+      .setContentTitle(localized.getString(R.string.alarm_playing)).setOngoing(true)
+      .addAction(0, localized.getString(R.string.stop_sound), stop).build()
     startForeground(NOTIFICATION_ID, notification)
     if (!sessionStarted) {
       sessionSound = MedicineRepository(this).use { ReminderSounds.resolve(this, "alarm", it.soundChoice(id, "alarm")) }

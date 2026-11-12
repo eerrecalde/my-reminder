@@ -1265,3 +1265,49 @@ test.each([
     subscription.mockRestore();
   },
 );
+
+test('selects Spanish in Options and updates the screen immediately', async () => {
+  const listener = jest
+    .spyOn(AppState, 'addEventListener')
+    .mockReturnValue({ remove: jest.fn() });
+  const repo = require('../src/reminderRepository');
+  let language: 'en' | 'es' = 'en';
+  let languagePreference = 'system';
+  repo.reminderRepository = {
+    state: jest.fn(async () => ({
+      enabled: true,
+      exactAlarms: true,
+      notifications: true,
+      language,
+      languagePreference,
+      medicines: [],
+      todayDoses: [],
+      history: [],
+      upcoming: [],
+    })),
+    setLanguage: jest.fn(async (choice: string) => {
+      languagePreference = choice;
+      language = 'es';
+    }),
+  };
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  await ReactTestRenderer.act(() =>
+    renderer.root
+      .findAllByProps({ accessibilityLabel: 'Reminder access' })[0]
+      .props.onPress(),
+  );
+  await ReactTestRenderer.act(async () =>
+    renderer.root.findByProps({ testID: 'language-es' }).props.onPress(),
+  );
+  expect(repo.reminderRepository.setLanguage).toHaveBeenCalledWith('es');
+  expect(
+    renderer.root
+      .findAllByType(Text)
+      .some(text => text.props.children === 'Acceso a recordatorios'),
+  ).toBe(true);
+  await ReactTestRenderer.act(() => renderer.unmount());
+  listener.mockRestore();
+});

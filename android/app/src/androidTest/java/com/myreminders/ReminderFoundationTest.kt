@@ -497,6 +497,24 @@ class ReminderFoundationTest {
     }
   }
 
+  @Test fun languagePreferencePersistsAndSystemFallsBackToEnglish() {
+    val base = ApplicationProvider.getApplicationContext<Context>()
+    val config = android.content.res.Configuration(base.resources.configuration)
+    config.setLocale(java.util.Locale.FRENCH)
+    val french = base.createConfigurationContext(config)
+    try {
+      AppLanguage.set(base, "es")
+      assertEquals("es", AppLanguage.preference(french))
+      assertEquals("es", AppLanguage.effective(french))
+      AppLanguage.set(base, "en")
+      assertEquals("en", AppLanguage.effective(french))
+      AppLanguage.set(base, "system")
+      assertEquals("en", AppLanguage.effective(french))
+      config.setLocale(java.util.Locale.forLanguageTag("es-MX"))
+      assertEquals("es", AppLanguage.effective(base.createConfigurationContext(config)))
+    } finally { AppLanguage.set(base, "system") }
+  }
+
   @Test fun directDeliveryUsesLocalizedTextAndActionsForBothTypes() {
     val base = ApplicationProvider.getApplicationContext<Context>()
     val manager = base.getSystemService(NotificationManager::class.java)
@@ -506,6 +524,7 @@ class ReminderFoundationTest {
       config.setLocale(java.util.Locale.forLanguageTag(language))
       val context = base.createConfigurationContext(config)
       for (type in listOf("reminder", "medicine")) {
+        AppLanguage.set(context, if (language == "en") "es" else "en")
         val now = System.currentTimeMillis()
         val time = LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))
         val item = MedicineRepository(context).use { it.save("Personal name", "", listOf(time), now - 10_000, type) }
@@ -513,6 +532,7 @@ class ReminderFoundationTest {
         val notificationId = ("${item.id}:$due").hashCode()
         try {
           MedicineRepository(context).use { it.setAlarm(item.id, due, "locale-test") }
+          AppLanguage.set(context, language)
           ReminderScheduler.deliver(context, item.id, due, "locale-test")
           val notification = requireNotNull(manager.activeNotifications.find { it.id == notificationId }).notification
           val expectedBody = if (language == "en") {
@@ -539,6 +559,7 @@ class ReminderFoundationTest {
         }
       }
     }
+    AppLanguage.set(base, "system")
   }
   @Test fun bothTypesRecoverTheirDailyScheduleAndDeliverTheRightText() {
     val context = ApplicationProvider.getApplicationContext<Context>()

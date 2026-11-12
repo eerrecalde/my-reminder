@@ -361,17 +361,18 @@ object ReminderScheduler {
   }
 
   private fun notifyOccurrence(context: Context, medicine: Medicine, at: Long) {
+    val localized = AppLanguage.context(context)
     val manager = context.getSystemService(NotificationManager::class.java)
-    manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.reminder_channel), NotificationManager.IMPORTANCE_HIGH).apply { enableVibration(true) })
+    manager.createNotificationChannel(NotificationChannel(CHANNEL, localized.getString(R.string.reminder_channel), NotificationManager.IMPORTANCE_HIGH).apply { enableVibration(true) })
     val legacyChannel = manager.getNotificationChannel(CHANNEL)
     if (legacyChannel?.importance == NotificationManager.IMPORTANCE_NONE) return
     val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     val body = medicine.instructions.takeIf { medicine.type == "medicine" && it.isNotBlank() }
-      ?: context.getString(if (medicine.type == "medicine") R.string.reminder_due else R.string.general_reminder_due)
+      ?: localized.getString(if (medicine.type == "medicine") R.string.reminder_due else R.string.general_reminder_due)
     val choice = MedicineRepository(context).use { it.soundChoice(medicine.id, "notification") }
     val sound = ReminderSounds.resolve(context, "notification", choice)
     val systemMuted = legacyChannel != null && !ReminderSounds.channelAllowsSound(legacyChannel)
-    val selectedChannel = if (medicine.mode == "notification") ReminderSounds.channel(context, sound) else CHANNEL
+    val selectedChannel = if (medicine.mode == "notification") ReminderSounds.channel(localized, sound) else CHANNEL
     val selectedSettings = manager.getNotificationChannel(selectedChannel)
     if (selectedSettings?.importance == NotificationManager.IMPORTANCE_NONE) return
     // Channels are immutable after creation. If legacy controls became stricter,
@@ -386,9 +387,9 @@ object ReminderScheduler {
     val notification = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notification)
       .setContentTitle(medicine.name).setContentText(body).setContentIntent(open).setAutoCancel(false)
       .setCategory(NotificationCompat.CATEGORY_REMINDER).setSilent(medicine.mode == "alarm" || systemMuted || suppressAlert).setPriority(NotificationCompat.PRIORITY_HIGH)
-      .addAction(0, context.getString(if (medicine.type == "medicine") R.string.taken else R.string.completed), outcomeIntent(context, medicine.id, at, "completed"))
-      .addAction(0, context.getString(R.string.skip), outcomeIntent(context, medicine.id, at, "skipped"))
-      .addAction(0, context.getString(R.string.snooze_ten), outcomeIntent(context, medicine.id, at, "snooze"))
+      .addAction(0, localized.getString(if (medicine.type == "medicine") R.string.taken else R.string.completed), outcomeIntent(context, medicine.id, at, "completed"))
+      .addAction(0, localized.getString(R.string.skip), outcomeIntent(context, medicine.id, at, "skipped"))
+      .addAction(0, localized.getString(R.string.snooze_ten), outcomeIntent(context, medicine.id, at, "snooze"))
       .build()
     try { NotificationManagerCompat.from(context).notify(notificationId(medicine.id, at), notification) } catch (_: SecurityException) { }
   }

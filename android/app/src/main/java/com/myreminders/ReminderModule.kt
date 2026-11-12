@@ -38,7 +38,8 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       result.putBoolean("enabled", ReminderScheduler.enabled(reactContext))
       result.putBoolean("exactAlarms", Build.VERSION.SDK_INT < 31 || reactContext.getSystemService(android.app.AlarmManager::class.java).canScheduleExactAlarms())
       result.putBoolean("notifications", ReminderScheduler.notificationsEnabled(reactContext))
-      result.putString("language", if (Locale.getDefault().language == "es") "es" else "en")
+      result.putString("language", AppLanguage.effective(reactContext))
+      result.putString("languagePreference", AppLanguage.preference(reactContext))
       val medicines = Arguments.createArray()
       MedicineRepository(reactContext).use { repo -> repo.all().filter { it.status != "deleted" }.forEach { medicine ->
         medicines.pushMap(Arguments.createMap().apply {
@@ -87,6 +88,10 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       result.putArray("upcoming", upcoming)
       promise.resolve(result)
     } catch (error: Exception) { promise.reject("state_failed", error) }
+  }
+  @ReactMethod fun setLanguage(language: String, promise: Promise) {
+    try { AppLanguage.set(reactContext, language); promise.resolve(null) }
+    catch (error: Exception) { promise.reject("language_failed", error) }
   }
   @ReactMethod fun soundInfo(choice: String?, promise: Promise) {
     promise.resolve(Arguments.createMap().apply {
@@ -240,7 +245,8 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
     }
   }
   @ReactMethod fun testReminder() {
-    ReminderScheduler.notify(reactContext, reactContext.getString(R.string.test_reminder), reactContext.getString(R.string.test_reminder_body), 0)
+    val localized = AppLanguage.context(reactContext)
+    ReminderScheduler.notify(localized, localized.getString(R.string.test_reminder), localized.getString(R.string.test_reminder_body), 0)
   }
 }
 class ReminderPackage : ReactPackage {
