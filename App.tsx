@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { MedicineSetup } from './src/MedicineSetup';
+import { hasFutureOccurrence } from './src/pastSchedules';
 import { isOneOffSchedule } from './src/dailySchedule';
 import { PillAction } from './src/PillAction';
 export { PillAction } from './src/PillAction';
@@ -100,6 +101,7 @@ const words = {
     skipped: 'Skipped',
     missed: 'Missed',
     overdue: 'Overdue',
+    past: 'Past',
     undo: 'Undo',
     unconfirm: 'Mark unconfirmed',
     history: 'History',
@@ -193,6 +195,7 @@ const words = {
     skipped: 'Omitido',
     missed: 'No confirmado a tiempo',
     overdue: 'Vencido',
+    past: 'Anteriores',
     undo: 'Deshacer',
     unconfirm: 'Marcar sin confirmar',
     history: 'Historial',
@@ -220,6 +223,7 @@ export default function App() {
   >('today');
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [pastExpanded, setPastExpanded] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [editing, setEditing] = useState<Medicine>();
   const [soundDefaults, setSoundDefaults] = useState<{
@@ -272,6 +276,12 @@ export default function App() {
     (state?.todayDoses ?? [])
       .filter(item => item.actionable)
       .map(item => item.medicineId),
+  );
+  const now = new Date();
+  const pastIds = new Set(
+    (state?.medicines ?? [])
+      .filter(m => !overdueIds.has(m.id) && !hasFutureOccurrence(m, now))
+      .map(m => m.id),
   );
   const language = state?.language ?? 'en';
   const t = words[language];
@@ -866,133 +876,172 @@ export default function App() {
                       <Text style={styles.emptyHelp}>{t.emptyHelp}</Text>
                     </View>
                   ) : (
-                    [...state.medicines]
-                      .sort(
-                        (a, b) =>
-                          (a.status === 'paused'
-                            ? 2
-                            : overdueIds.has(a.id)
-                            ? 0
-                            : 1) -
-                          (b.status === 'paused'
-                            ? 2
-                            : overdueIds.has(b.id)
-                            ? 0
-                            : 1),
-                      )
-                      .map(medicine => (
-                        <View key={medicine.id} style={styles.medicine}>
-                          <Text style={styles.title}>{medicine.name}</Text>
-                          {overdueIds.has(medicine.id) && (
-                            <Text style={styles.overdue}>{t.overdue}</Text>
-                          )}
-                          {medicine.status === 'paused' && (
-                            <Text style={styles.text}>{t.paused}</Text>
-                          )}
-                          <Text style={styles.text}>
-                            {medicine.type === 'reminder'
-                              ? t.reminder
-                              : t.medicine}
-                          </Text>
-                          {medicine.type === 'medicine' &&
-                            !!medicine.instructions && (
-                              <Text style={styles.text}>
-                                {medicine.instructions}
-                              </Text>
-                            )}
-                          <Text style={styles.text}>
-                            {scheduleLabel(medicine)}
-                          </Text>
-                          <View style={styles.cardActions}>
+                    [false, true].map(isPast => {
+                      const items = state.medicines.filter(
+                        m => pastIds.has(m.id) === isPast,
+                      );
+                      if (!items.length) return null;
+                      return (
+                        <View key={String(isPast)}>
+                          {isPast && (
                             <Pressable
                               accessibilityRole="button"
-                              accessibilityLabel={t.edit}
-                              style={styles.cardAction}
-                              onPress={() => {
-                                setEditing(medicine);
-                                setSetupOrigin('reminders');
-                                setScreen('setup');
-                              }}
+                              accessibilityState={{ expanded: pastExpanded }}
+                              onPress={() => setPastExpanded(!pastExpanded)}
+                              style={styles.accessLink}
                             >
-                              <AppIcon name="edit" color="#315a36" />
-                              <Text style={styles.cardActionText}>
-                                {t.edit}
+                              <Text style={styles.outcomeLabel}>
+                                {t.past} ({items.length})
                               </Text>
-                            </Pressable>
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel={
-                                medicine.status === 'paused'
-                                  ? t.resume
-                                  : t.pause
-                              }
-                              style={styles.cardAction}
-                              onPress={async () => {
-                                try {
-                                  await reminderRepository.setStatus(
-                                    medicine.id,
-                                    medicine.status === 'paused'
-                                      ? 'active'
-                                      : 'paused',
-                                  );
-                                  await refresh();
-                                } catch {
-                                  setError(t.error);
-                                }
-                              }}
-                            >
                               <AppIcon
                                 name={
-                                  medicine.status === 'paused'
-                                    ? 'play'
-                                    : 'pause'
+                                  pastExpanded ? 'chevronUp' : 'chevronDown'
                                 }
-                                color="#315a36"
+                                color="#526d40"
                               />
-                              <Text style={styles.cardActionText}>
-                                {medicine.status === 'paused'
-                                  ? t.resume
-                                  : t.pause}
-                              </Text>
                             </Pressable>
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel={t.delete}
-                              style={styles.cardAction}
-                              onPress={() =>
-                                Alert.alert(t.delete, t.deleteQuestion, [
-                                  { text: t.cancel, style: 'cancel' },
-                                  {
-                                    text: t.delete,
-                                    style: 'destructive',
-                                    onPress: async () => {
-                                      try {
-                                        await reminderRepository.setStatus(
-                                          medicine.id,
-                                          'deleted',
-                                        );
-                                        await refresh();
-                                      } catch {
-                                        setError(t.error);
+                          )}
+                          {(!isPast || pastExpanded) &&
+                            items
+                              .sort(
+                                (a, b) =>
+                                  (a.status === 'paused'
+                                    ? 2
+                                    : overdueIds.has(a.id)
+                                    ? 0
+                                    : 1) -
+                                  (b.status === 'paused'
+                                    ? 2
+                                    : overdueIds.has(b.id)
+                                    ? 0
+                                    : 1),
+                              )
+                              .map(medicine => (
+                                <View key={medicine.id} style={styles.medicine}>
+                                  <Text style={styles.title}>
+                                    {medicine.name}
+                                  </Text>
+                                  {overdueIds.has(medicine.id) && (
+                                    <Text style={styles.overdue}>
+                                      {t.overdue}
+                                    </Text>
+                                  )}
+                                  {medicine.status === 'paused' && (
+                                    <Text style={styles.text}>{t.paused}</Text>
+                                  )}
+                                  <Text style={styles.text}>
+                                    {medicine.type === 'reminder'
+                                      ? t.reminder
+                                      : t.medicine}
+                                  </Text>
+                                  {medicine.type === 'medicine' &&
+                                    !!medicine.instructions && (
+                                      <Text style={styles.text}>
+                                        {medicine.instructions}
+                                      </Text>
+                                    )}
+                                  <Text style={styles.text}>
+                                    {scheduleLabel(medicine)}
+                                  </Text>
+                                  <View style={styles.cardActions}>
+                                    <Pressable
+                                      accessibilityRole="button"
+                                      accessibilityLabel={t.edit}
+                                      style={styles.cardAction}
+                                      onPress={() => {
+                                        setEditing(medicine);
+                                        setSetupOrigin('reminders');
+                                        setScreen('setup');
+                                      }}
+                                    >
+                                      <AppIcon name="edit" color="#315a36" />
+                                      <Text style={styles.cardActionText}>
+                                        {t.edit}
+                                      </Text>
+                                    </Pressable>
+                                    {!isPast && (
+                                      <Pressable
+                                        accessibilityRole="button"
+                                        accessibilityLabel={
+                                          medicine.status === 'paused'
+                                            ? t.resume
+                                            : t.pause
+                                        }
+                                        style={styles.cardAction}
+                                        onPress={async () => {
+                                          try {
+                                            await reminderRepository.setStatus(
+                                              medicine.id,
+                                              medicine.status === 'paused'
+                                                ? 'active'
+                                                : 'paused',
+                                            );
+                                            await refresh();
+                                          } catch {
+                                            setError(t.error);
+                                          }
+                                        }}
+                                      >
+                                        <AppIcon
+                                          name={
+                                            medicine.status === 'paused'
+                                              ? 'play'
+                                              : 'pause'
+                                          }
+                                          color="#315a36"
+                                        />
+                                        <Text style={styles.cardActionText}>
+                                          {medicine.status === 'paused'
+                                            ? t.resume
+                                            : t.pause}
+                                        </Text>
+                                      </Pressable>
+                                    )}
+                                    <Pressable
+                                      accessibilityRole="button"
+                                      accessibilityLabel={t.delete}
+                                      style={styles.cardAction}
+                                      onPress={() =>
+                                        Alert.alert(
+                                          t.delete,
+                                          t.deleteQuestion,
+                                          [
+                                            { text: t.cancel, style: 'cancel' },
+                                            {
+                                              text: t.delete,
+                                              style: 'destructive',
+                                              onPress: async () => {
+                                                try {
+                                                  await reminderRepository.setStatus(
+                                                    medicine.id,
+                                                    'deleted',
+                                                  );
+                                                  await refresh();
+                                                } catch {
+                                                  setError(t.error);
+                                                }
+                                              },
+                                            },
+                                          ],
+                                        )
                                       }
-                                    },
-                                  },
-                                ])
-                              }
-                            >
-                              <AppIcon name="delete" color="#a13027" />
-                              <Text
-                                style={[
-                                  styles.cardActionText,
-                                  styles.deleteText,
-                                ]}
-                              >
-                                {t.delete}
-                              </Text>
-                            </Pressable>
-                          </View>
+                                    >
+                                      <AppIcon name="delete" color="#a13027" />
+                                      <Text
+                                        style={[
+                                          styles.cardActionText,
+                                          styles.deleteText,
+                                        ]}
+                                      >
+                                        {t.delete}
+                                      </Text>
+                                    </Pressable>
+                                  </View>
+                                </View>
+                              ))}
                         </View>
-                      ))
+                      );
+                    })
                   )}
                 </>
               ) : screen === 'history' ? (
