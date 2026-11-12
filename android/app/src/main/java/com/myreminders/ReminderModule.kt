@@ -225,9 +225,11 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
     reactContext.runOnUiQueueThread {
       val activity = reactContext.currentActivity
       if (activity == null) { promise.reject("no_activity", "No activity is available"); return@runOnUiQueueThread }
-      val dialog = android.app.DatePickerDialog(activity, { _, year, month, day ->
-        promise.resolve(java.time.LocalDate.of(year, month + 1, day).toString())
-      }, current.year, current.monthValue - 1, current.dayOfMonth)
+      val dialog = LocalizedPicker.create(activity) { localized ->
+        android.app.DatePickerDialog(localized, { _, year, month, day ->
+          promise.resolve(java.time.LocalDate.of(year, month + 1, day).toString())
+        }, current.year, current.monthValue - 1, current.dayOfMonth)
+      }
       dialog.setOnCancelListener { promise.resolve(null) }
       dialog.show()
     }
@@ -237,9 +239,11 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
     reactContext.runOnUiQueueThread {
       val activity = reactContext.currentActivity
       if (activity == null) { promise.reject("no_activity", "No activity is available"); return@runOnUiQueueThread }
-      val dialog = android.app.TimePickerDialog(activity, { _, hour, minute ->
-        promise.resolve(String.format(Locale.ROOT, "%02d:%02d", hour, minute))
-      }, current.hour, current.minute, android.text.format.DateFormat.is24HourFormat(activity))
+      val dialog = LocalizedPicker.create(activity) { localized ->
+        android.app.TimePickerDialog(localized, { _, hour, minute ->
+          promise.resolve(String.format(Locale.ROOT, "%02d:%02d", hour, minute))
+        }, current.hour, current.minute, android.text.format.DateFormat.is24HourFormat(activity))
+      }
       dialog.setOnCancelListener { promise.resolve(null) }
       dialog.show()
     }
