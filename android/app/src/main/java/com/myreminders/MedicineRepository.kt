@@ -79,9 +79,9 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
       db.rawQuery("SELECT doses.id, doses.scheduled_at, medicines.start_date, medicines.times FROM doses JOIN medicines ON medicines.id = doses.medicine_id WHERE medicines.schedule_kind = 'daily' AND medicines.start_date IS NOT NULL AND medicines.start_date = medicines.end_date", null).use { cursor ->
         val zone = java.time.ZoneId.systemDefault()
         while (cursor.moveToNext()) {
-          val scheduled = java.time.Instant.ofEpochMilli(cursor.getLong(1)).atZone(zone)
           val times = JSONArray(cursor.getString(3))
-          if (scheduled.toLocalDate().toString() == cursor.getString(2) && times.length() == 1 && scheduled.toLocalTime().withSecond(0).withNano(0) == java.time.LocalTime.parse(times.getString(0))) db.execSQL("UPDATE doses SET one_off = 1 WHERE id = ?", arrayOf(cursor.getString(0)))
+          val scheduled = if (times.length() == 1) java.time.LocalDate.parse(cursor.getString(2)).atTime(java.time.LocalTime.parse(times.getString(0))).atZone(zone).toInstant().toEpochMilli() else null
+          if (scheduled == cursor.getLong(1)) db.execSQL("UPDATE doses SET one_off = 1 WHERE id = ?", arrayOf(cursor.getString(0)))
         }
       }
     }
