@@ -1299,10 +1299,23 @@ test('selects Spanish in Options and updates the screen immediately', async () =
       .findAllByProps({ accessibilityLabel: 'Reminder access' })[0]
       .props.onPress(),
   );
+  expect(renderer.root.findAllByProps({ testID: 'language-es' })).toHaveLength(
+    0,
+  );
+  await ReactTestRenderer.act(() =>
+    renderer.root.findByProps({ testID: 'language-dropdown' }).props.onPress(),
+  );
   await ReactTestRenderer.act(async () =>
     renderer.root.findByProps({ testID: 'language-es' }).props.onPress(),
   );
+  expect(renderer.root.findAllByProps({ testID: 'language-es' })).toHaveLength(
+    0,
+  );
   expect(repo.reminderRepository.setLanguage).toHaveBeenCalledWith('es');
+  expect(
+    renderer.root.findByProps({ testID: 'language-dropdown' }).props
+      .accessibilityValue.text,
+  ).toBe('Español');
   expect(
     renderer.root
       .findAllByType(Text)
