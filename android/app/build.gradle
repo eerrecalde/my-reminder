@@ -2,6 +2,15 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
+// Prevent releases with incomplete translations or stale generated resources.
+tasks.register("checkTranslations", Exec) {
+    workingDir rootProject.projectDir.parentFile
+    commandLine "node", "scripts/translations.js", "--check"
+}
+tasks.configureEach { task ->
+    if (task.name == "preReleaseBuild") task.dependsOn("checkTranslations")
+}
+
 // The React Native entry point reads the registered component name from app.json.
 tasks.withType(com.facebook.react.tasks.BundleHermesCTask).configureEach {
     inputs.file(file("../../app.json"))

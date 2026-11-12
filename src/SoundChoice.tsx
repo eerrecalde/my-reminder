@@ -2,6 +2,7 @@ import { AppIcon } from './AppIcon';
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { reminderRepository } from './reminderRepository';
+import { translations } from './translations';
 
 type Props = {
   mode: 'notification' | 'alarm';
@@ -39,29 +40,16 @@ export function SoundChoice({
       live = false;
     };
   }, [value]);
-  const es = language === 'es';
-  const title =
-    mode === 'alarm'
-      ? es
-        ? 'Sonido de alarma'
-        : 'Alarm sound'
-      : es
-      ? 'Sonido de notificación'
-      : 'Notification sound';
+  const t = translations[language].sound;
+  const title = mode === 'alarm' ? t.alarm : t.notification;
   const label =
     value === null
       ? isDefault
-        ? es
-          ? 'Configuración del teléfono'
-          : 'Phone setting'
-        : es
-        ? 'Sonido predeterminado'
-        : 'Default sound'
+        ? t.phone
+        : t.default
       : value === ''
-      ? es
-        ? 'Silencio'
-        : 'Silent'
-      : info.title ?? (es ? 'Sonido seleccionado' : 'Selected sound');
+      ? t.silent
+      : info.title ?? t.selected;
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{title}</Text>
@@ -85,30 +73,14 @@ export function SoundChoice({
       {value !== null && (
         <Pressable accessibilityRole="button" onPress={() => onChange(null)}>
           <Text style={styles.reset}>
-            {isDefault
-              ? es
-                ? 'Restablecer configuración del teléfono'
-                : 'Reset to phone setting'
-              : es
-              ? 'Usar sonido predeterminado'
-              : 'Use default sound'}
+            {isDefault ? t.resetPhone : t.resetDefault}
           </Text>
         </Pressable>
       )}
       {!info.available && (
-        <Text accessibilityRole="alert">
-          {es
-            ? 'Este sonido ya no está disponible. Se usará el sonido predeterminado.'
-            : 'This sound is no longer available. The default sound will be used.'}
-        </Text>
+        <Text accessibilityRole="alert">{t.unavailable}</Text>
       )}
-      {error && (
-        <Text accessibilityRole="alert">
-          {es
-            ? 'No se pudo abrir el selector de sonidos.'
-            : 'Could not open the sound picker.'}
-        </Text>
-      )}
+      {error && <Text accessibilityRole="alert">{t.error}</Text>}
     </View>
   );
 }

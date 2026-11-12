@@ -60,144 +60,7 @@ type Props = {
   selectTime?: (time: string) => Promise<string | null>;
 };
 
-const copy = {
-  en: {
-    once: 'Once',
-    onceDate: 'Date',
-    onceTime: 'Time',
-    onceFuture: 'Choose a future date and time.',
-    oncePreview: 'Reminder time',
-    daily: 'Every day',
-    weekday: 'Selected weekdays',
-    interval: 'Every X hours',
-    monthly: 'Monthly',
-    weekdays: [
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
-    ],
-    hours: 'Hours between reminders',
-    monthDay: 'Day of month (1–31)',
-    lastDay: 'Last day of month',
-    shortMonth: 'When the day is unavailable',
-    useLast: 'Use last day',
-    skipMonth: 'Skip month',
-    invalidSchedule: 'Choose valid schedule settings',
-    first: 'First reminder date and time',
-    medicine: 'Medicine',
-    reminder: 'Reminder',
-    choose: 'Choose a type',
-    reminderName: 'Reminder name',
-    reminderRequired: 'Enter a reminder name',
-    saveReminder: 'Save reminder',
-    name: 'Medicine name',
-    instructions: 'Dose instructions (optional)',
-    next: 'Next',
-    required: 'Enter a medicine name',
-    schedule: 'Schedule',
-    frequency: 'Repeat',
-    times: 'Daily times',
-    addTime: 'Add a time',
-    selectTime: 'Select a time',
-    select: 'Select',
-    timeRequired: 'Select a time for this reminder.',
-    change: 'Change',
-    remove: 'Remove',
-    noEnd: 'No end date',
-    setDate: 'Set date',
-    changeTime: 'Change time',
-    removeTime: 'Remove time',
-    invalid: 'Enter one or more times, for example 09:00, 21:00',
-    mode: 'Reminder: Notification',
-    alarmMode: 'Reminder: Alarm',
-    notification: 'Notification',
-    alarm: 'Alarm',
-    review: 'Review',
-    nextThree: 'Next three reminders',
-    startDate: 'Start date',
-    endDate: 'End date (optional)',
-    setEnd: 'Set end date',
-    clearEnd: 'Remove end date',
-    invalidDates: 'End date must be on or after start date',
-    final: 'Final reminder',
-    none: 'No future reminders',
-    everyDay: 'Every day at',
-    save: 'Save medicine',
-    back: 'Back',
-  },
-  es: {
-    once: 'Una vez',
-    onceDate: 'Fecha',
-    onceTime: 'Hora',
-    onceFuture: 'Elige una fecha y hora futuras.',
-    oncePreview: 'Hora del recordatorio',
-    daily: 'Todos los días',
-    weekday: 'Días de la semana',
-    interval: 'Cada X horas',
-    monthly: 'Mensual',
-    weekdays: [
-      'Lunes',
-      'Martes',
-      'Miércoles',
-      'Jueves',
-      'Viernes',
-      'Sábado',
-      'Domingo',
-    ],
-    hours: 'Horas entre recordatorios',
-    monthDay: 'Día del mes (1–31)',
-    lastDay: 'Último día del mes',
-    shortMonth: 'Cuando no exista el día',
-    useLast: 'Usar el último día',
-    skipMonth: 'Omitir el mes',
-    invalidSchedule: 'Elige una programación válida',
-    first: 'Fecha y hora del primer recordatorio',
-    medicine: 'Medicamento',
-    reminder: 'Recordatorio',
-    choose: 'Elige un tipo',
-    reminderName: 'Nombre del recordatorio',
-    reminderRequired: 'Escribe el nombre del recordatorio',
-    saveReminder: 'Guardar recordatorio',
-    name: 'Nombre del medicamento',
-    instructions: 'Indicaciones de la dosis (opcional)',
-    next: 'Continuar',
-    required: 'Escribe el nombre del medicamento',
-    schedule: 'Horario',
-    frequency: 'Repetir',
-    times: 'Horas diarias',
-    addTime: 'Agregar una hora',
-    selectTime: 'Elegir una hora',
-    select: 'Elegir',
-    timeRequired: 'Elige una hora para este recordatorio.',
-    change: 'Cambiar',
-    remove: 'Quitar',
-    noEnd: 'Sin fecha de fin',
-    setDate: 'Elegir fecha',
-    changeTime: 'Cambiar hora',
-    removeTime: 'Quitar hora',
-    invalid: 'Escribe una o más horas, por ejemplo 09:00, 21:00',
-    mode: 'Recordatorio: Notificación',
-    alarmMode: 'Recordatorio: Alarma',
-    notification: 'Notificación',
-    alarm: 'Alarma',
-    review: 'Revisar',
-    nextThree: 'Próximos tres recordatorios',
-    startDate: 'Fecha de inicio',
-    endDate: 'Fecha de fin (opcional)',
-    setEnd: 'Elegir fecha de fin',
-    clearEnd: 'Quitar fecha de fin',
-    invalidDates: 'La fecha de fin debe ser igual o posterior a la de inicio',
-    final: 'Último recordatorio',
-    none: 'No hay recordatorios futuros',
-    everyDay: 'Todos los días a las',
-    save: 'Guardar medicamento',
-    back: 'Volver',
-  },
-};
+import { translations } from './translations';
 
 export function MedicineSetup({
   language,
@@ -208,7 +71,7 @@ export function MedicineSetup({
   selectTime,
   selectDate,
 }: Props) {
-  const t = copy[language];
+  const t = translations[language].setup;
   const currentTime = () => {
     const date = now ?? new Date();
     return `${String(date.getHours()).padStart(2, '0')}:${String(
@@ -421,7 +284,7 @@ export function MedicineSetup({
         : finalDailyOccurrence(times, endDate)
       : undefined;
   const formatDate = (value: string) =>
-    localDate(value).toLocaleDateString(language === 'es' ? 'es-MX' : 'en-GB', {
+    localDate(value).toLocaleDateString(translations[language].locale, {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -899,7 +762,7 @@ export function MedicineSetup({
             </Text>
             {preview.map(date => (
               <Text key={date.toISOString()} style={styles.label}>
-                {date.toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
+                {date.toLocaleString(translations[language].locale, {
                   dateStyle: 'full',
                   timeStyle: 'short',
                 })}
@@ -912,7 +775,7 @@ export function MedicineSetup({
                   {t.final}
                 </Text>
                 <Text style={styles.label}>
-                  {final.toLocaleString(language === 'es' ? 'es-MX' : 'en-GB', {
+                  {final.toLocaleString(translations[language].locale, {
                     dateStyle: 'full',
                     timeStyle: 'short',
                   })}
