@@ -86,7 +86,8 @@
     "paused": "Paused",
     "deleteQuestion": "Delete this reminder?",
     "language": "Language",
-    "systemDefault": "System default"
+    "systemDefault": "System default",
+    "options": "Options"
   },
   "setup": {
     "once": "Once",

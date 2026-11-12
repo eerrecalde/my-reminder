@@ -411,7 +411,7 @@ export default function App() {
                     ? t.reminders
                     : screen === 'history'
                     ? t.history
-                    : t.settings}
+                    : t.options}
                 </Text>
               )}
               {!state ? (
@@ -940,51 +940,7 @@ export default function App() {
                 </>
               ) : (
                 <>
-                  <View style={styles.permissionCard}>
-                    <View style={styles.permissionHeader}>
-                      <AppIcon name="languages" color="#203b21" />
-                      <Text style={styles.permissionTitle}>{t.language}</Text>
-                    </View>
-                    {(['system', 'en', 'es'] as const).map(choice => (
-                      <Pressable
-                        key={choice}
-                        testID={`language-${choice}`}
-                        accessibilityRole="radio"
-                        accessibilityState={{
-                          checked:
-                            (state.languagePreference ?? 'system') === choice,
-                        }}
-                        onPress={async () => {
-                          try {
-                            await reminderRepository.setLanguage(choice);
-                            await refresh();
-                          } catch {
-                            setError(t.error);
-                          }
-                        }}
-                        style={styles.permissionHeader}
-                      >
-                        <AppIcon
-                          name={
-                            (state.languagePreference ?? 'system') === choice
-                              ? 'circleDot'
-                              : 'circle'
-                          }
-                          color="#203b21"
-                        />
-                        {choice === 'system' && (
-                          <AppIcon name="globe" color="#203b21" />
-                        )}
-                        <Text>
-                          {choice === 'system'
-                            ? t.systemDefault
-                            : choice === 'en'
-                            ? 'English'
-                            : 'Español'}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
+                  <Text style={styles.sectionTitle}>{t.settings}</Text>
                   <Text style={styles.accessIntro}>{t.accessIntro}</Text>
                   {(['notification', 'alarm'] as const).map(mode => (
                     <SoundChoice
@@ -1123,6 +1079,51 @@ export default function App() {
                   />
                   <Text style={styles.accessFoot}>{t.explanation}</Text>
                   <Text style={styles.accessFoot}>{t.storage}</Text>
+                  <View style={styles.permissionCard}>
+                    <View style={styles.permissionHeader}>
+                      <AppIcon name="languages" color="#203b21" />
+                      <Text style={styles.permissionTitle}>{t.language}</Text>
+                    </View>
+                    {(['system', 'en', 'es'] as const).map(choice => (
+                      <Pressable
+                        key={choice}
+                        testID={`language-${choice}`}
+                        accessibilityRole="radio"
+                        accessibilityState={{
+                          checked:
+                            (state.languagePreference ?? 'system') === choice,
+                        }}
+                        onPress={async () => {
+                          try {
+                            await reminderRepository.setLanguage(choice);
+                            await refresh();
+                          } catch {
+                            setError(t.error);
+                          }
+                        }}
+                        style={styles.permissionHeader}
+                      >
+                        <AppIcon
+                          name={
+                            (state.languagePreference ?? 'system') === choice
+                              ? 'circleDot'
+                              : 'circle'
+                          }
+                          color="#203b21"
+                        />
+                        {choice === 'system' && (
+                          <AppIcon name="globe" color="#203b21" />
+                        )}
+                        <Text>
+                          {choice === 'system'
+                            ? t.systemDefault
+                            : choice === 'en'
+                            ? 'English'
+                            : 'Español'}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
                   <PillAction
                     secondary
                     title={t.cancel}

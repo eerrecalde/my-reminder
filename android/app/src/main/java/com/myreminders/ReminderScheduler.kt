@@ -372,7 +372,7 @@ object ReminderScheduler {
     val choice = MedicineRepository(context).use { it.soundChoice(medicine.id, "notification") }
     val sound = ReminderSounds.resolve(context, "notification", choice)
     val systemMuted = legacyChannel != null && !ReminderSounds.channelAllowsSound(legacyChannel)
-    val selectedChannel = if (medicine.mode == "notification") ReminderSounds.channel(context, sound) else CHANNEL
+    val selectedChannel = if (medicine.mode == "notification") ReminderSounds.channel(localized, sound) else CHANNEL
     val selectedSettings = manager.getNotificationChannel(selectedChannel)
     if (selectedSettings?.importance == NotificationManager.IMPORTANCE_NONE) return
     // Channels are immutable after creation. If legacy controls became stricter,

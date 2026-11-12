@@ -86,7 +86,8 @@
     "paused": "Pausado",
     "deleteQuestion": "¿Eliminar este recordatorio?",
     "language": "Idioma",
-    "systemDefault": "Predeterminado del sistema"
+    "systemDefault": "Predeterminado del sistema",
+    "options": "Opciones"
   },
   "setup": {
     "once": "Una vez",
