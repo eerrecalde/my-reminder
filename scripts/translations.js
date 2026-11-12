@@ -6,7 +6,7 @@ function missing(reference, translated, path = '') {
   return Object.keys(reference).flatMap(key => {
     const name = path ? `${path}.${key}` : key;
     if (translated?.[key] == null || translated[key] === '') return [name];
-    if (typeof reference[key] === 'object' && !Array.isArray(reference[key])) {
+    if (typeof reference[key] === 'object' && reference[key] !== null) {
       return missing(reference[key], translated[key], name);
     }
     return [];
@@ -30,6 +30,7 @@ for (const [language, data, path] of [
   const content =
     '<resources>\n' +
     Object.entries(data.android)
+      .filter(([, value]) => value != null && value !== '')
       .map(
         ([key, value]) =>
           `    <string name="${key}">${escape(value)}</string>\n`,
