@@ -8,7 +8,7 @@
 
 ## Acceptance criteria
 
-- [ ] Schedule an Alarm about a minute ahead on the phone that showed the original behaviour. Set the phone to Silent and lock it with the display off. With full-screen access enabled, the Alarm wakes the display quietly and shows **Reminder due** and **Close** over the lock screen. The phone stays locked and reminder names and dosage instructions stay hidden on the Alarm screen.
+- [x] Schedule an Alarm about a minute ahead on the phone that showed the original behaviour. Set the phone to Silent and lock it with the display off. With full-screen access enabled, the Alarm wakes the display quietly and shows **Reminder due** and **Close** over the lock screen. The phone stays locked and reminder names and dosage instructions stay hidden on the Alarm screen.
 - [ ] **Close** dismisses the Alarm screen and ends the sound session. The unanswered reminder occurrence and its notification remain available for a later response.
 - [ ] With full-screen access disabled, the scheduled Alarm delivers its notification and follows the usual sound and vibration rules. While the phone is in use, Android presents the notification with actions. Verify both cases on the phone.
 - [ ] Verify on the phone that Do Not Disturb can suppress the visual interruption and that regular Notification mode still uses its usual delivery flow.
@@ -20,3 +20,5 @@
 2026-11-13 — The disposable Android 16 Google APIs emulator (sdk_gphone64_arm64) passed all 46 instrumentation tests. An Android-scheduled Medicine Alarm woke the emulator from a dark display and showed the generic Spanish Alarm screen over the lock screen with an earlier notification still present. Close dismissed the screen, ended the sound session, and preserved the notification and unanswered occurrence. The scheduled Reminder Alarm regression also passed. A simulated recovery rebuild verified that an overdue Alarm did not post an alert.
 
 Physical verification is pending. The original phone was unavailable over USB. Its model and Android version for this check still need to be confirmed, along with Silent mode, notification fallback, unlocked actions, Do Not Disturb, regular Notification mode, and real restart and access recovery.
+
+2026-11-13 — On the Pixel 9a (Android 17), the user confirmed that a scheduled Alarm opened the Alarm screen from the dark lock screen with full-screen access enabled, Silent on, and Do Not Disturb off. During the earlier 10:50 delivery, Android recorded Do Not Disturb as the sole reason it suppressed the full-screen alert. Physical checks still pending include notification fallback with full-screen access disabled, actions while the phone is in use, regular Notification mode, and real restart and access recovery.
