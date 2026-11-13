@@ -464,11 +464,7 @@ export default function App() {
                 <>
                   {reminderAccessWarning && (
                     <View style={styles.warning}>
-                      {reminderAccessWarning && (
-                        <View style={styles.warning}>
-                          {reminderAccessWarning}
-                        </View>
-                      )}
+                      {reminderAccessWarning}
                       <PillAction
                         title={t.enable}
                         onPress={() => setScreen('access')}
