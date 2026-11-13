@@ -1349,17 +1349,28 @@ test.each([
     'en',
     'reminder',
     'Allow full-screen access',
-    'Full-screen access is allowed.',
+    'Allowed',
+    'Review reminder access',
+    'Alarm screen off',
   ],
   [
     'es',
     'medicine',
     'Permitir acceso a pantalla completa',
-    'El acceso a pantalla completa está permitido.',
+    'Permitidas',
+    'Revisar acceso a recordatorios',
+    'Pantalla de alarma desactivada',
   ],
 ] as const)(
   'explains a saved Alarm and refreshes access on return in %s',
-  async (language, type, allowLabel, allowedStatus) => {
+  async (
+    language,
+    type,
+    allowLabel,
+    allowedStatus,
+    reviewLabel,
+    warningTitle,
+  ) => {
     let resume!: (state: 'active') => void;
     const subscription = jest
       .spyOn(AppState, 'addEventListener')
@@ -1403,14 +1414,28 @@ test.each([
     await ReactTestRenderer.act(async () => {
       view = ReactTestRenderer.create(<App />);
     });
-    expect(allow()).toBeDefined();
+    expect(allow()).toBeUndefined();
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(text => text.props.children === warningTitle),
+    ).toBe(true);
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findAllByType(PillAction)
+        .find(button => button.props.title === reviewLabel)!
+        .props.onPress(),
+    );
+    const permission = () =>
+      view.root.findByProps({ testID: 'access-full-screen' });
+    expect(permission().findByType(PillAction).props.title).toBe(allowLabel);
     await ReactTestRenderer.act(async () => allow()!.props.onPress());
     expect(openFullScreenSettings).toHaveBeenCalledTimes(1);
 
     await foreground();
     expect(allow()).toBeUndefined();
     expect(
-      view.root
+      permission()
         .findAllByType(Text)
         .some(text => text.props.children === allowedStatus),
     ).toBe(true);

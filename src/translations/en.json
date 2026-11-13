@@ -5,6 +5,8 @@
     "fallback": "Without full-screen access, Alarms still arrive as notifications.",
     "allowed": "Full-screen access is allowed.",
     "allow": "Allow full-screen access",
+    "warning": "Alarm screen off",
+    "settings": "Full-screen settings",
     "settingsError": "Full-screen settings are unavailable on this phone."
   },
   "app": {
@@ -37,7 +39,7 @@
     "notificationSettings": "Notification settings",
     "allowExact": "Allow exact alarms",
     "exactSettings": "Exact alarm settings",
-    "accessReady": "Both permissions are allowed.",
+    "accessReady": "Required permissions are allowed.",
     "exactAutomatic": "Automatically allowed on this phone.",
     "explanation": "Reminders resume after you unlock your phone for the first time after a restart.",
     "storage": "Reminders are stored only on this phone. They may be lost if you uninstall the app, clear its data, or lose your phone.",
