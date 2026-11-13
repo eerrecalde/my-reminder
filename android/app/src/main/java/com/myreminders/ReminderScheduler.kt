@@ -418,7 +418,9 @@ object ReminderScheduler {
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         .setData(Uri.parse("myreminders://alarm-screen/${medicine.id}/$at"))
       val showAlarm = PendingIntent.getActivity(context, 0, alarmScreen, PendingIntent.FLAG_IMMUTABLE)
-      notification.setFullScreenIntent(showAlarm, true)
+      // Android can silence automatically grouped notifications, including their
+      // full-screen intent. Give this occurrence its own group for delivery.
+      notification.setGroup(requireNotNull(alarmScreen.dataString)).setFullScreenIntent(showAlarm, true)
     }
     try { NotificationManagerCompat.from(context).notify(notificationId(medicine.id, at), notification.build()) } catch (_: SecurityException) { }
   }

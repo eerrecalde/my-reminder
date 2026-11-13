@@ -772,6 +772,7 @@ class ReminderFoundationTest {
     val language = AppLanguage.preference(context)
     try {
       AppLanguage.set(context, "es")
+      ReminderScheduler.notify(context, "Earlier notification", "Already delivered", notificationId xor Int.MIN_VALUE)
       ReminderScheduler.schedule(context, item)
       press("KEYCODE_SLEEP")
       repeat(30) { if (power.isInteractive) Thread.sleep(100) }
@@ -804,6 +805,7 @@ class ReminderFoundationTest {
       press("KEYCODE_WAKEUP")
       press("KEYCODE_MENU")
       AppLanguage.set(context, language)
+      notifications.cancel(notificationId xor Int.MIN_VALUE)
       context.stopService(Intent(context, AlarmSoundService::class.java))
       notifications.cancel(notificationId)
       MedicineRepository(context).use { repo ->
