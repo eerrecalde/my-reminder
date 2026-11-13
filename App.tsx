@@ -1,4 +1,3 @@
-import { AlarmScreenAccess } from './src/AlarmScreenAccess';
 import { AppIcon } from './src/AppIcon';
 import { SoundChoice } from './src/SoundChoice';
 import { LanguageSelector } from './src/LanguageSelector';
@@ -108,6 +107,39 @@ export default function App() {
       setError(translations[language].alarmScreenAccess.settingsError);
     }
   };
+  const alarmAccessCopy = translations[language].alarmScreenAccess;
+  const alarmScreenUnavailable =
+    state?.fullScreenAccess === 'denied' &&
+    state.medicines.some(medicine => medicine.mode === 'alarm');
+  const reminderAccessWarning = state &&
+    (!state.enabled || alarmScreenUnavailable) && (
+      <>
+        <View style={styles.warningHeader}>
+          <View
+            accessible={false}
+            importantForAccessibility="no-hide-descendants"
+            style={styles.warningIcon}
+          >
+            <AppIcon name="warning" color="#fff" />
+          </View>
+          <Text accessibilityRole="alert" style={styles.warningTitle}>
+            {state.enabled ? alarmAccessCopy.warning : t.off}
+          </Text>
+        </View>
+        {!state.enabled && (
+          <Text style={styles.warningText}>
+            {!state.notifications && !state.exactAlarms
+              ? t.offBoth
+              : !state.notifications
+              ? t.offNotifications
+              : t.offAlarms}
+          </Text>
+        )}
+        {state.enabled && alarmScreenUnavailable && (
+          <Text style={styles.warningText}>{alarmAccessCopy.fallback}</Text>
+        )}
+      </>
+    );
   const changeOutcome = async (
     occurrence: Occurrence,
     outcome: Outcome | null,
@@ -430,40 +462,9 @@ export default function App() {
                 <Text style={styles.text}>{t.loading}</Text>
               ) : screen === 'today' ? (
                 <>
-                  {state.fullScreenAccess &&
-                    state.medicines.some(
-                      medicine => medicine.mode === 'alarm',
-                    ) && (
-                      <AlarmScreenAccess
-                        language={language}
-                        access={state.fullScreenAccess}
-                        openSettings={openFullScreenSettings}
-                      />
-                    )}
-                  {!state.enabled && (
+                  {reminderAccessWarning && (
                     <View style={styles.warning}>
-                      <View style={styles.warningHeader}>
-                        <View
-                          accessible={false}
-                          importantForAccessibility="no-hide-descendants"
-                          style={styles.warningIcon}
-                        >
-                          <AppIcon name="warning" color="#fff" />
-                        </View>
-                        <Text
-                          accessibilityRole="alert"
-                          style={styles.warningTitle}
-                        >
-                          {t.off}
-                        </Text>
-                      </View>
-                      <Text style={styles.warningText}>
-                        {!state.notifications && !state.exactAlarms
-                          ? t.offBoth
-                          : !state.notifications
-                          ? t.offNotifications
-                          : t.offAlarms}
-                      </Text>
+                      {reminderAccessWarning}
                       <PillAction
                         title={t.enable}
                         onPress={() => setScreen('access')}
@@ -994,33 +995,10 @@ export default function App() {
                     />
                   ))}
                   <Text>{translations[language].sound.help}</Text>
-                  {!state.enabled && (
-                    <View style={styles.warning}>
-                      <View style={styles.warningHeader}>
-                        <View
-                          accessible={false}
-                          importantForAccessibility="no-hide-descendants"
-                          style={styles.warningIcon}
-                        >
-                          <AppIcon name="warning" color="#fff" />
-                        </View>
-                        <Text
-                          accessibilityRole="alert"
-                          style={styles.warningTitle}
-                        >
-                          {t.off}
-                        </Text>
-                      </View>
-                      <Text style={styles.warningText}>
-                        {!state.notifications && !state.exactAlarms
-                          ? t.offBoth
-                          : !state.notifications
-                          ? t.offNotifications
-                          : t.offAlarms}
-                      </Text>
-                    </View>
+                  {reminderAccessWarning && (
+                    <View style={styles.warning}>{reminderAccessWarning}</View>
                   )}
-                  {state.enabled && (
+                  {state.enabled && !alarmScreenUnavailable && (
                     <Text style={styles.accessReady}>{t.accessReady}</Text>
                   )}
                   {[
@@ -1049,6 +1027,22 @@ export default function App() {
                         Platform.OS === 'android' &&
                         Number(Platform.Version) < 31,
                     },
+                    ...(state.fullScreenAccess
+                      ? [
+                          {
+                            key: 'full-screen',
+                            title: alarmAccessCopy.title,
+                            allowed: state.fullScreenAccess !== 'denied',
+                            help: alarmAccessCopy.help,
+                            action:
+                              state.fullScreenAccess === 'denied'
+                                ? alarmAccessCopy.allow
+                                : alarmAccessCopy.settings,
+                            onPress: openFullScreenSettings,
+                            automatic: state.fullScreenAccess === 'automatic',
+                          },
+                        ]
+                      : []),
                   ].map(permission => (
                     <View
                       key={permission.key}

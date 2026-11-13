@@ -5,6 +5,8 @@
     "fallback": "Sin acceso a pantalla completa, las alarmas siguen llegando como notificaciones.",
     "allowed": "El acceso a pantalla completa está permitido.",
     "allow": "Permitir acceso a pantalla completa",
+    "warning": "Pantalla de alarma desactivada",
+    "settings": "Configuración de pantalla completa",
     "settingsError": "La configuración de pantalla completa no está disponible en este teléfono."
   },
   "app": {
@@ -37,7 +39,7 @@
     "notificationSettings": "Configuración de notificaciones",
     "allowExact": "Permitir alarmas exactas",
     "exactSettings": "Configuración de alarmas exactas",
-    "accessReady": "Ambos permisos están habilitados.",
+    "accessReady": "Los permisos necesarios están habilitados.",
     "exactAutomatic": "Se permiten automáticamente en este teléfono.",
     "explanation": "Los recordatorios se reanudan después de desbloquear el teléfono por primera vez tras reiniciarlo.",
     "storage": "Los recordatorios se guardan solo en este teléfono. Pueden perderse si desinstalas la aplicación, borras sus datos o pierdes el teléfono.",
