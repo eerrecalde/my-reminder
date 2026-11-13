@@ -247,7 +247,7 @@ class ReminderFoundationTest {
     val at = now - 2 * 24 * 60 * 60 * 1000L
     val time = LocalTime.now().minusMinutes(1).format(DateTimeFormatter.ofPattern("HH:mm"))
     val item = MedicineRepository(context).use { repo ->
-      val medicine = repo.save("Old alarm", "", listOf(time), at - 10000, "reminder")
+      val medicine = repo.save("Old alarm", "", listOf(time), at - 10000, "reminder", "alarm")
       repo.writableDatabase.execSQL("UPDATE occurrence_tracking SET starts_after = ? WHERE medicine_id = ?", arrayOf(now - 60000, medicine.id))
       repo.setAlarm(medicine.id, at, "old")
       medicine
@@ -743,6 +743,73 @@ class ReminderFoundationTest {
       } }
     }
   }
+  @Test fun closeOnTheLockScreenKeepsTheScheduledAlarmUnanswered() {
+    val instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val notifications = context.getSystemService(NotificationManager::class.java)
+    val keyguard = context.getSystemService(android.app.KeyguardManager::class.java)
+    val automation = instrumentation.uiAutomation
+    fun press(key: String) = automation.executeShellCommand("input keyevent $key").use {
+      android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes()
+    }
+
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    if (android.os.Build.VERSION.SDK_INT >= 34) {
+      assertTrue("Enable full-screen access on the disposable emulator", notifications.canUseFullScreenIntent())
+    }
+    val now = System.currentTimeMillis()
+    val candidate = java.time.ZonedDateTime.now().plusMinutes(1).withSecond(0).withNano(0)
+    val due = if (candidate.toInstant().toEpochMilli() - now < 10_000) candidate.plusMinutes(1) else candidate
+    val at = due.toInstant().toEpochMilli()
+    val time = due.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
+    val item = MedicineRepository(context).use {
+      it.save("Private medicine name", "Private dosage instructions", listOf(time), now, "medicine", "alarm")
+    }
+    val notificationId = ("${item.id}:$at").hashCode()
+    val language = AppLanguage.preference(context)
+    try {
+      AppLanguage.set(context, "es")
+      ReminderScheduler.schedule(context, item)
+      press("KEYCODE_SLEEP")
+      val deadline = at + 15_000
+      var screen = automation.rootInActiveWindow
+      while (screen?.findAccessibilityNodeInfosByText("Cerrar").isNullOrEmpty() && System.currentTimeMillis() < deadline) {
+        Thread.sleep(200)
+        screen = automation.rootInActiveWindow
+      }
+      val alarm = requireNotNull(screen)
+      assertEquals(context.packageName, alarm.packageName.toString())
+      assertTrue("The phone should remain locked", keyguard.isKeyguardLocked)
+      assertTrue(alarm.findAccessibilityNodeInfosByText("Recordatorio pendiente").isNotEmpty())
+      assertTrue(alarm.findAccessibilityNodeInfosByText(item.name).isEmpty())
+      assertTrue(alarm.findAccessibilityNodeInfosByText(item.instructions).isEmpty())
+      val close = alarm.findAccessibilityNodeInfosByText("Cerrar").single()
+      assertTrue(notifications.activeNotifications.any { it.id == 119348 })
+      assertTrue(close.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK))
+      repeat(50) { if (notifications.activeNotifications.any { it.id == 119348 }) Thread.sleep(100) }
+      assertFalse(notifications.activeNotifications.any { it.id == 119348 })
+      assertTrue(notifications.activeNotifications.any { it.id == notificationId })
+      assertTrue(keyguard.isKeyguardLocked)
+      val occurrence = MedicineRepository(context).use { repo -> repo.occurrences().single { it.medicineId == item.id && it.at == at } }
+      assertTrue(occurrence.outstanding)
+      assertNull(occurrence.outcome)
+    } finally {
+      press("KEYCODE_WAKEUP")
+      press("KEYCODE_MENU")
+      AppLanguage.set(context, language)
+      context.stopService(Intent(context, AlarmSoundService::class.java))
+      notifications.cancel(notificationId)
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
+
   @Test fun nextScheduledOccurrenceSupersedesTheSoundingOccurrence() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val notifications = context.getSystemService(NotificationManager::class.java)
@@ -766,6 +833,12 @@ class ReminderFoundationTest {
       assertTrue(notifications.activeNotifications.any { it.id == oldNotification })
       repeat(750) { if (notifications.activeNotifications.none { it.id == nextNotification }) Thread.sleep(100) }
       val nextAlert = requireNotNull(notifications.activeNotifications.find { it.id == nextNotification }) { "The next scheduled occurrence was not delivered" }.notification
+      assertNotNull("A scheduled Alarm should request full-screen presentation", nextAlert.fullScreenIntent)
+      assertEquals("The Alarm notification must allow visual interruptions", Notification.GROUP_ALERT_ALL, nextAlert.groupAlertBehavior)
+      val channel = notifications.getNotificationChannel(nextAlert.channelId)
+      assertEquals(NotificationManager.IMPORTANCE_HIGH, channel.importance)
+      assertNull("The sound session handles Alarm audio", channel.sound)
+      assertFalse(channel.shouldVibrate())
       assertEquals("missed", MedicineRepository(context).use { it.outcome(item.id, priorAt) })
       assertNull(MedicineRepository(context).use { it.outcome(item.id, nextAt) })
       assertFalse(notifications.activeNotifications.any { it.id == oldNotification })

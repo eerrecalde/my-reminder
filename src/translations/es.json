@@ -173,6 +173,9 @@
   "android": {
     "reminder_channel": "Recordatorios",
     "reminder_due": "Es hora de tomar tu medicamento",
+    "alarm_alert_channel": "Alertas de alarma",
+    "alarm_screen_title": "Recordatorio pendiente",
+    "alarm_screen_close": "Cerrar",
     "general_reminder_due": "Es hora de tu recordatorio",
     "test_reminder": "Recordatorio de prueba",
     "test_reminder_body": "Tus recordatorios funcionan",

@@ -13,6 +13,8 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 "$adb" -s "$ANDROID_SERIAL" install -r "$root/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
 "$adb" -s "$ANDROID_SERIAL" shell pm grant com.myreminders android.permission.POST_NOTIFICATIONS
 "$adb" -s "$ANDROID_SERIAL" shell appops set com.myreminders SCHEDULE_EXACT_ALARM allow
+"$adb" -s "$ANDROID_SERIAL" shell appops set com.myreminders USE_FULL_SCREEN_INTENT allow
+"$adb" -s "$ANDROID_SERIAL" shell locksettings set-disabled false
 result="$(mktemp)"
 trap 'rm -f "$result"' EXIT
 "$adb" -s "$ANDROID_SERIAL" shell am instrument -w com.myreminders.test/androidx.test.runner.AndroidJUnitRunner | tee "$result"

@@ -1,6 +1,9 @@
 <resources>
     <string name="reminder_channel">Recordatorios</string>
     <string name="reminder_due">Es hora de tomar tu medicamento</string>
+    <string name="alarm_alert_channel">Alertas de alarma</string>
+    <string name="alarm_screen_title">Recordatorio pendiente</string>
+    <string name="alarm_screen_close">Cerrar</string>
     <string name="general_reminder_due">Es hora de tu recordatorio</string>
     <string name="test_reminder">Recordatorio de prueba</string>
     <string name="test_reminder_body">Tus recordatorios funcionan</string>
