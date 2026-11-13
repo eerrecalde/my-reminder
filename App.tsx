@@ -1361,7 +1361,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e5e1cf',
     marginTop: 4,
-    paddingTop: 4,
+    paddingTop: 8,
   },
   cardAction: {
     flex: 1,
@@ -1392,6 +1392,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fffaf1',
     borderRadius: 16,
     padding: 16,
+    paddingBottom: 8,
     gap: 8,
   },
   occurrence: {
