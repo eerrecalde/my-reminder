@@ -818,6 +818,119 @@ class ReminderFoundationTest {
     }
   }
 
+  @Test fun lockedAlarmCanBeSnoozedAndAnsweredAfterUnlock() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val automation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+    val keyguard = context.getSystemService(android.app.KeyguardManager::class.java)
+    val power = context.getSystemService(android.os.PowerManager::class.java)
+    val notifications = context.getSystemService(NotificationManager::class.java)
+    val language = AppLanguage.preference(context)
+    fun shell(command: String): String = automation.executeShellCommand(command).let {
+      android.os.ParcelFileDescriptor.AutoCloseInputStream(it).bufferedReader().use { stream -> stream.readText() }
+    }
+    fun awaitCondition(message: String, condition: () -> Boolean) {
+      val deadline = android.os.SystemClock.elapsedRealtime() + 15_000
+      while (!condition()) {
+        assertTrue(message, android.os.SystemClock.elapsedRealtime() < deadline)
+        Thread.sleep(100)
+      }
+    }
+    fun nodes(label: String) = automation.rootInActiveWindow?.findAccessibilityNodeInfosByText(label)
+      .orEmpty().filter { it.text?.toString() == label }
+    fun tap(label: String) {
+      awaitCondition("Expected Alarm action: $label") { nodes(label).isNotEmpty() }
+      assertTrue(nodes(label).single().performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK))
+    }
+
+    assertTrue(ReminderScheduler.enabled(context))
+    if (android.os.Build.VERSION.SDK_INT >= 34) {
+      assertTrue("Enable full-screen access on the disposable emulator", notifications.canUseFullScreenIntent())
+    }
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    assertFalse("The disposable emulator should start without a PIN", keyguard.isKeyguardSecure)
+    try {
+      assertTrue(shell("locksettings set-pin 5731").contains("Pin set"))
+      for (locale in listOf("en", "es")) for (type in listOf("medicine", "reminder")) {
+        AppLanguage.set(context, locale)
+        val strings = AppLanguage.context(context)
+        val medicine = type == "medicine"
+        val now = System.currentTimeMillis()
+        val at = now + 6000
+        val item = MedicineRepository(context).use {
+          it.save("Private alarm name", if (medicine) "Private dosage instructions" else "", listOf("09:00"),
+            now, type, "alarm", scheduleKind = "interval", intervalHours = 2, intervalAnchor = at)
+        }
+        val notificationId = ("${item.id}:$at").hashCode()
+        val due = strings.getString(R.string.alarm_screen_title)
+        val unlock = strings.getString(R.string.alarm_screen_unlock)
+        val complete = strings.getString(if (medicine) R.string.taken else R.string.completed)
+        val skip = strings.getString(R.string.skip)
+        fun assertGeneric() {
+          awaitCondition("The scheduled Alarm should wake the locked display") { power.isInteractive && nodes(due).isNotEmpty() }
+          assertTrue(keyguard.isDeviceLocked)
+          assertTrue(nodes(item.name).isEmpty())
+          assertTrue(nodes("Private dosage instructions").isEmpty())
+          assertTrue(nodes(complete).isEmpty())
+          assertTrue(nodes(skip).isEmpty())
+        }
+        try {
+          ReminderScheduler.schedule(context, item)
+          shell("input keyevent KEYCODE_SLEEP")
+          awaitCondition("The display should be off before delivery") { !power.isInteractive }
+          assertGeneric()
+          tap(strings.getString(R.string.snooze_ten))
+          awaitCondition("Snooze should close the screen and remove its notification") {
+            nodes(due).isEmpty() && notifications.activeNotifications.none { it.id == notificationId }
+          }
+          MedicineRepository(context).use { repo ->
+            val snooze = requireNotNull(repo.snooze(item.id, at))
+            assertTrue(snooze.alertAt - System.currentTimeMillis() in 590_000..600_000)
+            assertEquals(at + 7_200_000, repo.alarm(item.id)?.at)
+            // Advance the test snooze so Android can redeliver during the test run.
+            repo.writableDatabase.execSQL("UPDATE snoozes SET alert_at = ? WHERE medicine_id = ?",
+              arrayOf(System.currentTimeMillis() + 5000, item.id))
+          }
+          ReminderScheduler.rebuild(context)
+          shell("input keyevent KEYCODE_SLEEP")
+          awaitCondition("The display should be off before redelivery") { !power.isInteractive }
+          assertGeneric()
+          tap(unlock)
+          awaitCondition("Android should show its PIN prompt") { automation.rootInActiveWindow?.packageName == "com.android.systemui" }
+          shell("input keyevent KEYCODE_BACK")
+          assertGeneric()
+          tap(unlock)
+          awaitCondition("Android should show its PIN prompt again") { automation.rootInActiveWindow?.packageName == "com.android.systemui" }
+          shell("input text 5731")
+          shell("input keyevent KEYCODE_ENTER")
+          awaitCondition("Unlock should reveal the reminder name") { nodes(item.name).isNotEmpty() }
+          assertFalse(keyguard.isDeviceLocked)
+          if (medicine) assertTrue(nodes(item.instructions).isNotEmpty())
+          assertTrue(nodes(complete).isNotEmpty())
+          assertTrue(nodes(skip).isNotEmpty())
+          tap(if (locale == "en") complete else skip)
+          val outcome = if (locale == "en") "completed" else "skipped"
+          awaitCondition("The outcome should apply to the original occurrence") {
+            MedicineRepository(context).use { it.outcome(item.id, at) == outcome }
+          }
+          assertEquals(1, MedicineRepository(context).use { repo -> repo.occurrences().count { it.medicineId == item.id } })
+        } finally {
+          ReminderScheduler.setStatus(context, item.id, "deleted")
+          MedicineRepository(context).use { repo ->
+            for (table in listOf("doses", "occurrence_tracking")) {
+              repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+            }
+            repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+          }
+        }
+      }
+    } finally {
+      shell("locksettings clear --old 5731")
+      shell("input keyevent KEYCODE_WAKEUP")
+      shell("input keyevent KEYCODE_MENU")
+      AppLanguage.set(context, language)
+    }
+  }
+
   @Test fun nextScheduledOccurrenceSupersedesTheSoundingOccurrence() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val notifications = context.getSystemService(NotificationManager::class.java)
