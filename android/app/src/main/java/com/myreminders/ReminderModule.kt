@@ -1,5 +1,6 @@
 package com.myreminders
 
+import android.app.NotificationManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -37,6 +38,11 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       val result = Arguments.createMap()
       result.putBoolean("enabled", ReminderScheduler.enabled(reactContext))
       result.putBoolean("exactAlarms", Build.VERSION.SDK_INT < 31 || reactContext.getSystemService(android.app.AlarmManager::class.java).canScheduleExactAlarms())
+      result.putString("fullScreenAccess", when {
+        Build.VERSION.SDK_INT < 34 -> "automatic"
+        reactContext.getSystemService(NotificationManager::class.java).canUseFullScreenIntent() -> "allowed"
+        else -> "denied"
+      })
       result.putBoolean("notifications", ReminderScheduler.notificationsEnabled(reactContext))
       result.putString("language", AppLanguage.effective(reactContext))
       result.putString("languagePreference", AppLanguage.preference(reactContext))
@@ -212,10 +218,20 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       reactContext.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${reactContext.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
   }
+  @ReactMethod fun openFullScreenSettings(promise: Promise) {
+    try {
+      if (Build.VERSION.SDK_INT >= 34) {
+        val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:${reactContext.packageName}"))
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        reactContext.startActivity(intent)
+      }
+      promise.resolve(null)
+    } catch (error: Exception) { promise.reject("full_screen_settings_failed", error) }
+  }
   @ReactMethod fun openNotificationSettings() {
-    val manager = reactContext.getSystemService(android.app.NotificationManager::class.java)
+    val manager = reactContext.getSystemService(NotificationManager::class.java)
     val channel = manager.getNotificationChannel("medicine_reminders")
-    val intent = if (channel != null && channel.importance == android.app.NotificationManager.IMPORTANCE_NONE) {
+    val intent = if (channel != null && channel.importance == NotificationManager.IMPORTANCE_NONE) {
       Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_CHANNEL_ID, "medicine_reminders")
     } else Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
     reactContext.startActivity(intent.putExtra(Settings.EXTRA_APP_PACKAGE, reactContext.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

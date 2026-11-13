@@ -909,3 +909,88 @@ test.each([
     await ReactTestRenderer.act(() => view.unmount());
   },
 );
+
+test.each([
+  [
+    'en',
+    'Reminder',
+    'Next',
+    'Every day',
+    'Select a time',
+    'Alarm',
+    'Allow full-screen access',
+    'Review',
+    'Save reminder',
+    'reminder',
+  ],
+  [
+    'es',
+    'Medicamento',
+    'Continuar',
+    'Todos los días',
+    'Elegir una hora',
+    'Alarma',
+    'Permitir acceso a pantalla completa',
+    'Revisar',
+    'Guardar medicamento',
+    'medicine',
+  ],
+] as const)(
+  'can save an Alarm without full-screen access in %s',
+  async (
+    language,
+    type,
+    next,
+    frequency,
+    time,
+    alarm,
+    allow,
+    review,
+    saveLabel,
+    savedType,
+  ) => {
+    const save = jest.fn();
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(() => {
+      view = ReactTestRenderer.create(
+        <MedicineSetup
+          language={language}
+          onExit={() => {}}
+          onSave={save}
+          selectTime={async () => '09:00'}
+          fullScreenAccess="denied"
+          openFullScreenSettings={jest.fn()}
+        />,
+      );
+    });
+    const press = async (title: string) => {
+      await ReactTestRenderer.act(() =>
+        findAction(view, title).props.onPress(),
+      );
+    };
+    await press(type);
+    await ReactTestRenderer.act(() =>
+      view.root.findAllByType(TextInput)[0].props.onChangeText('Test'),
+    );
+    await press(next);
+    await chooseFrequency(view, frequency);
+    await press(time);
+    expect(findAction(view, allow)).toBeUndefined();
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findAll(
+          node =>
+            node.props.accessibilityRole === 'radio' &&
+            node.props.accessibilityLabel === alarm,
+        )[0]
+        .props.onPress(),
+    );
+    expect(findAction(view, allow)).toBeDefined();
+    await press(review);
+    await press(saveLabel);
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'alarm', type: savedType }),
+    );
+    await ReactTestRenderer.act(() => view.unmount());
+  },
+);

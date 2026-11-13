@@ -18,9 +18,11 @@ export type Occurrence = {
   actionable?: boolean;
   snoozed?: boolean;
 };
+export type FullScreenAccess = 'automatic' | 'allowed' | 'denied';
 export type ReminderState = {
   enabled: boolean;
   exactAlarms: boolean;
+  fullScreenAccess: FullScreenAccess;
   notifications: boolean;
   language: 'en' | 'es';
   languagePreference: 'system' | 'en' | 'es';
@@ -84,6 +86,7 @@ export interface ReminderRepository {
   ): Promise<void>;
   setStatus(id: string, status: 'active' | 'paused' | 'deleted'): Promise<void>;
   openAlarmSettings(): void;
+  openFullScreenSettings(): Promise<void>;
   openNotificationSettings(): void;
   testReminder(): void;
   saveDated(

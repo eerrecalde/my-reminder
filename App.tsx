@@ -1,3 +1,4 @@
+import { AlarmScreenAccess } from './src/AlarmScreenAccess';
 import { AppIcon } from './src/AppIcon';
 import { SoundChoice } from './src/SoundChoice';
 import { LanguageSelector } from './src/LanguageSelector';
@@ -99,6 +100,14 @@ export default function App() {
   );
   const language = state?.language ?? 'en';
   const t = translations[language].app;
+  const openFullScreenSettings = async () => {
+    try {
+      await reminderRepository.openFullScreenSettings();
+      setError('');
+    } catch {
+      setError(translations[language].alarmScreenAccess.settingsError);
+    }
+  };
   const changeOutcome = async (
     occurrence: Occurrence,
     outcome: Outcome | null,
@@ -318,6 +327,8 @@ export default function App() {
               selectTime={time => reminderRepository.selectTime(time)}
               selectDate={date => reminderRepository.selectDate(date)}
               language={language}
+              fullScreenAccess={state?.fullScreenAccess}
+              openFullScreenSettings={openFullScreenSettings}
               onSave={async medicine => {
                 try {
                   await (editing
@@ -419,6 +430,16 @@ export default function App() {
                 <Text style={styles.text}>{t.loading}</Text>
               ) : screen === 'today' ? (
                 <>
+                  {state.fullScreenAccess &&
+                    state.medicines.some(
+                      medicine => medicine.mode === 'alarm',
+                    ) && (
+                      <AlarmScreenAccess
+                        language={language}
+                        access={state.fullScreenAccess}
+                        openSettings={openFullScreenSettings}
+                      />
+                    )}
                   {!state.enabled && (
                     <View style={styles.warning}>
                       <View style={styles.warningHeader}>
