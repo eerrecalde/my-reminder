@@ -768,7 +768,9 @@ export default function App() {
                                         setScreen('setup');
                                       }}
                                     >
-                                      <AppIcon name="edit" color="#315a36" />
+                                      <View style={styles.cardActionIcon}>
+                                        <AppIcon name="edit" color="#315a36" />
+                                      </View>
                                       <Text style={styles.cardActionText}>
                                         {t.edit}
                                       </Text>
@@ -796,14 +798,16 @@ export default function App() {
                                           }
                                         }}
                                       >
-                                        <AppIcon
-                                          name={
-                                            medicine.status === 'paused'
-                                              ? 'play'
-                                              : 'pause'
-                                          }
-                                          color="#315a36"
-                                        />
+                                        <View style={styles.cardActionIcon}>
+                                          <AppIcon
+                                            name={
+                                              medicine.status === 'paused'
+                                                ? 'play'
+                                                : 'pause'
+                                            }
+                                            color="#315a36"
+                                          />
+                                        </View>
                                         <Text style={styles.cardActionText}>
                                           {medicine.status === 'paused'
                                             ? t.resume
@@ -840,7 +844,12 @@ export default function App() {
                                         )
                                       }
                                     >
-                                      <AppIcon name="delete" color="#a13027" />
+                                      <View style={styles.cardActionIcon}>
+                                        <AppIcon
+                                          name="delete"
+                                          color="#a13027"
+                                        />
+                                      </View>
                                       <Text
                                         style={[
                                           styles.cardActionText,
@@ -1360,9 +1369,22 @@ const styles = StyleSheet.create({
     minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 4,
+    paddingVertical: 2,
+    gap: 2,
   },
-  cardActionText: { color: '#315a36', fontSize: 14, textAlign: 'center' },
+  cardActionIcon: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardActionText: {
+    color: '#315a36',
+    fontSize: 14,
+    lineHeight: 18,
+    includeFontPadding: false,
+    textAlign: 'center',
+  },
   deleteText: { color: '#a13027' },
   medicine: {
     borderWidth: 1,
