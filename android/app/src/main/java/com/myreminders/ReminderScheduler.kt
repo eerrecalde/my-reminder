@@ -1,6 +1,7 @@
 package com.myreminders
 
 import android.app.AlarmManager
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -382,10 +383,10 @@ object ReminderScheduler {
       legacyChannel.importance <= selectedSettings.importance &&
       (systemMuted || ReminderSounds.useLegacyControls(legacyChannel, selectedSettings))
     val isAlarm = medicine.mode == "alarm"
-    val canInterrupt = isAlarm && (legacyChannel?.importance ?: NotificationManager.IMPORTANCE_NONE) >= NotificationManager.IMPORTANCE_HIGH
+    val useAlarmAlertChannel = isAlarm && (legacyChannel?.importance ?: NotificationManager.IMPORTANCE_NONE) >= NotificationManager.IMPORTANCE_HIGH
     // setSilent suppresses full-screen and heads-up presentation. The sound service
     // handles audio and vibration, so use a high-importance channel with quiet defaults.
-    if (canInterrupt) {
+    if (useAlarmAlertChannel) {
       manager.createNotificationChannel(NotificationChannel(ALARM_ALERT_CHANNEL,
         localized.getString(R.string.alarm_alert_channel), NotificationManager.IMPORTANCE_HIGH).apply {
         setSound(null, null)
@@ -393,7 +394,7 @@ object ReminderScheduler {
       })
     }
     val channel = when {
-      canInterrupt -> ALARM_ALERT_CHANNEL
+      useAlarmAlertChannel -> ALARM_ALERT_CHANNEL
       useLegacy -> CHANNEL
       else -> selectedChannel
     }
@@ -403,11 +404,16 @@ object ReminderScheduler {
     val notification = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notification)
       .setContentTitle(medicine.name).setContentText(body).setContentIntent(open).setAutoCancel(false)
       .setCategory(NotificationCompat.CATEGORY_REMINDER)
-      .setSilent(!canInterrupt && (isAlarm || systemMuted || suppressAlert)).setPriority(NotificationCompat.PRIORITY_HIGH)
+      .setSilent(!useAlarmAlertChannel && (isAlarm || systemMuted || suppressAlert)).setPriority(NotificationCompat.PRIORITY_HIGH)
       .addAction(0, localized.getString(if (medicine.type == "medicine") R.string.taken else R.string.completed), outcomeIntent(context, medicine.id, at, "completed"))
       .addAction(0, localized.getString(R.string.skip), outcomeIntent(context, medicine.id, at, "skipped"))
       .addAction(0, localized.getString(R.string.snooze_ten), outcomeIntent(context, medicine.id, at, "snooze"))
-    if (canInterrupt) {
+    if (useAlarmAlertChannel) {
+      val lockscreenVisibility = legacyChannel?.lockscreenVisibility
+      if (lockscreenVisibility == Notification.VISIBILITY_SECRET ||
+        lockscreenVisibility == Notification.VISIBILITY_PRIVATE) {
+        notification.setVisibility(lockscreenVisibility)
+      }
       val alarmScreen = Intent(context, AlarmActivity::class.java)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         .setData(Uri.parse("myreminders://alarm-screen/${medicine.id}/$at"))

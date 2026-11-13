@@ -91,6 +91,7 @@ class ReminderFoundationTest {
       assertFalse(manager.activeNotifications.any { it.id == notificationId })
       assertNull(MedicineRepository(context).use { it.alarm(item.id) })
     } finally {
+      ReminderScheduler.setStatus(context, item.id, "deleted")
       MedicineRepository(context).use { repo ->
         repo.alarm(item.id)?.let { cancel(context, it) }
         repo.finishTransition(item.id)
@@ -748,6 +749,7 @@ class ReminderFoundationTest {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val notifications = context.getSystemService(NotificationManager::class.java)
     val keyguard = context.getSystemService(android.app.KeyguardManager::class.java)
+    val power = context.getSystemService(android.os.PowerManager::class.java)
     val automation = instrumentation.uiAutomation
     fun press(key: String) = automation.executeShellCommand("input keyevent $key").use {
       android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes()
@@ -772,6 +774,8 @@ class ReminderFoundationTest {
       AppLanguage.set(context, "es")
       ReminderScheduler.schedule(context, item)
       press("KEYCODE_SLEEP")
+      repeat(30) { if (power.isInteractive) Thread.sleep(100) }
+      assertFalse("The display should be off before delivery", power.isInteractive)
       val deadline = at + 15_000
       var screen = automation.rootInActiveWindow
       while (screen?.findAccessibilityNodeInfosByText("Cerrar").isNullOrEmpty() && System.currentTimeMillis() < deadline) {
@@ -790,6 +794,8 @@ class ReminderFoundationTest {
       repeat(50) { if (notifications.activeNotifications.any { it.id == 119348 }) Thread.sleep(100) }
       assertFalse(notifications.activeNotifications.any { it.id == 119348 })
       assertTrue(notifications.activeNotifications.any { it.id == notificationId })
+      repeat(30) { if (automation.rootInActiveWindow?.packageName == context.packageName) Thread.sleep(100) }
+      assertNotEquals("Close should dismiss the Alarm screen", context.packageName, automation.rootInActiveWindow?.packageName?.toString())
       assertTrue(keyguard.isKeyguardLocked)
       val occurrence = MedicineRepository(context).use { repo -> repo.occurrences().single { it.medicineId == item.id && it.at == at } }
       assertTrue(occurrence.outstanding)
