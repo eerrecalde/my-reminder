@@ -1,6 +1,7 @@
 package com.myreminders
 
 import android.app.AlarmManager
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -17,6 +18,7 @@ import java.util.UUID
 
 object ReminderScheduler {
   private const val CHANNEL = "medicine_reminders"
+  private const val ALARM_ALERT_CHANNEL = "alarm_alerts"
   private fun alarmManager(context: Context) = context.getSystemService(AlarmManager::class.java)
   private fun notificationId(id: String, at: Long) = ("$id:$at").hashCode()
   private fun dismissOccurrence(context: Context, id: String, at: Long) {
@@ -380,18 +382,47 @@ object ReminderScheduler {
     val useLegacy = selectedChannel != CHANNEL && legacyChannel != null && selectedSettings != null &&
       legacyChannel.importance <= selectedSettings.importance &&
       (systemMuted || ReminderSounds.useLegacyControls(legacyChannel, selectedSettings))
-    val channel = if (useLegacy) CHANNEL else selectedChannel
+    val isAlarm = medicine.mode == "alarm"
+    val useAlarmAlertChannel = isAlarm && (legacyChannel?.importance ?: NotificationManager.IMPORTANCE_NONE) >= NotificationManager.IMPORTANCE_HIGH
+    // setSilent suppresses full-screen and heads-up presentation. The sound service
+    // handles audio and vibration, so use a high-importance channel with quiet defaults.
+    if (useAlarmAlertChannel) {
+      manager.createNotificationChannel(NotificationChannel(ALARM_ALERT_CHANNEL,
+        localized.getString(R.string.alarm_alert_channel), NotificationManager.IMPORTANCE_HIGH).apply {
+        setSound(null, null)
+        enableVibration(false)
+      })
+    }
+    val channel = when {
+      useAlarmAlertChannel -> ALARM_ALERT_CHANNEL
+      useLegacy -> CHANNEL
+      else -> selectedChannel
+    }
     val suppressAlert = selectedSettings != null && legacyChannel != null &&
       ((useLegacy && (selectedSettings.sound == null || (!selectedSettings.shouldVibrate() && legacyChannel.shouldVibrate()))) ||
         (!useLegacy && selectedSettings.shouldVibrate() && !legacyChannel.shouldVibrate()))
     val notification = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notification)
       .setContentTitle(medicine.name).setContentText(body).setContentIntent(open).setAutoCancel(false)
-      .setCategory(NotificationCompat.CATEGORY_REMINDER).setSilent(medicine.mode == "alarm" || systemMuted || suppressAlert).setPriority(NotificationCompat.PRIORITY_HIGH)
+      .setCategory(NotificationCompat.CATEGORY_REMINDER)
+      .setSilent(!useAlarmAlertChannel && (isAlarm || systemMuted || suppressAlert)).setPriority(NotificationCompat.PRIORITY_HIGH)
       .addAction(0, localized.getString(if (medicine.type == "medicine") R.string.taken else R.string.completed), outcomeIntent(context, medicine.id, at, "completed"))
       .addAction(0, localized.getString(R.string.skip), outcomeIntent(context, medicine.id, at, "skipped"))
       .addAction(0, localized.getString(R.string.snooze_ten), outcomeIntent(context, medicine.id, at, "snooze"))
-      .build()
-    try { NotificationManagerCompat.from(context).notify(notificationId(medicine.id, at), notification) } catch (_: SecurityException) { }
+    if (useAlarmAlertChannel) {
+      val lockscreenVisibility = legacyChannel?.lockscreenVisibility
+      if (lockscreenVisibility == Notification.VISIBILITY_SECRET ||
+        lockscreenVisibility == Notification.VISIBILITY_PRIVATE) {
+        notification.setVisibility(lockscreenVisibility)
+      }
+      val alarmScreen = Intent(context, AlarmActivity::class.java)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        .setData(Uri.parse("myreminders://alarm-screen/${medicine.id}/$at"))
+      val showAlarm = PendingIntent.getActivity(context, 0, alarmScreen, PendingIntent.FLAG_IMMUTABLE)
+      // Android can silence automatically grouped notifications, including their
+      // full-screen intent. Give this occurrence its own group for delivery.
+      notification.setGroup(requireNotNull(alarmScreen.dataString)).setFullScreenIntent(showAlarm, true)
+    }
+    try { NotificationManagerCompat.from(context).notify(notificationId(medicine.id, at), notification.build()) } catch (_: SecurityException) { }
   }
   @Synchronized fun recoverInterruptedDelivery(context: Context, id: String, at: Long, token: String) {
     if (MedicineRepository(context).use { it.transition(id) != null }) rebuild(context)

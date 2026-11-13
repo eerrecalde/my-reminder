@@ -14,3 +14,9 @@
 - [ ] Verify on the phone that Do Not Disturb can suppress the visual interruption and that regular Notification mode still uses its usual delivery flow.
 - [ ] Restart and access recovery resume future Alarms without replaying the Alarm screen for missed deliveries.
 - [ ] Use the scheduled delivery path in regression tests and record the phone model, Android version, and results of the physical checks.
+
+## Comments
+
+2026-11-13 — The disposable Android 16 Google APIs emulator (sdk_gphone64_arm64) passed all 46 instrumentation tests. An Android-scheduled Medicine Alarm woke the emulator from a dark display and showed the generic Spanish Alarm screen over the lock screen with an earlier notification still present. Close dismissed the screen, ended the sound session, and preserved the notification and unanswered occurrence. The scheduled Reminder Alarm regression also passed. A simulated recovery rebuild verified that an overdue Alarm did not post an alert.
+
+Physical verification is pending. The original phone was unavailable over USB. Its model and Android version for this check still need to be confirmed, along with Silent mode, notification fallback, unlocked actions, Do Not Disturb, regular Notification mode, and real restart and access recovery.
