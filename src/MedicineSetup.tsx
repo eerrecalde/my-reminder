@@ -31,6 +31,8 @@ import {
 } from './monthlySchedule';
 import type { ReminderType } from './reminderRepository';
 import { PillAction } from './PillAction';
+import { AlarmScreenAccess } from './AlarmScreenAccess';
+import type { FullScreenAccess } from './reminderRepository';
 import { SoundChoice } from './SoundChoice';
 
 export type DailyMedicineInput = {
@@ -56,6 +58,8 @@ type Props = {
   now?: Date;
   onSave: (medicine: DailyMedicineInput) => void | Promise<void>;
   onExit: () => void;
+  fullScreenAccess?: FullScreenAccess;
+  openFullScreenSettings?: () => void;
   selectDate?: (date: string) => Promise<string | null>;
   selectTime?: (time: string) => Promise<string | null>;
 };
@@ -70,6 +74,8 @@ export function MedicineSetup({
   onExit,
   selectTime,
   selectDate,
+  fullScreenAccess,
+  openFullScreenSettings,
 }: Props) {
   const t = translations[language].setup;
   const currentTime = () => {
@@ -729,6 +735,13 @@ export function MedicineSetup({
                 </Pressable>
               ))}
             </View>
+            {mode === 'alarm' && fullScreenAccess && openFullScreenSettings && (
+              <AlarmScreenAccess
+                language={language}
+                access={fullScreenAccess}
+                openSettings={openFullScreenSettings}
+              />
+            )}
             <SoundChoice
               mode={mode}
               value={mode === 'alarm' ? alarmSound : notificationSound}

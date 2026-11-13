@@ -1,4 +1,12 @@
 {
+  "alarmScreenAccess": {
+    "title": "Alarm screen",
+    "help": "Full-screen access lets an Alarm wake your phone and show the Alarm screen while it’s locked.",
+    "fallback": "Without full-screen access, Alarms still arrive as notifications.",
+    "allowed": "Full-screen access is allowed.",
+    "allow": "Allow full-screen access",
+    "settingsError": "Full-screen settings are unavailable on this phone."
+  },
   "app": {
     "today": "Today",
     "reminders": "Reminders",

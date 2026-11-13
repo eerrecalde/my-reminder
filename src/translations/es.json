@@ -1,4 +1,12 @@
 {
+  "alarmScreenAccess": {
+    "title": "Pantalla de alarma",
+    "help": "El acceso a pantalla completa permite que una alarma encienda la pantalla de tu teléfono y aparezca mientras está bloqueado.",
+    "fallback": "Sin acceso a pantalla completa, las alarmas siguen llegando como notificaciones.",
+    "allowed": "El acceso a pantalla completa está permitido.",
+    "allow": "Permitir acceso a pantalla completa",
+    "settingsError": "La configuración de pantalla completa no está disponible en este teléfono."
+  },
   "app": {
     "today": "Hoy",
     "reminders": "Recordatorios",
