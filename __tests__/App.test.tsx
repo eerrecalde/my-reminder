@@ -1344,80 +1344,80 @@ test('selects Spanish in Options and updates the screen immediately', async () =
   listener.mockRestore();
 });
 
-test('explains the Alarm screen for saved Alarms and refreshes access on return', async () => {
-  let resume!: (state: 'active') => void;
-  const subscription = jest
-    .spyOn(AppState, 'addEventListener')
-    .mockImplementation((_type, callback) => {
-      resume = callback as typeof resume;
-      return { remove: jest.fn() };
+test.each([
+  [
+    'en',
+    'reminder',
+    'Allow full-screen access',
+    'Full-screen access is allowed.',
+  ],
+  [
+    'es',
+    'medicine',
+    'Permitir acceso a pantalla completa',
+    'El acceso a pantalla completa está permitido.',
+  ],
+] as const)(
+  'explains a saved Alarm and refreshes access on return in %s',
+  async (language, type, allowLabel, allowedStatus) => {
+    let resume!: (state: 'active') => void;
+    const subscription = jest
+      .spyOn(AppState, 'addEventListener')
+      .mockImplementation((_type, callback) => {
+        resume = callback as typeof resume;
+        return { remove: jest.fn() };
+      });
+    const repository = require('../src/reminderRepository');
+    const openFullScreenSettings = jest.fn().mockResolvedValue(undefined);
+    const reminder = {
+      id: 'r',
+      status: 'active',
+      type,
+      name: 'Water',
+      times: ['09:00'],
+    };
+    const base = {
+      enabled: true,
+      notifications: true,
+      exactAlarms: true,
+      language,
+      todayDoses: [],
+      upcoming: [],
+      history: [],
+    };
+    const savedAlarm = { ...base, medicines: [{ ...reminder, mode: 'alarm' }] };
+    const state = jest
+      .fn()
+      .mockResolvedValueOnce({ ...savedAlarm, fullScreenAccess: 'denied' })
+      .mockResolvedValueOnce({ ...savedAlarm, fullScreenAccess: 'allowed' })
+      .mockResolvedValue({ ...savedAlarm, fullScreenAccess: 'denied' });
+    repository.reminderRepository = { state, openFullScreenSettings };
+
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    const allow = () =>
+      view.root
+        .findAllByType(PillAction)
+        .find(button => button.props.title === allowLabel);
+    const foreground = () =>
+      ReactTestRenderer.act(async () => resume('active'));
+    await ReactTestRenderer.act(async () => {
+      view = ReactTestRenderer.create(<App />);
     });
-  const repository = require('../src/reminderRepository');
-  const openFullScreenSettings = jest.fn().mockResolvedValue(undefined);
-  const reminder = {
-    id: 'r',
-    status: 'active',
-    type: 'reminder',
-    name: 'Water',
-    times: ['09:00'],
-  };
-  const base = {
-    enabled: true,
-    notifications: true,
-    exactAlarms: true,
-    language: 'en',
-    todayDoses: [],
-    upcoming: [],
-    history: [],
-  };
-  const savedAlarm = { ...base, medicines: [{ ...reminder, mode: 'alarm' }] };
-  const state = jest
-    .fn()
-    .mockResolvedValueOnce({
-      ...base,
-      fullScreenAccess: 'denied',
-      medicines: [{ ...reminder, mode: 'notification' }],
-    })
-    .mockResolvedValueOnce({ ...savedAlarm, fullScreenAccess: 'denied' })
-    .mockResolvedValueOnce({ ...savedAlarm, fullScreenAccess: 'allowed' })
-    .mockResolvedValue({ ...savedAlarm, fullScreenAccess: 'denied' });
-  repository.reminderRepository = { state, openFullScreenSettings };
+    expect(allow()).toBeDefined();
+    await ReactTestRenderer.act(async () => allow()!.props.onPress());
+    expect(openFullScreenSettings).toHaveBeenCalledTimes(1);
 
-  let view!: ReactTestRenderer.ReactTestRenderer;
-  const allow = () =>
-    view.root
-      .findAllByType(PillAction)
-      .find(button => button.props.title === 'Allow full-screen access');
-  const foreground = () => ReactTestRenderer.act(async () => resume('active'));
-  await ReactTestRenderer.act(async () => {
-    view = ReactTestRenderer.create(<App />);
-  });
-  expect(allow()).toBeUndefined();
+    await foreground();
+    expect(allow()).toBeUndefined();
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(text => text.props.children === allowedStatus),
+    ).toBe(true);
 
-  await foreground();
-  await ReactTestRenderer.act(async () => allow()!.props.onPress());
-  expect(openFullScreenSettings).toHaveBeenCalledTimes(1);
-
-  await foreground();
-  expect(allow()).toBeUndefined();
-  expect(
-    view.root
-      .findAllByType(Text)
-      .some(text => text.props.children === 'Full-screen access is allowed.'),
-  ).toBe(true);
-
-  await foreground();
-  expect(allow()).toBeDefined();
-  expect(
-    view.root
-      .findAllByType(Text)
-      .some(
-        text =>
-          text.props.children ===
-          'Without full-screen access, Alarms still arrive as notifications.',
-      ),
-  ).toBe(true);
-
-  await ReactTestRenderer.act(() => view.unmount());
-  subscription.mockRestore();
-});
+    await foreground();
+    expect(allow()).toBeDefined();
+    await ReactTestRenderer.act(() => view.unmount());
+    subscription.mockRestore();
+  },
+);

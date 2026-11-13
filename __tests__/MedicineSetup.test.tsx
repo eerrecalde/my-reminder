@@ -910,86 +910,95 @@ test.each([
   },
 );
 
+const alarmSetupCopy = {
+  en: {
+    next: 'Next',
+    frequency: 'Every day',
+    time: 'Select a time',
+    alarm: 'Alarm',
+    allow: 'Allow full-screen access',
+    fallback:
+      'Without full-screen access, Alarms still arrive as notifications.',
+    review: 'Review',
+    reminder: { label: 'Reminder', save: 'Save reminder' },
+    medicine: { label: 'Medicine', save: 'Save medicine' },
+  },
+  es: {
+    next: 'Continuar',
+    frequency: 'Todos los días',
+    time: 'Elegir una hora',
+    alarm: 'Alarma',
+    allow: 'Permitir acceso a pantalla completa',
+    fallback:
+      'Sin acceso a pantalla completa, las alarmas siguen llegando como notificaciones.',
+    review: 'Revisar',
+    reminder: { label: 'Recordatorio', save: 'Guardar recordatorio' },
+    medicine: { label: 'Medicamento', save: 'Guardar medicamento' },
+  },
+};
+
 test.each([
-  [
-    'en',
-    'Reminder',
-    'Next',
-    'Every day',
-    'Select a time',
-    'Alarm',
-    'Allow full-screen access',
-    'Review',
-    'Save reminder',
-    'reminder',
-  ],
-  [
-    'es',
-    'Medicamento',
-    'Continuar',
-    'Todos los días',
-    'Elegir una hora',
-    'Alarma',
-    'Permitir acceso a pantalla completa',
-    'Revisar',
-    'Guardar medicamento',
-    'medicine',
-  ],
+  ['en', 'reminder'],
+  ['en', 'medicine'],
+  ['es', 'reminder'],
+  ['es', 'medicine'],
 ] as const)(
-  'can save an Alarm without full-screen access in %s',
-  async (
-    language,
-    type,
-    next,
-    frequency,
-    time,
-    alarm,
-    allow,
-    review,
-    saveLabel,
-    savedType,
-  ) => {
+  'can save an Alarm without full-screen access in %s for %s',
+  async (language, type) => {
+    const copy = alarmSetupCopy[language];
     const save = jest.fn();
+    const openSettings = jest.fn();
+    const setup = (access: 'allowed' | 'denied') => (
+      <MedicineSetup
+        language={language}
+        onExit={() => {}}
+        onSave={save}
+        selectTime={async () => '09:00'}
+        fullScreenAccess={access}
+        openFullScreenSettings={openSettings}
+      />
+    );
     let view!: ReactTestRenderer.ReactTestRenderer;
     await ReactTestRenderer.act(() => {
-      view = ReactTestRenderer.create(
-        <MedicineSetup
-          language={language}
-          onExit={() => {}}
-          onSave={save}
-          selectTime={async () => '09:00'}
-          fullScreenAccess="denied"
-          openFullScreenSettings={jest.fn()}
-        />,
-      );
+      view = ReactTestRenderer.create(setup('denied'));
     });
     const press = async (title: string) => {
       await ReactTestRenderer.act(() =>
         findAction(view, title).props.onPress(),
       );
     };
-    await press(type);
+    await press(copy[type].label);
     await ReactTestRenderer.act(() =>
       view.root.findAllByType(TextInput)[0].props.onChangeText('Test'),
     );
-    await press(next);
-    await chooseFrequency(view, frequency);
-    await press(time);
-    expect(findAction(view, allow)).toBeUndefined();
+    await press(copy.next);
+    await chooseFrequency(view, copy.frequency);
+    await press(copy.time);
+    expect(findAction(view, copy.allow)).toBeUndefined();
     await ReactTestRenderer.act(() =>
       view.root
         .findAll(
           node =>
             node.props.accessibilityRole === 'radio' &&
-            node.props.accessibilityLabel === alarm,
+            node.props.accessibilityLabel === copy.alarm,
         )[0]
         .props.onPress(),
     );
-    expect(findAction(view, allow)).toBeDefined();
-    await press(review);
-    await press(saveLabel);
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(text => text.props.children === copy.fallback),
+    ).toBe(true);
+    await press(copy.allow);
+    expect(openSettings).toHaveBeenCalledTimes(1);
+    await ReactTestRenderer.act(() => view.update(setup('allowed')));
+    expect(findAction(view, copy.allow)).toBeUndefined();
+    await ReactTestRenderer.act(() => view.update(setup('denied')));
+    expect(findAction(view, copy.allow)).toBeDefined();
+    await press(copy.review);
+    await press(copy[type].save);
     expect(save).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: 'alarm', type: savedType }),
+      expect.objectContaining({ mode: 'alarm', type }),
     );
     await ReactTestRenderer.act(() => view.unmount());
   },
