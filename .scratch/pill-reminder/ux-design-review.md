@@ -33,11 +33,11 @@ For an unconfirmed occurrence, make Done (or Taken for medicine) and Skip readil
 
 - Edits preserve already-due occurrences and their original details; future scheduling follows the edit. Pausing or deleting cancels outstanding alerts and future reminders while retaining due occurrences and history. Resuming starts with the next future occurrence.
 - Unconfirmed means no outcome has been recorded; it does not mean the person failed to take a medicine. Missed begins only when the next occurrence arrives without an outcome.
-- Notifications sound and vibrate once subject to device settings; alarms continue until stopped or superseded. There is no full-screen takeover. Restore future reminders after restart and first unlock or permission recovery without catch-up sound.
+- Notifications sound and vibrate once subject to device settings. Alarms continue until stopped or superseded and can show the [Alarm screen](spec.md#alarm-screen) over the lock screen. Restore future reminders after restart and first unlock or permission recovery without catch-up sound.
 - Support both British English and Latin American Spanish, general reminders and medicines, empty and crowded lists, and long names throughout. Keep the app and stored data local; do not imply account backup or replacement-phone recovery.
 
 ## Approved review decisions
 
 The user approved the proposed grouping and management location, setup and access layouts, status/action hierarchy, and supporting edge-state direction. Content can scroll on shorter screens. The concept's “every 3 days” example is not a supported schedule and must not be implemented.
 
-[Edge-state concept](ux-edge-states.png): illustrates an empty state, a crowded Spanish view, a long name, management, setup and missing access. The generated image is illustrative: the medicine action should read **Tomado**, not **Hecho**; alarm mode does not take over the screen; and upcoming entries should not be presented as already unconfirmed. Follow the written behaviour above.
+[Edge-state concept](ux-edge-states.png): illustrates an empty state, a crowded Spanish view, a long name, management, setup and missing access. Use **Tomado** for the medicine action and show upcoming entries as upcoming. Follow the written behaviour above.

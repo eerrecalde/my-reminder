@@ -26,5 +26,8 @@ _Avoid_: Forgotten dose
 **Paused medicine**:
 A medicine whose reminders are suspended until resumed. Pausing preserves doses already due; resuming continues at the next future dose without catch-up reminders.
 
+**Alarm screen**:
+A dedicated view for a due reminder occurrence in Alarm mode. It can appear over the lock screen while the phone remains locked.
+
 **Sound session**:
 A shared period of alarm sound and vibration for overlapping reminder occurrences. Sound continues while an active alarm remains, until stopped or superseded. Stopping the sound does not record an outcome.
