@@ -81,12 +81,32 @@ class AlarmActivity : Activity() {
         }
       }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(24) })
     }
+    val brand = LinearLayout(this).apply {
+      gravity = Gravity.CENTER
+      addView(ImageView(context).apply {
+        setImageResource(R.drawable.alarm_brand_sprig)
+        scaleType = ImageView.ScaleType.FIT_CENTER
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+      }, LinearLayout.LayoutParams(dp(48), dp(36)))
+      addView(TextView(context).apply {
+        setText(R.string.app_name)
+        setTextColor(Color.rgb(23, 35, 26))
+        textSize = 17f
+        setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+      })
+    }
     setContentView(ScrollView(this).apply {
       isFillViewport = true
       setBackgroundColor(pageColour)
-      addView(FrameLayout(context).apply {
+      addView(LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER_HORIZONTAL
         setPadding(0, dp(24), 0, dp(24))
-        addView(card, FrameLayout.LayoutParams(cardWidth, WRAP_CONTENT, Gravity.CENTER))
+        addView(brand, LinearLayout.LayoutParams(cardWidth, WRAP_CONTENT))
+        addView(FrameLayout(context).apply {
+          setPadding(0, dp(16), 0, 0)
+          addView(card, FrameLayout.LayoutParams(cardWidth, WRAP_CONTENT, Gravity.CENTER))
+        }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, 1f))
       })
     })
   }
