@@ -864,7 +864,7 @@ class ReminderFoundationTest {
         }
         val notificationId = ("${item.id}:$at").hashCode()
         val due = if (spanish) "Recordatorio pendiente" else "Reminder due"
-        val unlock = if (spanish) "Desbloquear" else "Unlock"
+        val unlock = if (spanish) "Desbloquear para ver" else "Unlock to view"
         val complete = if (spanish) {
           if (medicine) "Tomado" else "Hecho"
         } else {
@@ -913,6 +913,8 @@ class ReminderFoundationTest {
           if (medicine) assertTrue(nodes(item.instructions).isNotEmpty())
           assertTrue(nodes(complete).isNotEmpty())
           assertTrue(nodes(skip).isNotEmpty())
+          assertTrue(nodes(if (spanish) "Posponer" else "Snooze").isNotEmpty())
+          assertTrue(nodes(if (spanish) "Cerrar" else "Close").isNotEmpty())
           tap(if (locale == "en") complete else skip)
           val outcome = if (locale == "en") "completed" else "skipped"
           awaitCondition("The outcome should apply to the original occurrence") {
