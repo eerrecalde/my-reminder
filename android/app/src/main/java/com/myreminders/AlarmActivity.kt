@@ -130,9 +130,16 @@ class AlarmActivity : Activity() {
         setTypeface(Typeface.DEFAULT, Typeface.BOLD)
         gravity = Gravity.CENTER
       }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(16) })
-      val medicine = occurrence?.type == "medicine"
+      val snooze = {
+        if (ReminderScheduler.snooze(this@AlarmActivity, id, at, 10)) {
+          finish()
+        } else {
+          Toast.makeText(localized, R.string.alarm_screen_snooze_failed, Toast.LENGTH_SHORT).show()
+        }
+      }
+      val secondaryActions = mutableListOf<Button>()
       if (result != null) {
-        addAction(localized.getString(R.string.undo), topMargin = 24) {
+        addPrimaryAction(localized.getString(R.string.undo)) {
           if (!isLocked()) {
             val change = result.change
             ReminderScheduler.undoOutcome(context, id, at, change.previous, change.revision, change.previousCleared)
@@ -140,6 +147,7 @@ class AlarmActivity : Activity() {
           finish()
         }
       } else if (occurrence != null) {
+        val medicine = occurrence.type == "medicine"
         occurrence.instructions?.takeIf { medicine && it.isNotBlank() }?.let { instructions ->
           addView(TextView(context).apply {
             text = instructions
@@ -149,32 +157,26 @@ class AlarmActivity : Activity() {
           }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
         }
         val completion = if (medicine) R.string.taken else R.string.completed
-        addAction(localized.getString(completion), topMargin = 24) {
+        addPrimaryAction(localized.getString(completion)) {
           answer(id, at, "completed", completion)
         }
-        addAction(localized.getString(R.string.skip)) {
+        secondaryActions += actionButton(localized.getString(R.string.skip), primary = false) {
           answer(id, at, "skipped", R.string.skipped)
         }
+        secondaryActions += actionButton(localized.getString(R.string.alarm_screen_snooze), primary = false, action = snooze)
       } else {
-        addAction(localized.getString(R.string.alarm_screen_unlock), topMargin = 24) {
+        addPrimaryAction(localized.getString(R.string.snooze_ten), action = snooze)
+        secondaryActions += actionButton(localized.getString(R.string.alarm_screen_unlock), primary = false) {
           keyguard.requestDismissKeyguard(this@AlarmActivity, object : KeyguardManager.KeyguardDismissCallback() {
             override fun onDismissSucceeded() = refreshScreen()
           })
         }
       }
-      if (result == null) {
-        addAction(localized.getString(R.string.snooze_ten)) {
-          if (ReminderScheduler.snooze(this@AlarmActivity, id, at, 10)) {
-            finish()
-          } else {
-            Toast.makeText(localized, R.string.alarm_screen_snooze_failed, Toast.LENGTH_SHORT).show()
-          }
-        }
-      }
-      addAction(localized.getString(R.string.alarm_screen_close)) {
+      secondaryActions += actionButton(localized.getString(R.string.alarm_screen_close), primary = false) {
         if (result == null) stopService(Intent(this@AlarmActivity, AlarmSoundService::class.java))
         finish()
       }
+      addSecondaryActions(secondaryActions, cardWidth - paddingLeft - paddingRight)
     }
     val brand = LinearLayout(this).apply {
       gravity = Gravity.CENTER
@@ -222,25 +224,47 @@ class AlarmActivity : Activity() {
     refreshScreen()
   }
 
-  private fun LinearLayout.addAction(label: String, topMargin: Int = 8, action: () -> Unit) {
-    addView(Button(context).apply {
-      text = label
-      isAllCaps = false
-      setTextColor(Color.rgb(255, 253, 244))
-      textSize = 16f
-      letterSpacing = 0f
-      setTypeface(Typeface.DEFAULT, Typeface.BOLD)
-      minHeight = dp(48)
-      setPadding(dp(18), dp(10), dp(18), dp(10))
-      stateListAnimator = null
-      backgroundTintList = null
-      background = RippleDrawable(
-        ColorStateList.valueOf(0x33FFFFFF),
-        rounded(Color.rgb(75, 111, 61), 24),
-        null,
-      )
-      setOnClickListener { action() }
-    }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { this.topMargin = dp(topMargin) })
+  private fun LinearLayout.addPrimaryAction(label: String, action: () -> Unit) {
+    addView(actionButton(label, primary = true, action = action),
+      LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(24) })
+  }
+
+  private fun LinearLayout.addSecondaryActions(actions: List<Button>, availableWidth: Int) {
+    val unconstrained = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+    val horizontal = actions.sumOf { button ->
+      button.measure(unconstrained, unconstrained)
+      button.measuredWidth
+    } <= availableWidth
+    addView(LinearLayout(context).apply {
+      orientation = if (horizontal) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+      gravity = Gravity.CENTER_HORIZONTAL
+      actions.forEach { button ->
+        val width = if (horizontal) WRAP_CONTENT else MATCH_PARENT
+        val weight = if (horizontal) 1f else 0f
+        addView(button, LinearLayout.LayoutParams(width, WRAP_CONTENT, weight))
+      }
+    }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(4) })
+  }
+
+  private fun actionButton(label: String, primary: Boolean, action: () -> Unit) = Button(this).apply {
+    text = label
+    isAllCaps = false
+    setTextColor(if (primary) Color.rgb(255, 253, 244) else Color.rgb(62, 93, 51))
+    textSize = if (primary) 16f else 14f
+    letterSpacing = 0f
+    setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+    minWidth = dp(48)
+    minHeight = dp(48)
+    val horizontalPadding = dp(if (primary) 18 else 8)
+    setPadding(horizontalPadding, dp(10), horizontalPadding, dp(10))
+    stateListAnimator = null
+    backgroundTintList = null
+    background = RippleDrawable(
+      ColorStateList.valueOf(if (primary) 0x33FFFFFF else 0x224B6F3D),
+      if (primary) rounded(Color.rgb(75, 111, 61), 24) else null,
+      rounded(Color.WHITE, 24),
+    )
+    setOnClickListener { action() }
   }
 
   private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
