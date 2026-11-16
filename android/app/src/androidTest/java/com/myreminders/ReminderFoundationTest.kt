@@ -819,6 +819,8 @@ class ReminderFoundationTest {
   }
 
   @Test fun lockedAlarmCanBeSnoozedAndAnsweredAfterUnlock() {
+    org.junit.Assume.assumeTrue("This test changes the screen lock on a disposable emulator",
+      android.os.Build.HARDWARE == "ranchu")
     val context = ApplicationProvider.getApplicationContext<Context>()
     val automation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
     val keyguard = context.getSystemService(android.app.KeyguardManager::class.java)
@@ -852,7 +854,7 @@ class ReminderFoundationTest {
       assertTrue(shell("locksettings set-pin 5731").contains("Pin set"))
       for (locale in listOf("en", "es")) for (type in listOf("medicine", "reminder")) {
         AppLanguage.set(context, locale)
-        val strings = AppLanguage.context(context)
+        val spanish = locale == "es"
         val medicine = type == "medicine"
         val now = System.currentTimeMillis()
         val at = now + 6000
@@ -861,10 +863,14 @@ class ReminderFoundationTest {
             now, type, "alarm", scheduleKind = "interval", intervalHours = 2, intervalAnchor = at)
         }
         val notificationId = ("${item.id}:$at").hashCode()
-        val due = strings.getString(R.string.alarm_screen_title)
-        val unlock = strings.getString(R.string.alarm_screen_unlock)
-        val complete = strings.getString(if (medicine) R.string.taken else R.string.completed)
-        val skip = strings.getString(R.string.skip)
+        val due = if (spanish) "Recordatorio pendiente" else "Reminder due"
+        val unlock = if (spanish) "Desbloquear" else "Unlock"
+        val complete = if (spanish) {
+          if (medicine) "Tomado" else "Hecho"
+        } else {
+          if (medicine) "Taken" else "Done"
+        }
+        val skip = if (spanish) "Omitir" else "Skip"
         fun assertGeneric() {
           awaitCondition("The scheduled Alarm should wake the locked display") { power.isInteractive && nodes(due).isNotEmpty() }
           assertTrue(keyguard.isDeviceLocked)
@@ -878,7 +884,7 @@ class ReminderFoundationTest {
           shell("input keyevent KEYCODE_SLEEP")
           awaitCondition("The display should be off before delivery") { !power.isInteractive }
           assertGeneric()
-          tap(strings.getString(R.string.snooze_ten))
+          tap(if (spanish) "Posponer 10 minutos" else "Snooze 10 minutes")
           awaitCondition("Snooze should close the screen and remove its notification") {
             nodes(due).isEmpty() && notifications.activeNotifications.none { it.id == notificationId }
           }
@@ -911,6 +917,11 @@ class ReminderFoundationTest {
           val outcome = if (locale == "en") "completed" else "skipped"
           awaitCondition("The outcome should apply to the original occurrence") {
             MedicineRepository(context).use { it.outcome(item.id, at) == outcome }
+          }
+          tap(if (spanish) "Deshacer" else "Undo")
+          awaitCondition("Undo should restore the occurrence without alerting again") {
+            MedicineRepository(context).use { it.outcome(item.id, at) == null } &&
+              notifications.activeNotifications.none { it.id == notificationId }
           }
           assertEquals(1, MedicineRepository(context).use { repo -> repo.occurrences().count { it.medicineId == item.id } })
         } finally {

@@ -30,6 +30,8 @@ import kotlin.math.roundToInt
 class AlarmActivity : Activity() {
   private val keyguard by lazy { getSystemService(KeyguardManager::class.java) }
   private var showingDetails: Boolean? = null
+  private data class RecordedOutcome(val label: Int, val change: MedicineRepository.OutcomeChange)
+  private var recordedOutcome: RecordedOutcome? = null
   private val lockEvents = object : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
       if (intent.action == Intent.ACTION_SCREEN_OFF) render(showDetails = false)
@@ -74,7 +76,14 @@ class AlarmActivity : Activity() {
   }
 
   private fun render(showDetails: Boolean) {
-    if (showingDetails == showDetails || isFinishing) return
+    if (isFinishing) return
+    if (showingDetails == showDetails) return
+    val result = recordedOutcome
+    if (!showDetails && result != null) {
+      setContentView(View(this))
+      finish()
+      return
+    }
     val segments = intent.data?.pathSegments
     val id = segments?.getOrNull(0)
     val at = segments?.getOrNull(1)?.toLongOrNull()
@@ -84,10 +93,10 @@ class AlarmActivity : Activity() {
     }
     showingDetails = showDetails
 
-    val occurrence = if (showDetails) MedicineRepository(this).use { repo ->
-      repo.occurrences().find { it.medicineId == id && it.at == at && it.outstanding && it.outcome == null }
+    val occurrence = if (showDetails && result == null) MedicineRepository(this).use { repo ->
+      repo.occurrence(id, at)?.takeIf { it.outstanding && it.outcome == null }
     } else null
-    if (showDetails && occurrence == null) {
+    if (showDetails && occurrence == null && result == null) {
       finish()
       return
     }
@@ -115,14 +124,22 @@ class AlarmActivity : Activity() {
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
       }, LinearLayout.LayoutParams(dp(48), dp(48)))
       addView(TextView(context).apply {
-        text = occurrence?.name ?: localized.getString(R.string.alarm_screen_title)
+        text = occurrence?.name ?: localized.getString(result?.label ?: R.string.alarm_screen_title)
         setTextColor(Color.rgb(22, 37, 36))
         textSize = 26f
         setTypeface(Typeface.DEFAULT, Typeface.BOLD)
         gravity = Gravity.CENTER
       }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(16) })
       val medicine = occurrence?.type == "medicine"
-      if (occurrence != null) {
+      if (result != null) {
+        addAction(localized.getString(R.string.undo), topMargin = 24) {
+          if (!isLocked()) {
+            val change = result.change
+            ReminderScheduler.undoOutcome(context, id, at, change.previous, change.revision, change.previousCleared)
+          }
+          finish()
+        }
+      } else if (occurrence != null) {
         occurrence.instructions?.takeIf { medicine && it.isNotBlank() }?.let { instructions ->
           addView(TextView(context).apply {
             text = instructions
@@ -131,10 +148,13 @@ class AlarmActivity : Activity() {
             gravity = Gravity.CENTER
           }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
         }
-        addAction(localized.getString(if (medicine) R.string.taken else R.string.completed), topMargin = 24) {
-          answer(id, at, "completed")
+        val completion = if (medicine) R.string.taken else R.string.completed
+        addAction(localized.getString(completion), topMargin = 24) {
+          answer(id, at, "completed", completion)
         }
-        addAction(localized.getString(R.string.skip)) { answer(id, at, "skipped") }
+        addAction(localized.getString(R.string.skip)) {
+          answer(id, at, "skipped", R.string.skipped)
+        }
       } else {
         addAction(localized.getString(R.string.alarm_screen_unlock), topMargin = 24) {
           keyguard.requestDismissKeyguard(this@AlarmActivity, object : KeyguardManager.KeyguardDismissCallback() {
@@ -142,15 +162,17 @@ class AlarmActivity : Activity() {
           })
         }
       }
-      addAction(localized.getString(R.string.snooze_ten)) {
-        if (ReminderScheduler.snooze(this@AlarmActivity, id, at, 10)) {
-          finish()
-        } else {
-          Toast.makeText(localized, R.string.alarm_screen_snooze_failed, Toast.LENGTH_SHORT).show()
+      if (result == null) {
+        addAction(localized.getString(R.string.snooze_ten)) {
+          if (ReminderScheduler.snooze(this@AlarmActivity, id, at, 10)) {
+            finish()
+          } else {
+            Toast.makeText(localized, R.string.alarm_screen_snooze_failed, Toast.LENGTH_SHORT).show()
+          }
         }
       }
       addAction(localized.getString(R.string.alarm_screen_close)) {
-        stopService(Intent(this@AlarmActivity, AlarmSoundService::class.java))
+        if (result == null) stopService(Intent(this@AlarmActivity, AlarmSoundService::class.java))
         finish()
       }
     }
@@ -184,13 +206,20 @@ class AlarmActivity : Activity() {
     })
   }
 
-  private fun answer(id: String, at: Long, outcome: String) {
+  private fun answer(id: String, at: Long, outcome: String, resultLabel: Int) {
+    if (recordedOutcome != null || isFinishing) return
     if (isLocked()) {
       refreshScreen()
       return
     }
-    ReminderScheduler.notificationOutcome(this, id, at, outcome)
-    finish()
+    val change = ReminderScheduler.recordOutcome(this, id, at, outcome, onlyUnconfirmed = true)
+    if (change == null) {
+      finish()
+      return
+    }
+    recordedOutcome = RecordedOutcome(resultLabel, change)
+    showingDetails = null
+    refreshScreen()
   }
 
   private fun LinearLayout.addAction(label: String, topMargin: Int = 8, action: () -> Unit) {
