@@ -327,7 +327,7 @@ object ReminderScheduler {
       else {
         val medicine = requireNotNull(repo.all().find { it.id == id })
         val next = DailySchedule.next(medicine, Instant.ofEpochMilli(maxOf(at, medicine.changedAt)), ZoneId.systemDefault())
-        repo.setOutcome(id, at, outcome, outcome == null && repo.occurrences(includeCleared = true).find { it.medicineId == id && it.at == at }?.oneOff != true && next != null && next <= Instant.now())
+        repo.setOutcome(id, at, outcome, outcome == null && repo.occurrence(id, at, includeCleared = true)?.oneOff != true && next != null && next <= Instant.now())
       }
     }
     if (changed?.changed == true) dismissOccurrence(context, id, at)
@@ -338,7 +338,7 @@ object ReminderScheduler {
     val undone = MedicineRepository(context).use { repo ->
       val medicine = repo.all().find { it.id == id } ?: return false
       val next = DailySchedule.next(medicine, Instant.ofEpochMilli(maxOf(at, medicine.changedAt)), ZoneId.systemDefault())
-      repo.undoOutcome(id, at, revision, previous, previous == null && repo.occurrences(includeCleared = true).find { it.medicineId == id && it.at == at }?.oneOff != true && next != null && next <= Instant.now(), previousCleared)
+      repo.undoOutcome(id, at, revision, previous, previous == null && repo.occurrence(id, at, includeCleared = true)?.oneOff != true && next != null && next <= Instant.now(), previousCleared)
     }
     if (undone) dismissOccurrence(context, id, at)
     return undone

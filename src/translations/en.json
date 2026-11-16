@@ -187,6 +187,8 @@
     "alarm_alert_channel": "Alarm alerts",
     "alarm_screen_title": "Reminder due",
     "alarm_screen_close": "Close",
+    "alarm_screen_unlock": "Unlock",
+    "alarm_screen_snooze_failed": "Could not snooze this reminder.",
     "general_reminder_due": "Your reminder is due",
     "test_reminder": "Test reminder",
     "test_reminder_body": "Your reminders are working",

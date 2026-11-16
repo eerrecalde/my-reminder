@@ -122,9 +122,16 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     statement.executeUpdateDelete()
   }
 
-  fun occurrences(includeCleared: Boolean = false): List<Occurrence> {
+  fun occurrences(includeCleared: Boolean = false): List<Occurrence> =
+    readOccurrences(if (includeCleared) "" else "WHERE cleared = 0")
+
+  fun occurrence(medicineId: String, at: Long, includeCleared: Boolean = false): Occurrence? =
+    readOccurrences("WHERE id = ?" + if (includeCleared) "" else " AND cleared = 0",
+      arrayOf("$medicineId:$at")).singleOrNull()
+
+  private fun readOccurrences(where: String, args: Array<String>? = null): List<Occurrence> {
     val result = mutableListOf<Occurrence>()
-    readableDatabase.rawQuery("SELECT medicine_id, scheduled_at, outcome, cleared, outstanding, name, instructions, type, mode, times, retained, missed_acknowledged, one_off FROM doses ${if (includeCleared) "" else "WHERE cleared = 0"} ORDER BY scheduled_at", null).use { cursor ->
+    readableDatabase.rawQuery("SELECT medicine_id, scheduled_at, outcome, cleared, outstanding, name, instructions, type, mode, times, retained, missed_acknowledged, one_off FROM doses $where ORDER BY scheduled_at", args).use { cursor ->
       while (cursor.moveToNext()) {
         val times = cursor.getString(9)?.let { value -> JSONArray(value).let { array -> (0 until array.length()).map { array.getString(it) } } }
         result.add(Occurrence(cursor.getString(0), cursor.getLong(1), cursor.getString(2), cursor.getInt(3) != 0, cursor.getInt(4) != 0, cursor.getString(5), cursor.getString(6), cursor.getString(7), cursor.getString(8), times, cursor.getInt(10) != 0, cursor.getInt(11) != 0, cursor.getInt(12) != 0))
