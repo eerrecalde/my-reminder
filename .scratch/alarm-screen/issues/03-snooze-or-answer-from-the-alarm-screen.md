@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Wake the locked phone for an Alarm).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ## Acceptance criteria
 
@@ -12,8 +12,10 @@
 - [x] When snooze expires, the same reminder occurrence alerts again and can wake the locked display under the same Android access and interruption rules as a scheduled Alarm.
 - [x] While locked, the Alarm screen keeps its generic message and offers a way to unlock. Dismissing or failing authentication keeps the private details and outcome actions hidden.
 - [x] After unlocking, the screen shows the reminder name and any dosage instructions. It offers **Taken** for a Medicine or **Done** for a Reminder, and **Skip** for either. Each action records the outcome for the displayed occurrence, with the existing repeated-tap and outcome correction behaviour.
-- [ ] Verify the flow for both reminder types and supported app languages, using existing Android snooze and outcome tests for the occurrence behaviour and a scheduled Alarm on a locked phone for the screen flow.
+- [x] Verify the flow for both reminder types and supported app languages, using existing Android snooze and outcome tests for the occurrence behaviour and a scheduled Alarm on a locked phone for the screen flow.
 
 ## Comments
 
 2026-11-16 — The disposable Android 16 emulator (sdk_gphone64_arm64) passed all 47 instrumentation tests. Scheduled Alarms for Medicine and Reminder woke the locked display in English and Spanish. The test checked the ten-minute snooze timestamp and unchanged next occurrence, then advanced the snooze timestamp so Android could redeliver during the test. Cancelling the PIN prompt kept the screen generic. Unlocking showed the details and allowed the outcome to be recorded and undone without another alert. The Pixel 9a (Android 17) was updated in place. The physical locked-screen check and full ten-minute redelivery remain pending.
+
+2026-11-16 — The user confirmed that snooze worked on the physical device. Android 16 emulator coverage verifies the locked and unlocked flow for both reminder types in English and Spanish, including outcome recording and Undo. The action layout follow-up was merged in `7494ee5` and passed all 47 Android instrumentation tests.
