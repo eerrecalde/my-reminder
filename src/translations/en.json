@@ -186,6 +186,7 @@
     "reminder_due": "Your medicine is due",
     "alarm_alert_channel": "Alarm alerts",
     "alarm_screen_title": "Reminder due",
+    "alarm_screen_another_due": "Another reminder is due",
     "alarm_screen_close": "Close",
     "alarm_screen_unlock": "Unlock to view",
     "alarm_screen_snooze": "Snooze",

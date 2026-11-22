@@ -3,6 +3,7 @@
     <string name="reminder_due">Es hora de tomar tu medicamento</string>
     <string name="alarm_alert_channel">Alertas de alarma</string>
     <string name="alarm_screen_title">Recordatorio pendiente</string>
+    <string name="alarm_screen_another_due">Hay otro recordatorio pendiente</string>
     <string name="alarm_screen_close">Cerrar</string>
     <string name="alarm_screen_unlock">Desbloquear para ver</string>
     <string name="alarm_screen_snooze">Posponer</string>
