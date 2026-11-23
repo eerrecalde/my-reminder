@@ -622,8 +622,8 @@ test.each([
         .accessibilityLabel,
     ).toContain(once);
     await press(dateLabel);
-    expect(timeLabel).toBeTruthy();
     await press(language === 'en' ? 'Select a time' : 'Elegir una hora');
+    expect(findAction(view, timeLabel).props.accessibilityLabel).toContain('18:10');
     await press(review);
     expect(
       view.root
