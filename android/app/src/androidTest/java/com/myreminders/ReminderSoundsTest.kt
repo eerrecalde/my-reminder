@@ -208,8 +208,13 @@ class ReminderSoundsTest {
       assertTrue(manager.isNotificationPolicyAccessGranted)
       manager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
       repeat(30) { if (manager.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_NONE) Thread.sleep(100) }
+      assertEquals(NotificationManager.INTERRUPTION_FILTER_NONE, manager.currentInterruptionFilter)
       MedicineRepository(context).use { it.setAlarm(item.id, at, "dnd-sound") }
       ReminderScheduler.deliver(context, item.id, at, "dnd-sound")
+      val notificationId = ("${item.id}:$at").hashCode()
+      repeat(50) { if (manager.activeNotifications.none { it.id == notificationId }) Thread.sleep(50) }
+      assertTrue("The occurrence should be delivered under Do Not Disturb", manager.activeNotifications.any { it.id == notificationId })
+      // Allow the asynchronous sound service time to start before asserting absence.
       Thread.sleep(1000)
       assertFalse(manager.activeNotifications.any { it.id == 119348 })
       assertTrue(audio.activePlaybackConfigurations.none { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
@@ -244,13 +249,14 @@ class ReminderSoundsTest {
     assertFalse(ReminderSounds.useLegacyControls(legacy, blocked))
   }
 
-  @Test fun customChannelsRetainUserChanges() {
+  @Test fun requestingSilentChannelAgainKeepsItsIdAndSound() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val manager = context.getSystemService(NotificationManager::class.java)
     val id = ReminderSounds.channel(context, "")
     try {
       assertNull(manager.getNotificationChannel(id).sound)
       assertEquals(id, ReminderSounds.channel(context, ""))
+      assertNull(manager.getNotificationChannel(id).sound)
     } finally { manager.deleteNotificationChannel(id) }
   }
 }
