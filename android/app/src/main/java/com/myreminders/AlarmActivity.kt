@@ -50,7 +50,13 @@ class AlarmActivity : Activity() {
   private val lockEvents = object : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
       if (intent.action == Intent.ACTION_SCREEN_OFF) render(showDetails = false)
-      else refreshScreen()
+      else {
+        if (intent.action == Intent.ACTION_SCREEN_ON) {
+          showingDetails = null
+          discardInactiveOccurrences()
+        }
+        refreshScreen()
+      }
     }
   }
 
@@ -66,6 +72,7 @@ class AlarmActivity : Activity() {
 
     ContextCompat.registerReceiver(this, lockEvents, IntentFilter().apply {
       addAction(Intent.ACTION_SCREEN_OFF)
+      addAction(Intent.ACTION_SCREEN_ON)
       addAction(Intent.ACTION_USER_PRESENT)
     }, ContextCompat.RECEIVER_NOT_EXPORTED)
     ContextCompat.registerReceiver(this, deliveries, IntentFilter(DELIVERED).apply {
