@@ -15,6 +15,9 @@ import android.graphics.drawable.RippleDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -34,6 +37,9 @@ class AlarmActivity : Activity() {
   private var showingDetails: Boolean? = null
   private val occurrences = mutableListOf<Uri>()
   private var firstDeliveryOrder = 0L
+  private val handler = Handler(Looper.getMainLooper())
+  private var keepAwakeUntil = 0L
+  private val releaseScreen = Runnable { window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
   private data class RecordedOutcome(val label: Int, val change: MedicineRepository.OutcomeChange)
   private var recordedOutcome: RecordedOutcome? = null
   private val deliveries = object : BroadcastReceiver() {
@@ -50,6 +56,8 @@ class AlarmActivity : Activity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    keepAwakeUntil = savedInstanceState?.getLong("keepAwakeUntil")
+      ?: (SystemClock.elapsedRealtime() + 120_000L)
     if (Build.VERSION.SDK_INT < 27) {
       @Suppress("DEPRECATION")
       window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
@@ -80,15 +88,25 @@ class AlarmActivity : Activity() {
   override fun onSaveInstanceState(outState: Bundle) {
     outState.putStringArrayList("occurrences", ArrayList(occurrences.map(Uri::toString)))
     outState.putLong("firstDeliveryOrder", firstDeliveryOrder)
+    outState.putLong("keepAwakeUntil", keepAwakeUntil)
     super.onSaveInstanceState(outState)
   }
 
   override fun onResume() {
     super.onResume()
+    val remaining = keepAwakeUntil - SystemClock.elapsedRealtime()
+    if (remaining > 0) {
+      window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      handler.postDelayed(releaseScreen, remaining)
+    }
+    showingDetails = null
+    discardInactiveOccurrences()
     refreshScreen()
   }
 
   override fun onPause() {
+    handler.removeCallbacks(releaseScreen)
+    releaseScreen.run()
     super.onPause()
     render(showDetails = false)
   }
@@ -100,6 +118,18 @@ class AlarmActivity : Activity() {
   }
 
   private fun isLocked() = keyguard.isKeyguardLocked || keyguard.isDeviceLocked
+
+  private fun discardInactiveOccurrences() {
+    val posted = getSystemService(NotificationManager::class.java).activeNotifications.map { it.notification.group }.toSet()
+    MedicineRepository(this).use { repo ->
+      occurrences.removeAll { uri ->
+        val id = uri.pathSegments.getOrNull(0)
+        val at = uri.pathSegments.getOrNull(1)?.toLongOrNull()
+        id == null || at == null || repo.occurrence(id, at)?.let { !it.outstanding || it.outcome != null } != false ||
+          (repo.snooze(id, at) != null && uri.toString() !in posted)
+      }
+    }
+  }
 
   private fun refreshScreen() {
     if (!isFinishing && !isDestroyed) render(showDetails = !isLocked())
