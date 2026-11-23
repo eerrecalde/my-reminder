@@ -17,6 +17,133 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ReminderFoundationTest {
+  @Test fun answeredAlarmDoesNotReturnAfterDisplaySleep() {
+    org.junit.Assume.assumeTrue("This test controls the display on a disposable emulator",
+      android.os.Build.HARDWARE == "ranchu")
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val automation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+    val power = context.getSystemService(android.os.PowerManager::class.java)
+    fun shell(command: String) = automation.executeShellCommand(command).use {
+      android.os.ParcelFileDescriptor.AutoCloseInputStream(it).readBytes()
+    }
+    fun awaitCondition(message: String, condition: () -> Boolean) {
+      val deadline = android.os.SystemClock.elapsedRealtime() + 20_000
+      while (!condition()) {
+        assertTrue(message, android.os.SystemClock.elapsedRealtime() < deadline)
+        Thread.sleep(200)
+      }
+    }
+    fun dueVisible() = automation.rootInActiveWindow?.findAccessibilityNodeInfosByText("Reminder due")
+      .orEmpty().any { it.text?.toString() == "Reminder due" }
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val language = AppLanguage.preference(context)
+    val now = System.currentTimeMillis()
+    val at = now + 7000
+    val item = MedicineRepository(context).use {
+      it.save("Answered sleep test", "", listOf("09:00"), now, "reminder", "alarm",
+        scheduleKind = "interval", intervalHours = 2, intervalAnchor = at)
+    }
+    try {
+      AppLanguage.set(context, "en")
+      ReminderScheduler.schedule(context, item)
+      shell("input keyevent KEYCODE_SLEEP")
+      awaitCondition("The scheduled Alarm should wake the display") { power.isInteractive && dueVisible() }
+      shell("input keyevent KEYCODE_SLEEP")
+      awaitCondition("The display should sleep") { !power.isInteractive }
+      assertNotNull(ReminderScheduler.recordOutcome(context, item.id, at, "completed", onlyUnconfirmed = true))
+      shell("input keyevent KEYCODE_WAKEUP")
+      awaitCondition("The display should wake") { power.isInteractive }
+      Thread.sleep(2000)
+      assertFalse("The answered Alarm should not return", dueVisible())
+    } finally {
+      shell("input keyevent KEYCODE_WAKEUP")
+      shell("input keyevent KEYCODE_MENU")
+      ReminderScheduler.setStatus(context, item.id, "deleted")
+      MedicineRepository(context).use { repo ->
+        for (table in listOf("doses", "occurrence_tracking")) {
+          repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        }
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+      context.stopService(Intent(context, AlarmSoundService::class.java))
+      AppLanguage.set(context, language)
+    }
+  }
+
+  @Test fun activeAlarmStaysVisibleThroughDisplaySleep() {
+    org.junit.Assume.assumeTrue("This test changes display settings on a disposable emulator",
+      android.os.Build.HARDWARE == "ranchu")
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val automation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+    val power = context.getSystemService(android.os.PowerManager::class.java)
+    val notifications = context.getSystemService(NotificationManager::class.java)
+    fun shell(command: String): String = automation.executeShellCommand(command).let {
+      android.os.ParcelFileDescriptor.AutoCloseInputStream(it).bufferedReader().use { stream -> stream.readText().trim() }
+    }
+    fun awaitCondition(message: String, timeout: Long, condition: () -> Boolean) {
+      val deadline = android.os.SystemClock.elapsedRealtime() + timeout
+      while (!condition()) {
+        assertTrue(message, android.os.SystemClock.elapsedRealtime() < deadline)
+        Thread.sleep(200)
+      }
+    }
+    fun nodes(label: String) = automation.rootInActiveWindow?.findAccessibilityNodeInfosByText(label)
+      .orEmpty().filter { it.text?.toString() == label }
+
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    if (android.os.Build.VERSION.SDK_INT >= 34) assertTrue(notifications.canUseFullScreenIntent())
+    val oldTimeout = shell("settings get system screen_off_timeout")
+    val oldStayOn = shell("settings get global stay_on_while_plugged_in")
+    val language = AppLanguage.preference(context)
+    val now = System.currentTimeMillis()
+    val at = now + 7000
+    val item = MedicineRepository(context).use {
+      it.save("Sleep test", "", listOf("09:00"), now, "reminder", "alarm",
+        scheduleKind = "interval", intervalHours = 2, intervalAnchor = at)
+    }
+    try {
+      AppLanguage.set(context, "en")
+      shell("settings put system screen_off_timeout 15000")
+      shell("svc power stayon false")
+      ReminderScheduler.schedule(context, item)
+      shell("input keyevent KEYCODE_SLEEP")
+      awaitCondition("The display should sleep before delivery", 10_000) { !power.isInteractive }
+      awaitCondition("The scheduled Alarm should wake the display", 20_000) {
+        power.isInteractive && nodes("Reminder due").isNotEmpty()
+      }
+      Thread.sleep(25_000)
+      assertTrue("The Alarm should outlast the short system timeout", power.isInteractive)
+      awaitCondition("The unattended display should eventually sleep", 150_000) { !power.isInteractive }
+      assertTrue("Display sleep should preserve the sound session", notifications.activeNotifications.any { it.id == 119348 })
+      assertNull(MedicineRepository(context).use { it.outcome(item.id, at) })
+      shell("input keyevent KEYCODE_WAKEUP")
+      awaitCondition("Waking should show the active Alarm again", 10_000) {
+        power.isInteractive && nodes("Reminder due").isNotEmpty()
+      }
+      assertTrue(nodes("Close").single().performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK))
+      awaitCondition("Closing should dismiss the Alarm", 10_000) { nodes("Reminder due").isEmpty() }
+      awaitCondition("Closing should allow the display to sleep", 45_000) { !power.isInteractive }
+      shell("input keyevent KEYCODE_WAKEUP")
+      assertTrue("A closed Alarm should not reappear", nodes("Reminder due").isEmpty())
+    } finally {
+      shell("settings put system screen_off_timeout $oldTimeout")
+      if (oldStayOn == "null") shell("settings delete global stay_on_while_plugged_in")
+      else shell("settings put global stay_on_while_plugged_in $oldStayOn")
+      shell("input keyevent KEYCODE_WAKEUP")
+      shell("input keyevent KEYCODE_MENU")
+      ReminderScheduler.setStatus(context, item.id, "deleted")
+      MedicineRepository(context).use { repo ->
+        for (table in listOf("doses", "occurrence_tracking")) {
+          repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        }
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+      context.stopService(Intent(context, AlarmSoundService::class.java))
+      AppLanguage.set(context, language)
+    }
+  }
   @Test fun unansweredOneOffRemainsVisibleWithoutRestartingAlertsAndClearedHistoryStaysCleared() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val zone = java.time.ZoneId.systemDefault()
