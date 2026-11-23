@@ -41,6 +41,7 @@
         android:name=".AlarmActivity"
         android:excludeFromRecents="true"
         android:exported="false"
+        android:launchMode="singleTask"
         android:showWhenLocked="true"
         android:taskAffinity=""
         android:turnScreenOn="true" />

@@ -818,6 +818,166 @@ class ReminderFoundationTest {
     }
   }
 
+  @Test fun overlappingScheduledAlarmsRemainPrivateAndAdvanceAfterSnoozeInEnglish() {
+    verifyOverlappingScheduledAlarms("en")
+  }
+
+  @Test fun overlappingScheduledAlarmsRemainPrivateAndAdvanceAfterSnoozeInSpanish() {
+    verifyOverlappingScheduledAlarms("es")
+  }
+
+  @Test fun answeringDisplayedAlarmAdvancesToNextScheduledOccurrence() {
+    verifyOverlappingScheduledAlarms("en", "answer")
+  }
+
+  @Test fun closingOverlappingAlarmsPreservesBothNotifications() {
+    verifyOverlappingScheduledAlarms("en", "close")
+  }
+
+  @Test fun alarmsScheduledTogetherAreBothAvailableOnTheAlarmScreen() {
+    verifyOverlappingScheduledAlarms("en", "simultaneous")
+  }
+
+  private fun verifyOverlappingScheduledAlarms(locale: String, action: String = "snooze") {
+    org.junit.Assume.assumeTrue("This test changes the screen lock on a disposable emulator",
+      android.os.Build.HARDWARE == "ranchu")
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val automation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+    val keyguard = context.getSystemService(android.app.KeyguardManager::class.java)
+    val power = context.getSystemService(android.os.PowerManager::class.java)
+    val notifications = context.getSystemService(NotificationManager::class.java)
+    val language = AppLanguage.preference(context)
+    val due = if (locale == "es") "Recordatorio pendiente" else "Reminder due"
+    val another = if (locale == "es") "Hay otro recordatorio pendiente" else "Another reminder is due"
+    val snooze = if (locale == "es") "Posponer 10 minutos" else "Snooze 10 minutes"
+    val close = if (locale == "es") "Cerrar" else "Close"
+    fun shell(command: String): String = automation.executeShellCommand(command).let {
+      android.os.ParcelFileDescriptor.AutoCloseInputStream(it).bufferedReader().use { stream -> stream.readText() }
+    }
+    fun nodes(label: String) = automation.rootInActiveWindow?.findAccessibilityNodeInfosByText(label)
+      .orEmpty().filter { it.text?.toString() == label }
+    fun awaitCondition(message: String, condition: () -> Boolean) {
+      val deadline = android.os.SystemClock.elapsedRealtime() + 20_000
+      while (!condition()) {
+        assertTrue(message, android.os.SystemClock.elapsedRealtime() < deadline)
+        Thread.sleep(100)
+      }
+    }
+    fun tap(label: String) {
+      awaitCondition("Expected Alarm action: $label") { nodes(label).isNotEmpty() }
+      assertTrue(nodes(label).single().performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK))
+    }
+
+    assertTrue(ReminderScheduler.enabled(context))
+    if (android.os.Build.VERSION.SDK_INT >= 34) assertTrue(notifications.canUseFullScreenIntent())
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    assertFalse(keyguard.isKeyguardSecure)
+    val items = mutableListOf<Medicine>()
+    try {
+      assertTrue(shell("locksettings set-pin 5731").contains("Pin set"))
+      AppLanguage.set(context, locale)
+      val now = System.currentTimeMillis()
+      val firstAt = now + 7000
+      val secondAt = firstAt + if (action == "simultaneous") 0 else 4000
+      listOf(Triple("First private medicine", "medicine", firstAt),
+        Triple("Second private reminder", "reminder", secondAt)).forEach { (name, type, at) ->
+        val item = MedicineRepository(context).use {
+          it.save(name, if (type == "medicine") "Private instructions" else "", listOf("09:00"),
+            now, type, "alarm", scheduleKind = "interval", intervalHours = 2, intervalAnchor = at)
+        }
+        items.add(item)
+        ReminderScheduler.schedule(context, item)
+      }
+      val firstNotification = ("${items[0].id}:$firstAt").hashCode()
+      val secondNotification = ("${items[1].id}:$secondAt").hashCode()
+      shell("input keyevent KEYCODE_SLEEP")
+      awaitCondition("The display should be off before delivery") { !power.isInteractive }
+      awaitCondition("The first scheduled Alarm should wake the screen") {
+        power.isInteractive && nodes(due).isNotEmpty()
+      }
+      awaitCondition("The second scheduled Alarm should be waiting") {
+        nodes(another).isNotEmpty()
+      }
+      assertTrue(keyguard.isDeviceLocked)
+      assertTrue(nodes(items[0].name).isEmpty())
+      assertTrue(nodes(items[1].name).isEmpty())
+      assertTrue(nodes("Private instructions").isEmpty())
+      assertTrue(notifications.activeNotifications.any { it.id == firstNotification })
+      assertTrue(notifications.activeNotifications.any { it.id == secondNotification })
+      if (action == "close" || action == "simultaneous") {
+        tap(close)
+        awaitCondition("Close should end the shared sound session") {
+          notifications.activeNotifications.none { it.id == 119348 }
+        }
+        listOf(firstNotification, secondNotification).forEach { id ->
+          assertTrue(notifications.activeNotifications.any { it.id == id })
+        }
+        MedicineRepository(context).use { repo ->
+          assertNull(repo.outcome(items[0].id, firstAt))
+          assertNull(repo.outcome(items[1].id, secondAt))
+        }
+        return
+      }
+      if (action == "answer") {
+        tap("Unlock to view")
+        awaitCondition("Android should show its PIN prompt") {
+          automation.rootInActiveWindow?.packageName == "com.android.systemui"
+        }
+        shell("input text 5731")
+        shell("input keyevent KEYCODE_ENTER")
+        awaitCondition("Unlock should show the first Alarm") { nodes(items[0].name).isNotEmpty() }
+        tap("Taken")
+        awaitCondition("Answering the first Alarm should show the second") { nodes(items[1].name).isNotEmpty() }
+        MedicineRepository(context).use { repo ->
+          assertEquals("completed", repo.outcome(items[0].id, firstAt))
+          assertNull(repo.outcome(items[1].id, secondAt))
+        }
+        assertTrue(notifications.activeNotifications.none { it.id == firstNotification })
+        assertTrue(notifications.activeNotifications.any { it.id == secondNotification })
+        tap(close)
+        return
+      }
+      tap(snooze)
+      awaitCondition("Snoozing the first Alarm should display the second") {
+        nodes(due).isNotEmpty() && nodes(another).isEmpty() &&
+          notifications.activeNotifications.none { it.id == firstNotification }
+      }
+      MedicineRepository(context).use { repo ->
+        assertNotNull(repo.snooze(items[0].id, firstAt))
+        assertNull(repo.snooze(items[1].id, secondAt))
+        assertNull(repo.outcome(items[0].id, firstAt))
+        assertNull(repo.outcome(items[1].id, secondAt))
+      }
+      // A previously issued full-screen intent may arrive after the snooze action.
+      context.startActivity(Intent(context, AlarmActivity::class.java)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        .setData(Uri.parse("myreminders://alarm-screen/${items[0].id}/$firstAt")))
+      androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+      assertTrue("A late intent must not put the snoozed occurrence back in the queue", nodes(another).isEmpty())
+      tap(close)
+      awaitCondition("Close should end the shared sound session") {
+        notifications.activeNotifications.none { it.id == 119348 }
+      }
+      assertTrue(notifications.activeNotifications.any { it.id == secondNotification })
+      assertNull(MedicineRepository(context).use { it.outcome(items[1].id, secondAt) })
+    } finally {
+      shell("locksettings clear --old 5731")
+      shell("input keyevent KEYCODE_WAKEUP")
+      shell("input keyevent KEYCODE_MENU")
+      items.forEach { item ->
+        ReminderScheduler.setStatus(context, item.id, "deleted")
+        MedicineRepository(context).use { repo ->
+          for (table in listOf("doses", "occurrence_tracking")) {
+            repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+          }
+          repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+        }
+      }
+      context.stopService(Intent(context, AlarmSoundService::class.java))
+      AppLanguage.set(context, language)
+    }
+  }
+
   @Test fun lockedAlarmCanBeSnoozedAndAnsweredAfterUnlock() {
     org.junit.Assume.assumeTrue("This test changes the screen lock on a disposable emulator",
       android.os.Build.HARDWARE == "ranchu")

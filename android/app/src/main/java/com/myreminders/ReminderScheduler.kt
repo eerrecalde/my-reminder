@@ -17,6 +17,7 @@ import java.time.ZoneId
 import java.util.UUID
 
 object ReminderScheduler {
+  private var lastAlarmDeliveryOrder = 0L
   private const val CHANNEL = "medicine_reminders"
   private const val ALARM_ALERT_CHANNEL = "alarm_alerts"
   private fun alarmManager(context: Context) = context.getSystemService(AlarmManager::class.java)
@@ -81,6 +82,7 @@ object ReminderScheduler {
       notifyOccurrence(context, original, at)
       if (original.mode == "alarm") AlarmSoundService.start(context, id, at)
       cancelSnooze(context, id, at)
+      if (original.mode == "alarm") AlarmActivity.occurrenceDelivered(context, id, at)
     }
   }
 
@@ -266,6 +268,7 @@ object ReminderScheduler {
         repo.setOutstanding(id, at, true)
         notifyOccurrence(context, medicine, at)
         if (medicine.mode == "alarm") AlarmSoundService.start(context, id, at)
+        if (medicine.mode == "alarm") AlarmActivity.occurrenceDelivered(context, id, at)
         schedule(context, medicine)
       }
     }
@@ -409,6 +412,10 @@ object ReminderScheduler {
       .addAction(0, localized.getString(R.string.skip), outcomeIntent(context, medicine.id, at, "skipped"))
       .addAction(0, localized.getString(R.string.snooze_ten), outcomeIntent(context, medicine.id, at, "snooze"))
     if (useAlarmAlertChannel) {
+      lastAlarmDeliveryOrder = maxOf(lastAlarmDeliveryOrder + 1, android.os.SystemClock.elapsedRealtimeNanos())
+      notification.addExtras(android.os.Bundle().apply {
+        putLong(AlarmActivity.DELIVERY_ORDER, lastAlarmDeliveryOrder)
+      })
       val lockscreenVisibility = legacyChannel?.lockscreenVisibility
       if (lockscreenVisibility == Notification.VISIBILITY_SECRET ||
         lockscreenVisibility == Notification.VISIBILITY_PRIVATE) {
@@ -417,7 +424,9 @@ object ReminderScheduler {
       val alarmScreen = Intent(context, AlarmActivity::class.java)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         .setData(Uri.parse("myreminders://alarm-screen/${medicine.id}/$at"))
-      val showAlarm = PendingIntent.getActivity(context, 0, alarmScreen, PendingIntent.FLAG_IMMUTABLE)
+        .putExtra(AlarmActivity.DELIVERY_ORDER, lastAlarmDeliveryOrder)
+      val showAlarm = PendingIntent.getActivity(context, 0, alarmScreen,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
       // Android can silence automatically grouped notifications, including their
       // full-screen intent. Give this occurrence its own group for delivery.
       notification.setGroup(requireNotNull(alarmScreen.dataString)).setFullScreenIntent(showAlarm, true)

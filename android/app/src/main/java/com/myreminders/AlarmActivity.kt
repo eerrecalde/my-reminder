@@ -2,6 +2,7 @@ package com.myreminders
 
 import android.app.Activity
 import android.app.KeyguardManager
+import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -11,6 +12,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
@@ -30,8 +32,15 @@ import kotlin.math.roundToInt
 class AlarmActivity : Activity() {
   private val keyguard by lazy { getSystemService(KeyguardManager::class.java) }
   private var showingDetails: Boolean? = null
+  private val occurrences = mutableListOf<Uri>()
+  private var firstDeliveryOrder = 0L
   private data class RecordedOutcome(val label: Int, val change: MedicineRepository.OutcomeChange)
   private var recordedOutcome: RecordedOutcome? = null
+  private val deliveries = object : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+      enqueue(intent.data)
+    }
+  }
   private val lockEvents = object : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
       if (intent.action == Intent.ACTION_SCREEN_OFF) render(showDetails = false)
@@ -51,7 +60,27 @@ class AlarmActivity : Activity() {
       addAction(Intent.ACTION_SCREEN_OFF)
       addAction(Intent.ACTION_USER_PRESENT)
     }, ContextCompat.RECEIVER_NOT_EXPORTED)
+    ContextCompat.registerReceiver(this, deliveries, IntentFilter(DELIVERED).apply {
+      addDataScheme("myreminders")
+    }, ContextCompat.RECEIVER_NOT_EXPORTED)
+    val saved = savedInstanceState?.getStringArrayList("occurrences")
+    firstDeliveryOrder = savedInstanceState?.getLong("firstDeliveryOrder")
+      ?: intent.getLongExtra(DELIVERY_ORDER, 0L)
+    if (saved != null) occurrences.addAll(saved.map(Uri::parse))
+    else enqueue(intent.data)
+    addDeliveriesAlreadyPosted(occurrences.firstOrNull() ?: intent.data)
     refreshScreen()
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    enqueue(intent.data)
+  }
+
+  override fun onSaveInstanceState(outState: Bundle) {
+    outState.putStringArrayList("occurrences", ArrayList(occurrences.map(Uri::toString)))
+    outState.putLong("firstDeliveryOrder", firstDeliveryOrder)
+    super.onSaveInstanceState(outState)
   }
 
   override fun onResume() {
@@ -66,6 +95,7 @@ class AlarmActivity : Activity() {
 
   override fun onDestroy() {
     unregisterReceiver(lockEvents)
+    unregisterReceiver(deliveries)
     super.onDestroy()
   }
 
@@ -73,6 +103,69 @@ class AlarmActivity : Activity() {
 
   private fun refreshScreen() {
     if (!isFinishing && !isDestroyed) render(showDetails = !isLocked())
+  }
+
+  private fun enqueue(uri: Uri?, refresh: Boolean = true) {
+    val segments = uri?.pathSegments ?: return
+    val id = segments.getOrNull(0) ?: return
+    val at = segments.getOrNull(1)?.toLongOrNull() ?: return
+    if (occurrences.contains(uri)) return
+    val valid = MedicineRepository(this).use { repo ->
+      val outstanding = repo.occurrence(id, at)?.let { it.outstanding && it.outcome == null } == true
+      // A snooze delivery posts its notification before removing its snooze record.
+      val alertPosted = repo.snooze(id, at) == null ||
+        getSystemService(NotificationManager::class.java).activeNotifications.any { it.notification.group == uri.toString() }
+      outstanding && alertPosted
+    }
+    if (!valid) return
+    occurrences.add(uri)
+    if (recordedOutcome != null) {
+      occurrences.removeAt(0)
+      recordedOutcome = null
+    }
+    val orders = getSystemService(NotificationManager::class.java).activeNotifications.associate {
+      it.notification.group to it.notification.extras.getLong(DELIVERY_ORDER, Long.MAX_VALUE)
+    }
+    if (occurrences.size > 2) occurrences.subList(1, occurrences.size).sortBy {
+      orders[it.toString()] ?: Long.MAX_VALUE
+    }
+    showingDetails = null
+    if (refresh) refreshScreen()
+  }
+
+  private fun addDeliveriesAlreadyPosted(first: Uri?, refresh: Boolean = true) {
+    if (first == null || isFinishing) return
+    val notifications = getSystemService(NotificationManager::class.java).activeNotifications
+    if (firstDeliveryOrder == 0L) {
+      firstDeliveryOrder = notifications.firstOrNull { it.notification.group == first.toString() }
+        ?.notification?.extras?.getLong(DELIVERY_ORDER, 0L) ?: return
+    }
+    if (firstDeliveryOrder == 0L) return
+    notifications.asSequence()
+      .filter { it.notification.extras.getLong(DELIVERY_ORDER, 0L) >= firstDeliveryOrder }
+      .sortedBy { it.notification.extras.getLong(DELIVERY_ORDER) }
+      .mapNotNull { it.notification.group }
+      .map(Uri::parse)
+      .filter { it.scheme == "myreminders" && it.host == "alarm-screen" }
+      .forEach { enqueue(it, refresh) }
+  }
+
+  private fun advance() {
+    addDeliveriesAlreadyPosted(occurrences.firstOrNull(), refresh = false)
+    if (occurrences.isNotEmpty()) occurrences.removeAt(0)
+    MedicineRepository(this).use { repo ->
+      occurrences.removeAll { uri ->
+        val id = uri.pathSegments.getOrNull(0)
+        val at = uri.pathSegments.getOrNull(1)?.toLongOrNull()
+        id == null || at == null || repo.occurrence(id, at)?.let { !it.outstanding || it.outcome != null } != false || repo.snooze(id, at) != null
+      }
+    }
+    if (occurrences.isEmpty()) finish()
+    else {
+      recordedOutcome = null
+      showingDetails = null
+      refreshScreen()
+    }
   }
 
   private fun render(showDetails: Boolean) {
@@ -84,7 +177,7 @@ class AlarmActivity : Activity() {
       finish()
       return
     }
-    val segments = intent.data?.pathSegments
+    val segments = occurrences.firstOrNull()?.pathSegments
     val id = segments?.getOrNull(0)
     val at = segments?.getOrNull(1)?.toLongOrNull()
     if (id == null || at == null) {
@@ -97,7 +190,7 @@ class AlarmActivity : Activity() {
       repo.occurrence(id, at)?.takeIf { it.outstanding && it.outcome == null }
     } else null
     if (showDetails && occurrence == null && result == null) {
-      finish()
+      advance()
       return
     }
 
@@ -130,9 +223,17 @@ class AlarmActivity : Activity() {
         setTypeface(Typeface.DEFAULT, Typeface.BOLD)
         gravity = Gravity.CENTER
       }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(16) })
+      if (occurrences.size > 1) {
+        addView(TextView(context).apply {
+          text = localized.getString(R.string.alarm_screen_another_due)
+          setTextColor(Color.rgb(62, 93, 51))
+          textSize = 16f
+          gravity = Gravity.CENTER
+        }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+      }
       val snooze = {
         if (ReminderScheduler.snooze(this@AlarmActivity, id, at, 10)) {
-          finish()
+          advance()
         } else {
           Toast.makeText(localized, R.string.alarm_screen_snooze_failed, Toast.LENGTH_SHORT).show()
         }
@@ -216,7 +317,11 @@ class AlarmActivity : Activity() {
     }
     val change = ReminderScheduler.recordOutcome(this, id, at, outcome, onlyUnconfirmed = true)
     if (change == null) {
-      finish()
+      advance()
+      return
+    }
+    if (occurrences.size > 1) {
+      advance()
       return
     }
     recordedOutcome = RecordedOutcome(resultLabel, change)
@@ -274,8 +379,14 @@ class AlarmActivity : Activity() {
     cornerRadius = dp(radius).toFloat()
   }
 
-  private companion object {
-    const val MATCH_PARENT = LinearLayout.LayoutParams.MATCH_PARENT
-    const val WRAP_CONTENT = LinearLayout.LayoutParams.WRAP_CONTENT
+  companion object {
+    const val DELIVERY_ORDER = "com.myreminders.ALARM_DELIVERY_ORDER"
+    private const val DELIVERED = "com.myreminders.ALARM_SCREEN_DELIVERED"
+    private const val MATCH_PARENT = LinearLayout.LayoutParams.MATCH_PARENT
+    private const val WRAP_CONTENT = LinearLayout.LayoutParams.WRAP_CONTENT
+    fun occurrenceDelivered(context: Context, id: String, at: Long) {
+      context.sendBroadcast(Intent(DELIVERED).setPackage(context.packageName)
+        .setData(Uri.parse("myreminders://alarm-screen/$id/$at")))
+    }
   }
 }

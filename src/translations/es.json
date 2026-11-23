@@ -185,6 +185,7 @@
     "reminder_due": "Es hora de tomar tu medicamento",
     "alarm_alert_channel": "Alertas de alarma",
     "alarm_screen_title": "Recordatorio pendiente",
+    "alarm_screen_another_due": "Hay otro recordatorio pendiente",
     "alarm_screen_close": "Cerrar",
     "alarm_screen_unlock": "Desbloquear para ver",
     "alarm_screen_snooze": "Posponer",
