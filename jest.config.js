@@ -1,3 +1,6 @@
+// Schedule previews use local time; keep DST cases independent of the host.
+process.env.TZ = 'Europe/London';
+
 module.exports = {
   preset: '@react-native/jest-preset',
   moduleNameMapper: {

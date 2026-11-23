@@ -715,6 +715,43 @@ class ReminderFoundationTest {
     }
     AppLanguage.set(base, "system")
   }
+  @Test fun timeZoneChangeRecoversInterruptedRegistration() {
+    org.junit.Assume.assumeTrue("This test changes the time zone on a disposable emulator",
+      android.os.Build.HARDWARE == "ranchu")
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val automation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+    fun shell(command: String) = android.os.ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(command)).bufferedReader().use { it.readText().trim() }
+    val originalZone = shell("getprop persist.sys.timezone")
+    require(originalZone.matches(Regex("[A-Za-z0-9_+./-]+")))
+    val otherZone = if (originalZone == "Europe/London") "UTC" else "Europe/London"
+    val now = System.currentTimeMillis()
+    val time = LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))
+    val item = MedicineRepository(context).use { it.save("Recovery test", "", listOf(time), now, "reminder") }
+    try {
+      ReminderScheduler.schedule(context, item)
+      val original = requireNotNull(MedicineRepository(context).use { it.alarm(item.id) })
+      assertTrue(original.registered)
+      cancel(context, original)
+      MedicineRepository(context).use { it.setAlarm(item.id, original.at, "recovery-time-zone") }
+      shell("cmd alarm set-timezone $otherZone")
+      val deadline = android.os.SystemClock.elapsedRealtime() + 10_000
+      while (MedicineRepository(context).use { it.alarm(item.id)?.registered != true } && android.os.SystemClock.elapsedRealtime() < deadline) Thread.sleep(100)
+      assertTrue("A time-zone change should recover the registration", MedicineRepository(context).use { it.alarm(item.id)?.registered == true })
+    } finally {
+      try {
+        ReminderScheduler.setStatus(context, item.id, "deleted")
+        MedicineRepository(context).use { repo ->
+          repo.writableDatabase.delete("occurrence_tracking", "medicine_id = ?", arrayOf(item.id))
+          repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+        }
+      } finally {
+        shell("cmd alarm set-timezone $originalZone")
+      }
+    }
+  }
+
   @Test fun bothTypesRecoverTheirDailyScheduleAndDeliverTheRightText() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     assertTrue("Enable notification and exact-alarm access before this test", ReminderScheduler.enabled(context))

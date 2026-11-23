@@ -208,8 +208,13 @@ class ReminderSoundsTest {
       assertTrue(manager.isNotificationPolicyAccessGranted)
       manager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
       repeat(30) { if (manager.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_NONE) Thread.sleep(100) }
+      assertEquals(NotificationManager.INTERRUPTION_FILTER_NONE, manager.currentInterruptionFilter)
       MedicineRepository(context).use { it.setAlarm(item.id, at, "dnd-sound") }
       ReminderScheduler.deliver(context, item.id, at, "dnd-sound")
+      val notificationId = ("${item.id}:$at").hashCode()
+      repeat(50) { if (manager.activeNotifications.none { it.id == notificationId }) Thread.sleep(50) }
+      assertTrue("The occurrence should be delivered under Do Not Disturb", manager.activeNotifications.any { it.id == notificationId })
+      // Allow the asynchronous sound service time to start before asserting absence.
       Thread.sleep(1000)
       assertFalse(manager.activeNotifications.any { it.id == 119348 })
       assertTrue(audio.activePlaybackConfigurations.none { it.audioAttributes.usage == android.media.AudioAttributes.USAGE_NOTIFICATION })
@@ -244,13 +249,49 @@ class ReminderSoundsTest {
     assertFalse(ReminderSounds.useLegacyControls(legacy, blocked))
   }
 
-  @Test fun customChannelsRetainUserChanges() {
+  @Test fun requestingSilentChannelAgainKeepsItsIdAndSound() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val manager = context.getSystemService(NotificationManager::class.java)
     val id = ReminderSounds.channel(context, "")
     try {
       assertNull(manager.getNotificationChannel(id).sound)
       assertEquals(id, ReminderSounds.channel(context, ""))
+      assertNull(manager.getNotificationChannel(id).sound)
     } finally { manager.deleteNotificationChannel(id) }
+  }
+
+  @Test fun recreatingChannelPreservesUserSilentSetting() {
+    org.junit.Assume.assumeTrue("This test changes notification settings on a disposable emulator", android.os.Build.HARDWARE == "ranchu")
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(NotificationManager::class.java)
+    val automation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+    val choice = "content://com.myreminders.test/sound/${System.nanoTime()}"
+    val id = ReminderSounds.channel(context, choice)
+    try {
+      assertTrue(manager.getNotificationChannel(id).importance >= NotificationManager.IMPORTANCE_DEFAULT)
+      context.startActivity(android.content.Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+        .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, id)
+        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+      val deadline = android.os.SystemClock.elapsedRealtime() + 15_000
+      var clicked = false
+      while (!clicked && android.os.SystemClock.elapsedRealtime() < deadline) {
+        val node = automation.rootInActiveWindow?.findAccessibilityNodeInfosByText("Silent")?.firstOrNull { it.text?.toString() == "Silent" }
+        var target = node
+        while (target != null && !target.isClickable) target = target.parent
+        clicked = target?.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) == true
+        if (!clicked) Thread.sleep(100)
+      }
+      assertTrue("Android channel settings should offer Silent", clicked)
+      automation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+      val changeDeadline = android.os.SystemClock.elapsedRealtime() + 10_000
+      while (manager.getNotificationChannel(id).importance > NotificationManager.IMPORTANCE_LOW && android.os.SystemClock.elapsedRealtime() < changeDeadline) Thread.sleep(100)
+      assertEquals(NotificationManager.IMPORTANCE_LOW, manager.getNotificationChannel(id).importance)
+      assertEquals(id, ReminderSounds.channel(context, choice))
+      assertEquals("Recreating the channel must preserve the user's setting", NotificationManager.IMPORTANCE_LOW, manager.getNotificationChannel(id).importance)
+    } finally {
+      automation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+      manager.deleteNotificationChannel(id)
+    }
   }
 }
