@@ -16,10 +16,7 @@ test('returns the next three future occurrences across midnight', () => {
   ]);
 });
 
-const isLondon =
-  new Date('2026-03-29T00:00:00Z').getTimezoneOffset() === 0 &&
-  new Date('2026-03-29T03:00:00Z').getTimezoneOffset() === -60;
-(isLondon ? test : test.skip)(
+test(
   'previews one occurrence when two local times converge in the spring gap',
   () => {
     const result = nextDailyOccurrences(

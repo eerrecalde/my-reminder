@@ -38,10 +38,7 @@ test('returns no occurrences when selected days fall outside the date range', ()
   ).toEqual([]);
 });
 
-const isLondon =
-  new Date('2026-03-29T00:00:00Z').getTimezoneOffset() === 0 &&
-  new Date('2026-03-29T03:00:00Z').getTimezoneOffset() === -60;
-(isLondon ? test : test.skip)(
+test(
   'handles the spring gap and autumn overlap once',
   () => {
     expect(
