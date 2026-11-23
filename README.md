@@ -47,6 +47,7 @@ See the [React Native environment guide](https://reactnative.dev/docs/set-up-you
 For live editing, run `npm start` in one terminal and `npm run android` in another with the phone connected. If the debug build cannot reach Metro over USB, run `adb reverse tcp:8081 tcp:8081` and reopen the app.
 
 Run `npm run typecheck`, `npm run lint`, and `npm test -- --runInBand` to check the TypeScript project.
+Jest runs in the `Europe/London` time zone so the daylight-saving schedule tests run consistently on every host.
 
 Translations are maintained in `src/translations/en.json` and `src/translations/es.json`. After changing them, run `npm run translations:generate` to update Android resources and `npm run translations:check` to check completeness and generated output. Release builds also run this check. English is the fallback for missing text.
 
