@@ -12,3 +12,7 @@
 - [ ] After the two-minute keep-awake period, the phone can sleep normally. Display sleep leaves the occurrence unanswered and any permitted sound or vibration running. Verify the display behaviour in Silent and the sound session behaviour with sound enabled.
 - [ ] Manually waking the phone after the display sleeps shows the Alarm screen again if the Alarm is still active. A closed or superseded occurrence does not reappear as an active Alarm.
 - [ ] Closing the Alarm screen releases its keep-awake behaviour. Record the device model, Android version, and results of the physical checks.
+
+## Comments
+
+- On 23 November 2026, a separate disposable installation on a Pixel 9a running Android 17 passed the Silent-mode display check with Do Not Disturb off. A scheduled Alarm approximately seven seconds ahead woke the locked display, remained visible beyond a 15-second timeout, allowed the display to sleep after the keep-awake period, returned on manual wake, and closed without keeping the display awake. The occurrence remained unanswered. An earlier run with Do Not Disturb on delivered the Alarm but did not show the screen. The required approximately one-minute lead time and sound-enabled behaviour remain to be checked on the phone. The existing installation and its reminder were preserved.
