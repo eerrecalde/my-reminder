@@ -16,3 +16,4 @@ The existing JavaScript save test mocks the native repository, leaving the compl
 ## Comments
 
 - Deferred at the user's request after the test audit. The draft was not retained because it was unreliable. The existing mocked save tests remain in place.
+- 2026-11-24 — Follow-up is tracked in [production readiness ticket 07](../../production-readiness/issues/07-reliable-create-edit-integration.md). A new real UI-to-native instrumentation test passes repeated disposable-emulator runs and checks persisted schedules and Android's next alarm clock. The original discarded draft's cause cannot be established; ticket 07 records the reproduced synchronization failures and remaining full-suite verification. The existing JavaScript save tests still mock the native repository.
