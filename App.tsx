@@ -112,8 +112,13 @@ export default function App() {
   const alarmScreenUnavailable =
     state?.fullScreenAccess === 'denied' &&
     state.medicines.some(medicine => medicine.mode === 'alarm');
+  const blockedChannels = (state?.medicines ?? []).filter(
+    medicine => medicine.blockedNotificationChannel,
+  );
   const reminderAccessWarning = state &&
-    (!state.enabled || alarmScreenUnavailable) && (
+    (!state.enabled ||
+      alarmScreenUnavailable ||
+      blockedChannels.length > 0) && (
       <>
         <View style={styles.warningHeader}>
           <View
@@ -124,7 +129,11 @@ export default function App() {
             <AppIcon name="warning" color="#fff" />
           </View>
           <Text accessibilityRole="alert" style={styles.warningTitle}>
-            {state.enabled ? alarmAccessCopy.warning : t.off}
+            {!state.enabled
+              ? t.off
+              : alarmScreenUnavailable
+              ? alarmAccessCopy.warning
+              : t.blockedChannels}
           </Text>
         </View>
         {!state.enabled && (
@@ -138,6 +147,11 @@ export default function App() {
         )}
         {state.enabled && alarmScreenUnavailable && (
           <Text style={styles.warningText}>{alarmAccessCopy.fallback}</Text>
+        )}
+        {blockedChannels.length > 0 && (
+          <Text testID="blocked-channel-warning" style={styles.warningText}>
+            {t.blockedChannelHelp}
+          </Text>
         )}
       </>
     );
@@ -999,9 +1013,36 @@ export default function App() {
                   {reminderAccessWarning && (
                     <View style={styles.warning}>{reminderAccessWarning}</View>
                   )}
-                  {state.enabled && !alarmScreenUnavailable && (
-                    <Text style={styles.accessReady}>{t.accessReady}</Text>
-                  )}
+                  {state.enabled &&
+                    !alarmScreenUnavailable &&
+                    blockedChannels.length === 0 && (
+                      <Text style={styles.accessReady}>{t.accessReady}</Text>
+                    )}
+                  {blockedChannels.map(medicine => (
+                    <View
+                      key={medicine.id}
+                      testID={`blocked-channel-${medicine.id}`}
+                      style={styles.permissionCard}
+                    >
+                      <Text style={styles.permissionTitle}>
+                        {medicine.name}
+                      </Text>
+                      {medicine.status === 'paused' && (
+                        <Text style={styles.permissionHelp}>{t.paused}</Text>
+                      )}
+                      <Text style={styles.permissionHelp}>
+                        {t.blockedChannel}
+                      </Text>
+                      <PillAction
+                        title={t.channelSettings}
+                        onPress={() =>
+                          reminderRepository.openNotificationChannelSettings(
+                            medicine.blockedNotificationChannel!,
+                          )
+                        }
+                      />
+                    </View>
+                  ))}
                   {[
                     {
                       key: 'notifications',
