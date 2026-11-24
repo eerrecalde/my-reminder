@@ -9,6 +9,10 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import java.time.LocalTime
+import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
+import java.time.format.DateTimeFormatter
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,6 +27,9 @@ class CreateEditIntegrationTest {
     val originalLanguage = AppLanguage.preference(context)
     val createdName = "Integration create reminder"
     val editedName = "Integration edited reminder"
+    val createdTime = LocalTime.now().plusHours(2).truncatedTo(ChronoUnit.MINUTES)
+    val editedTime = createdTime.plusHours(1)
+    val clockFormat = DateTimeFormatter.ofPattern("HH:mm")
     assertTrue("Requires an empty disposable installation", MedicineRepository(context).use { it.all().isEmpty() })
     assertTrue("Reminder permissions must be enabled", ReminderScheduler.enabled(context))
 
@@ -68,8 +75,31 @@ class CreateEditIntegrationTest {
       }
       throw AssertionError("Timed out scrolling to $label")
     }
+    fun shell(command: String): String = automation.executeShellCommand(command).use {
+      android.os.ParcelFileDescriptor.AutoCloseInputStream(it).bufferedReader().readText().trim()
+    }
+    fun chooseTime(value: LocalTime) {
+      val toggle = awaitNode("time picker text mode") { it.viewIdResourceName == "android:id/toggle_mode" }
+      assertTrue(toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+      for ((id, part) in listOf("android:id/input_hour" to value.hour, "android:id/input_minute" to value.minute)) {
+        val field = awaitNode(id) { it.viewIdResourceName == id && it.isEditable }
+        val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "%02d".format(part)) }
+        assertTrue("Set $id", field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args))
+      }
+      val ok = awaitNode("time picker OK") { it.viewIdResourceName == "android:id/button1" && it.isClickable }
+      assertTrue(ok.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+      button("Change time: ${value.format(clockFormat)}")
+    }
+    fun expectedNext(value: LocalTime): Long {
+      val now = ZonedDateTime.now()
+      var next = now.toLocalDate().atTime(value).atZone(now.zone)
+      if (!next.isAfter(now)) next = now.toLocalDate().plusDays(1).atTime(value).atZone(now.zone)
+      return next.toInstant().toEpochMilli()
+    }
+    val originalClockFormat = shell("settings get system time_12_24")
     try {
       AppLanguage.set(context, "en")
+      shell("settings put system time_12_24 24")
       val launch = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
       context.startActivity(launch)
       remindersTab()
@@ -83,9 +113,7 @@ class CreateEditIntegrationTest {
       button("Repeat: Every day")
       scrollTo("Select a time")
       click("Select a time")
-      val ok = awaitNode("time picker OK") { it.isClickable && it.text?.toString()?.equals("OK", ignoreCase = true) == true }
-      assertTrue(ok.performAction(AccessibilityNodeInfo.ACTION_CLICK))
-      awaitNode("selected time") { it.isClickable && it.contentDescription?.toString()?.startsWith("Change time:") == true }
+      chooseTime(createdTime)
       scrollTo("Review")
       click("Review")
       click("Save reminder")
@@ -93,10 +121,11 @@ class CreateEditIntegrationTest {
       text(createdName)
       val created = MedicineRepository(context).use { it.all().single { item -> item.name == createdName } }
       assertEquals("daily", created.scheduleKind)
-      assertEquals(1, created.times.size)
+      assertEquals(listOf(createdTime.format(clockFormat)), created.times)
       val firstAlarm = MedicineRepository(context).use { it.alarm(created.id) }
       assertNotNull(firstAlarm)
       assertTrue(firstAlarm!!.registered)
+      assertEquals(expectedNext(createdTime), firstAlarm.at)
       assertEquals("Android's next alarm clock should match the scheduled time", firstAlarm.at,
         context.getSystemService(AlarmManager::class.java).nextAlarmClock?.triggerTime)
 
@@ -105,6 +134,9 @@ class CreateEditIntegrationTest {
       setName(editedName)
       click("Next")
       button("Repeat: Every day")
+      scrollTo("Change time: ${createdTime.format(clockFormat)}")
+      click("Change time: ${createdTime.format(clockFormat)}")
+      chooseTime(editedTime)
       scrollTo("Review")
       click("Review")
       click("Save reminder")
@@ -112,11 +144,13 @@ class CreateEditIntegrationTest {
       text(editedName)
       val edited = MedicineRepository(context).use { it.all().single { item -> item.name == editedName } }
       assertEquals(created.id, edited.id)
-      assertEquals(created.times, edited.times)
+      assertEquals(listOf(editedTime.format(clockFormat)), edited.times)
       assertEquals(created.scheduleKind, edited.scheduleKind)
       val editedAlarm = MedicineRepository(context).use { it.alarm(edited.id) }
       assertNotNull(editedAlarm)
       assertTrue(editedAlarm!!.registered)
+      assertEquals(expectedNext(editedTime), editedAlarm.at)
+      assertNotEquals(firstAlarm.at, editedAlarm.at)
       assertEquals("Android's next alarm clock should match the edited schedule", editedAlarm.at,
         context.getSystemService(AlarmManager::class.java).nextAlarmClock?.triggerTime)
     } finally {
@@ -130,6 +164,8 @@ class CreateEditIntegrationTest {
         }
       }
       AppLanguage.set(context, originalLanguage)
+      if (originalClockFormat == "null") shell("settings delete system time_12_24")
+      else shell("settings put system time_12_24 $originalClockFormat")
     }
   }
 }
