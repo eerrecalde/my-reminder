@@ -82,6 +82,9 @@ class BlockedChannelIntegrationTest {
       }
     }
     try {
+      for (command in listOf("input keyevent KEYCODE_WAKEUP", "wm dismiss-keyguard")) {
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(command)).use { it.readBytes() }
+      }
       AppLanguage.set(context, language)
       ReminderSounds.setDefault(context, "notification", null)
       val time = LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))
