@@ -40,7 +40,7 @@ jobs:
         with:
           packages: platform-tools
       - name: Install Android SDK components
-        run: sdkmanager 'platforms;android-37' 'build-tools;37.0.0' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
       - run: npm ci
       - name: Run Android unit tests and assemble debug APK
         working-directory: android
