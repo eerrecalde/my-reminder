@@ -48,7 +48,13 @@ class LongHistoryBenchmark {
               val type = if (index % 2 == 0) "medicine" else "reminder"
               val mode = if (index % 3 == 0) "alarm" else "notification"
               insert.bindString(1, "$id:$at"); insert.bindString(2, id); insert.bindLong(3, at)
-              if (day % 10 == 0) insert.bindNull(4) else insert.bindString(4, if (day % 7 == 0) "skipped" else "completed")
+              when {
+                day % 50 == 0 -> insert.bindString(4, "completed")
+                day % 10 == 0 -> insert.bindNull(4)
+                day % 11 == 0 -> insert.bindString(4, "missed")
+                day % 7 == 0 -> insert.bindString(4, "skipped")
+                else -> insert.bindString(4, "completed")
+              }
               insert.bindLong(5, if (day % 50 == 0) 1 else 0)
               insert.bindString(6, "Benchmark $index"); insert.bindString(7, if (type == "medicine") "Instructions $index" else "")
               insert.bindString(8, type); insert.bindString(9, mode); insert.bindString(10, "[\"09:00\"]")

@@ -10,7 +10,7 @@ substitute for physical-device measurements.
 The benchmark creates 24 daily items (12 active, six paused and six deleted),
 half Reminder and half Medicine. Eight use Alarm mode. Each has one 09:00
 occurrence per day for 365 days, ending 90 days before the run: 8,760 stored
-occurrences. The records include completed, skipped, unanswered and cleared
+occurrences. The records include completed, skipped, missed, unanswered and cleared
 history, with snapshots retained for inactive items. Recovery fills the gap for
 active items. This is a synthetic stress sample, not a claim about a typical
 family's use. The date and timezone are recorded for comparisons.
@@ -19,7 +19,7 @@ family's use. The date and timezone are recorded for comparisons.
 
 1. Follow the README's JDK, SDK and disposable emulator setup. Confirm the
    serial and AVD name. Build a self-contained debug and test APK with
-   `cd android && ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -PbundleTestDebug`.
+   `(cd android && ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -PbundleTestDebug)`.
 2. Confirm the AVD name, then install and prepare the **disposable** target.
    Clearing data removes all local reminders:
 
@@ -81,6 +81,10 @@ commit `02ba046` with the bundled debug build. One sample produced:
 | Direct recovery | 8,436 ms |
 | Full occurrence read after recovery | 27 ms |
 | Subsequent scheduling of 12 active items | 18 ms |
+
+This observation used the earlier dataset at `02ba046`; that version had no
+missed outcomes and marked unanswered rather than completed records as cleared.
+Do not compare it directly with runs of the corrected dataset above.
 
 The target installation was cleared afterward; Android's alarm dump recorded the
 removed watchdog alarms with reason `data_cleared`. This single observation does
