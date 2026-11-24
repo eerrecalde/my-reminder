@@ -1,6 +1,7 @@
 import { AppIcon } from './src/AppIcon';
 import { SoundChoice } from './src/SoundChoice';
 import { LanguageSelector } from './src/LanguageSelector';
+import { MainNavigation } from './src/MainNavigation';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   AppState,
@@ -1134,39 +1135,14 @@ export default function App() {
               )}
             </ScrollView>
             {screen !== 'access' && (
-              <View style={styles.navigation} accessibilityRole="tablist">
-                {(['today', 'reminders', 'history'] as const).map(tab => (
-                  <Pressable
-                    key={tab}
-                    testID={`nav-${tab}`}
-                    accessibilityRole="tab"
-                    accessibilityLabel={t[tab]}
-                    accessibilityState={{ selected: screen === tab }}
-                    onPress={() => {
-                      setUndo(undefined);
-                      setScreen(tab);
-                    }}
-                    style={[
-                      styles.navItem,
-                      screen === tab && styles.navSelected,
-                    ]}
-                  >
-                    <View accessible={false} style={styles.navIconBox}>
-                      <AppIcon
-                        name={
-                          tab === 'today'
-                            ? 'calendar'
-                            : tab === 'reminders'
-                            ? 'list'
-                            : 'clock'
-                        }
-                        color="#12251a"
-                      />
-                    </View>
-                    <Text style={styles.navText}>{t[tab]}</Text>
-                  </Pressable>
-                ))}
-              </View>
+              <MainNavigation
+                selected={screen}
+                language={language}
+                onSelect={tab => {
+                  setUndo(undefined);
+                  setScreen(tab);
+                }}
+              />
             )}
           </>
         )}
@@ -1182,36 +1158,6 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingBottom: 32,
     flexGrow: 1,
-  },
-  navigation: {
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    backgroundColor: '#fbf6eb',
-    borderTopWidth: 1,
-    borderTopColor: '#e7dfcd',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 58,
-    paddingHorizontal: 4,
-    borderRadius: 14,
-  },
-  navSelected: { backgroundColor: '#e0e9c7' },
-  navIconBox: {
-    width: 25,
-    height: 27,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navText: {
-    textAlign: 'center',
-    color: '#253b29',
-    fontSize: 12,
-    fontWeight: '600',
   },
   brandRow: {
     flexDirection: 'row',
