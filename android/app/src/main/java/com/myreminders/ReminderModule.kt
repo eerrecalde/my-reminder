@@ -49,7 +49,13 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       val medicines = Arguments.createArray()
       MedicineRepository(reactContext).use { repo -> repo.all().filter { it.status != "deleted" }.forEach { medicine ->
         medicines.pushMap(Arguments.createMap().apply {
-          putString("notificationSound", repo.soundChoice(medicine.id, "notification")); putString("alarmSound", repo.soundChoice(medicine.id, "alarm"))
+          val notificationSound = repo.soundChoice(medicine.id, "notification")
+          val selectedSound = if (medicine.mode == "notification") ReminderSounds.resolve(reactContext, "notification", notificationSound) else null
+          val manager = reactContext.getSystemService(NotificationManager::class.java)
+          val channelId = listOf(ReminderSounds.channelId(null), ReminderSounds.channelId(selectedSound))
+            .firstOrNull { manager.getNotificationChannel(it)?.importance == NotificationManager.IMPORTANCE_NONE }
+          putString("blockedNotificationChannel", channelId)
+          putString("notificationSound", notificationSound); putString("alarmSound", repo.soundChoice(medicine.id, "alarm"))
           putString("id", medicine.id); putString("status", medicine.status); putString("type", medicine.type); putString("mode", medicine.mode); putString("name", medicine.name); putString("instructions", medicine.instructions)
           putString("startDate", medicine.startDate); putString("endDate", medicine.endDate)
           putString("scheduleKind", medicine.scheduleKind)
@@ -233,6 +239,13 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
     val channel = manager.getNotificationChannel("medicine_reminders")
     val intent = if (channel != null && channel.importance == NotificationManager.IMPORTANCE_NONE) {
       Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_CHANNEL_ID, "medicine_reminders")
+    } else Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+    reactContext.startActivity(intent.putExtra(Settings.EXTRA_APP_PACKAGE, reactContext.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+  }
+  @ReactMethod fun openNotificationChannelSettings(channelId: String) {
+    val manager = reactContext.getSystemService(NotificationManager::class.java)
+    val intent = if (manager.getNotificationChannel(channelId) != null) {
+      Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_CHANNEL_ID, channelId)
     } else Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
     reactContext.startActivity(intent.putExtra(Settings.EXTRA_APP_PACKAGE, reactContext.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
   }

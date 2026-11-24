@@ -35,11 +35,15 @@ object ReminderSounds {
   fun useLegacyControls(legacy: NotificationChannel, selected: NotificationChannel): Boolean =
     selected.importance != NotificationManager.IMPORTANCE_NONE &&
       ((selected.shouldVibrate() && !legacy.shouldVibrate()) || selected.importance > legacy.importance)
+  fun channelId(choice: String?): String {
+    if (choice == null) return LEGACY
+    val hash = MessageDigest.getInstance("SHA-256").digest(choice.toByteArray()).take(12).joinToString("") { "%02x".format(it) }
+    return "reminder_sound_$hash"
+  }
   fun channel(context: Context, choice: String?): String {
     if (choice == null) return LEGACY
     val manager = context.getSystemService(NotificationManager::class.java)
-    val hash = MessageDigest.getInstance("SHA-256").digest(choice.toByteArray()).take(12).joinToString("") { "%02x".format(it) }
-    val id = "reminder_sound_$hash"
+    val id = channelId(choice)
     val legacy = manager.getNotificationChannel(LEGACY)
     val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
     val soundName = if (choice.isEmpty()) context.getString(R.string.sound_silent) else title(context, choice) ?: context.getString(R.string.sound_selected)

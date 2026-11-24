@@ -5,6 +5,7 @@ export type ReminderType = 'medicine' | 'reminder';
 export type Medicine = DailyMedicineInput & {
   id: string;
   status?: 'active' | 'paused';
+  blockedNotificationChannel?: string | null;
 };
 export type Outcome = 'completed' | 'skipped' | 'missed';
 export type Occurrence = {
@@ -88,6 +89,7 @@ export interface ReminderRepository {
   openAlarmSettings(): void;
   openFullScreenSettings(): Promise<void>;
   openNotificationSettings(): void;
+  openNotificationChannelSettings(channel: string): void;
   testReminder(): void;
   saveDated(
     type: ReminderType,

@@ -1,0 +1,47 @@
+name: Quality checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  javascript:
+    name: TypeScript, lint, tests and translations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test -- --runInBand
+      - run: npm run translations:check
+
+  android:
+    name: Android unit tests and debug build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install Android SDK components
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+      - run: npm ci
+      - name: Run Android unit tests and assemble debug APK
+        working-directory: android
+        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug

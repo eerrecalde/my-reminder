@@ -31,9 +31,8 @@ import {
 } from './monthlySchedule';
 import type { ReminderType } from './reminderRepository';
 import { PillAction } from './PillAction';
-import { AlarmScreenAccess } from './AlarmScreenAccess';
 import type { FullScreenAccess } from './reminderRepository';
-import { SoundChoice } from './SoundChoice';
+import { ReminderAlertChoice } from './ReminderAlertChoice';
 
 export type DailyMedicineInput = {
   type: ReminderType;
@@ -714,39 +713,16 @@ export function MedicineSetup({
                 )}
               </>
             )}
-            <Text accessibilityLiveRegion="polite" style={styles.label}>
-              {mode === 'alarm' ? t.alarmMode : t.mode}
-            </Text>
-            <View accessibilityRole="radiogroup">
-              {(['notification', 'alarm'] as const).map(choice => (
-                <Pressable
-                  key={choice}
-                  accessibilityRole="radio"
-                  accessibilityLabel={t[choice]}
-                  accessibilityState={{ checked: mode === choice }}
-                  onPress={() => setMode(choice)}
-                  style={styles.modeOption}
-                >
-                  <AppIcon
-                    name={mode === choice ? 'circleDot' : 'circle'}
-                    color="#36542b"
-                  />
-                  <Text style={styles.modeText}>{t[choice]}</Text>
-                </Pressable>
-              ))}
-            </View>
-            {mode === 'alarm' && fullScreenAccess && openFullScreenSettings && (
-              <AlarmScreenAccess
-                language={language}
-                access={fullScreenAccess}
-                openSettings={openFullScreenSettings}
-              />
-            )}
-            <SoundChoice
-              mode={mode}
-              value={mode === 'alarm' ? alarmSound : notificationSound}
-              onChange={mode === 'alarm' ? setAlarmSound : setNotificationSound}
+            <ReminderAlertChoice
               language={language}
+              mode={mode}
+              onModeChange={setMode}
+              notificationSound={notificationSound}
+              onNotificationSoundChange={setNotificationSound}
+              alarmSound={alarmSound}
+              onAlarmSoundChange={setAlarmSound}
+              fullScreenAccess={fullScreenAccess}
+              openFullScreenSettings={openFullScreenSettings}
             />
           </>
         )}

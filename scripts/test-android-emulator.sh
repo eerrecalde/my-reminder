@@ -8,8 +8,8 @@ adb="$ANDROID_HOME/platform-tools/adb"
 avd_name="$("$adb" -s "$ANDROID_SERIAL" emu avd name | tr -d '\r' | head -n 1)"
 [[ "$avd_name" == 'pill_reminder_test' ]] || { echo 'This test requires the disposable pill_reminder_test emulator.' >&2; exit 1; }
 root="$(cd "$(dirname "$0")/.." && pwd)"
-(cd "$root/android" && ./gradlew :app:assembleRelease :app:assembleDebugAndroidTest)
-"$adb" -s "$ANDROID_SERIAL" install -r "$root/android/app/build/outputs/apk/release/app-release.apk"
+(cd "$root/android" && ./gradlew -PbundleTestDebug :app:assembleDebug :app:assembleDebugAndroidTest)
+"$adb" -s "$ANDROID_SERIAL" install -r "$root/android/app/build/outputs/apk/debug/app-debug.apk"
 "$adb" -s "$ANDROID_SERIAL" install -r "$root/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
 "$adb" -s "$ANDROID_SERIAL" shell pm grant com.myreminders android.permission.POST_NOTIFICATIONS
 "$adb" -s "$ANDROID_SERIAL" shell appops set com.myreminders SCHEDULE_EXACT_ALARM allow

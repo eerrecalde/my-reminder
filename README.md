@@ -23,7 +23,7 @@ See the [React Native environment guide](https://reactnative.dev/docs/set-up-you
 ## Build and check on a phone
 
 1. Enable Developer options and USB debugging on an Android 8.0+ phone. Connect it with a USB data cable, unlock it, and accept the debugging prompt. Run `adb devices` and check that the phone is listed as `device`.
-2. Build the APK with its JavaScript bundle from the repository root.
+2. Set up release signing as described below, then build the APK with its JavaScript bundle from the repository root.
 
    ```sh
    cd android
@@ -31,7 +31,7 @@ See the [React Native environment guide](https://reactnative.dev/docs/set-up-you
    cd ..
    ```
 
-   On Windows, use `gradlew.bat` in place of `./gradlew`. This local build uses the template's debug signing key.
+   On Windows, use `gradlew.bat` in place of `./gradlew`. A release build fails if its signing credentials are missing or its keystore is inside the repository. Debug builds do not require these credentials.
 
 3. Install and open the app.
 
@@ -42,12 +42,22 @@ See the [React Native environment guide](https://reactnative.dev/docs/set-up-you
 
    If multiple devices are listed, add `-s <serial>` after `adb` in both commands. Check that **My Reminders** is visible. This APK runs independently of Metro.
 
+## Private release signing and distribution
+
+Emiliano owns the release key. Keep the keystore outside this repository, restrict access to it and store its passwords and alias in a password manager. Generate a dedicated key once with JDK 17, for example `keytool -genkeypair -v -keystore /secure/path/my-reminders.keystore -alias my-reminders -keyalg RSA -keysize 4096 -validity 10000`; keytool prompts for passwords and identity. Do not use the checked-in debug key or a disposable test key for family releases. Keep an encrypted backup of the keystore, its passwords and alias in a separate secure location under Emiliano's control. Test restoration to another protected location and compare the restored certificate fingerprint with the original using `keytool -list -v -keystore /secure/path/my-reminders.keystore -alias my-reminders`.
+
+In the build shell set `MY_REMINDERS_KEYSTORE` to the absolute path of the keystore and `MY_REMINDERS_KEY_ALIAS` to its alias. Supply `MY_REMINDERS_STORE_PASSWORD` and `MY_REMINDERS_KEY_PASSWORD` securely (for example, read them without echo into shell variables, then export them); do not put passwords in command history, project files, logs or CI. Run the release build above. Clear these environment variables afterwards. If a build fails, do not distribute an APK left over from an earlier build.
+
+Before distributing, verify the actual APK with `"$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs android/app/build/outputs/apk/release/app-release.apk` and compare its SHA-256 certificate fingerprint with the recorded release-key fingerprint. Keep that fingerprint alongside the encrypted backup, separately from the passwords. Share the verified APK privately with family. Increase `versionCode` in `android/app/build.gradle` for each distributed update and update `versionName` as appropriate. Subsequent APKs must keep the same application ID and signing key to install as updates and retain reminders and schedules. A lost key prevents ordinary same-key updates; restore it from the encrypted backup. A build signed with the debug key or a different key cannot update an installation signed with the release key.
+
 ## Develop and test
 
 For live editing, run `npm start` in one terminal and `npm run android` in another with the phone connected. If the debug build cannot reach Metro over USB, run `adb reverse tcp:8081 tcp:8081` and reopen the app.
 
 Run `npm run typecheck`, `npm run lint`, and `npm test -- --runInBand` to check the TypeScript project.
 Jest runs in the `Europe/London` time zone so the daylight-saving schedule tests run consistently on every host.
+
+GitHub Actions runs TypeScript, ESLint, Jest and translation checks on pushes and pull requests. A separate job uses Node 22, JDK 17 and the SDK components listed above to run Android unit tests and assemble a debug APK. These checks need no release signing credentials. Emulator instrumentation, physical-device checks and release signing verification remain separate from routine CI; see the sections below and the release instructions.
 
 Translations are maintained in `src/translations/en.json` and `src/translations/es.json`. After changing them, run `npm run translations:generate` to update Android resources and `npm run translations:check` to check completeness and generated output. Release builds also run this check. English is the fallback for missing text.
 
