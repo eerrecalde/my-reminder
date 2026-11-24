@@ -32,6 +32,7 @@ class CreateEditIntegrationTest {
     val clockFormat = DateTimeFormatter.ofPattern("HH:mm")
     assertTrue("Requires an empty disposable installation", MedicineRepository(context).use { it.all().isEmpty() })
     assertTrue("Reminder permissions must be enabled", ReminderScheduler.enabled(context))
+    assertNull("Requires a disposable emulator without other alarm clocks", context.getSystemService(AlarmManager::class.java).nextAlarmClock)
 
     fun nodes(root: AccessibilityNodeInfo?): List<AccessibilityNodeInfo> =
       if (root == null) emptyList() else listOf(root) + (0 until root.childCount).flatMap { nodes(root.getChild(it)) }
