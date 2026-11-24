@@ -21,6 +21,10 @@ tasks.withType(com.facebook.react.tasks.BundleHermesCTask).configureEach {
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
 react {
+    // Instrumentation needs a self-contained debug APK without release credentials.
+    if (project.hasProperty('bundleTestDebug')) {
+        debuggableVariants = ['debugOptimized']
+    }
     /* Folders */
     //   The root of your project, i.e. where "package.json" lives. Default is '../..'
     // root = file("../../")
@@ -86,6 +90,28 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Credentials are supplied only to release builds and never stored in the project.
+def releaseStorePath = System.getenv('MY_REMINDERS_KEYSTORE')
+def releaseStorePassword = System.getenv('MY_REMINDERS_STORE_PASSWORD')
+def releaseKeyAlias = System.getenv('MY_REMINDERS_KEY_ALIAS')
+def releaseKeyPassword = System.getenv('MY_REMINDERS_KEY_PASSWORD')
+
+tasks.register('validateReleaseSigning') {
+    doLast {
+        if (![releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it?.trim() }) {
+            throw new GradleException('Release signing requires MY_REMINDERS_KEYSTORE, MY_REMINDERS_STORE_PASSWORD, MY_REMINDERS_KEY_ALIAS and MY_REMINDERS_KEY_PASSWORD. See README.md.')
+        }
+        def keystore = file(releaseStorePath).canonicalFile
+        def projectRoot = rootProject.projectDir.parentFile.canonicalFile.toPath()
+        if (!keystore.isFile() || keystore.toPath().startsWith(projectRoot)) {
+            throw new GradleException('MY_REMINDERS_KEYSTORE must be an existing file outside the repository.')
+        }
+    }
+}
+tasks.configureEach { task ->
+    if (task.name == 'preReleaseBuild') task.dependsOn('validateReleaseSigning')
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -107,15 +133,19 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (releaseStorePath) storeFile file(releaseStorePath)
+            storePassword releaseStorePassword
+            keyAlias releaseKeyAlias
+            keyPassword releaseKeyPassword
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }

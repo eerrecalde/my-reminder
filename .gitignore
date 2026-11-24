@@ -9,6 +9,9 @@ build/
 *.iml
 local.properties
 *.keystore
+*.jks
+*.p12
+*.pfx
 !android/app/debug.keystore
 
 # JavaScript tooling
