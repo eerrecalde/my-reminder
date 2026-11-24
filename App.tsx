@@ -999,12 +999,13 @@ export default function App() {
                       onChange={choice => {
                         reminderRepository
                           .setSoundDefault(mode, choice)
-                          .then(() =>
+                          .then(async () => {
                             setSoundDefaults(current => ({
                               ...current,
                               [mode]: choice,
-                            })),
-                          )
+                            }));
+                            if (mode === 'notification') await refresh();
+                          })
                           .catch(() => setError(t.error));
                       }}
                     />

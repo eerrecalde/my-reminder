@@ -3,11 +3,79 @@ import ReactTestRenderer from 'react-test-renderer';
 import { AppState, Text } from 'react-native';
 import App, { PillAction } from '../App';
 import { MedicineSetup } from '../src/MedicineSetup';
+import { SoundChoice } from '../src/SoundChoice';
 
 jest.mock('react-native-safe-area-context', () => {
   const mock = jest.requireActual('react-native-safe-area-context/jest/mock');
   return mock.default;
 });
+
+test.each([true, false])(
+  'refreshes affected channels after changing the notification default (initially blocked: %s)',
+  async initiallyBlocked => {
+    const subscription = jest
+      .spyOn(AppState, 'addEventListener')
+      .mockReturnValue({ remove: jest.fn() });
+    const makeState = (blocked: boolean) => ({
+      enabled: true,
+      notifications: true,
+      exactAlarms: true,
+      language: 'en',
+      medicines: [
+        {
+          id: 'water',
+          name: 'Water',
+          type: 'reminder',
+          mode: 'notification',
+          times: ['09:00'],
+          blockedNotificationChannel: blocked ? 'sound-blocked' : null,
+        },
+      ],
+      todayDoses: [],
+      history: [],
+      upcoming: [],
+    });
+    const state = jest
+      .fn()
+      .mockResolvedValueOnce(makeState(initiallyBlocked))
+      .mockResolvedValue(makeState(!initiallyBlocked));
+    const repository = require('../src/reminderRepository');
+    repository.reminderRepository = {
+      state,
+      setSoundDefault: jest.fn().mockResolvedValue(undefined),
+    };
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      view = ReactTestRenderer.create(<App />);
+    });
+    await ReactTestRenderer.act(() =>
+      view.root
+        .findAllByProps({
+          accessibilityRole: 'button',
+          accessibilityLabel: 'Reminder access',
+        })[0]
+        .props.onPress(),
+    );
+    expect(
+      view.root
+        .findAllByType(Text)
+        .filter(item => item.props.testID === 'blocked-channel-warning'),
+    ).toHaveLength(initiallyBlocked ? 1 : 0);
+    await ReactTestRenderer.act(async () => {
+      view.root
+        .findAllByType(SoundChoice)
+        .find(item => item.props.mode === 'notification')!
+        .props.onChange('new-sound');
+    });
+    expect(
+      view.root
+        .findAllByType(Text)
+        .filter(item => item.props.testID === 'blocked-channel-warning'),
+    ).toHaveLength(initiallyBlocked ? 0 : 1);
+    await ReactTestRenderer.act(() => view.unmount());
+    subscription.mockRestore();
+  },
+);
 
 test.each([
   ['en', 'Review reminder access'],
