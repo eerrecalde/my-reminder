@@ -16,3 +16,6 @@ node_modules/
 npm-debug.log*
 .metro-health-check*
 coverage/
+
+# Local review handoff
+production-readiness-handoff.md
