@@ -71,8 +71,9 @@ measurements and the expected family usage before evaluating improvements.
 ## Initial observation
 
 On 24 November 2026, the `pill_reminder_test` API 36 emulator
-(`sdk_gphone64_arm64`, Europe/London) on an ARM64 host ran the benchmark from
-commit `02ba046` with the bundled debug build. One sample produced:
+(`sdk_gphone64_arm64`, Europe/London) on an ARM64 host ran an uncommitted
+earlier version of the benchmark on top of commit `02ba046` with the bundled
+debug build. That commit alone does not contain the benchmark. One sample produced:
 
 | Measurement | Result |
 | --- | ---: |
@@ -88,5 +89,28 @@ Do not compare it directly with runs of the corrected dataset above.
 
 The target installation was cleared afterward; Android's alarm dump recorded the
 removed watchdog alarms with reason `data_cleared`. This single observation does
-not establish variability, a root cause or a product target. Actual Android
-recovery, app state and history UI load have not been timed yet.
+not establish variability, a root cause or a product target. That run did not
+time actual Android recovery or UI loading.
+
+## Corrected dataset observation
+
+On 24 November 2026 at 16:29 GMT, the same Android 16 (API 36)
+`pill_reminder_test` ARM64 emulator in Europe/London ran the corrected
+dataset using the bundled debug build. The explicit opt-in guard passed.
+One sample produced:
+
+| Measurement | Result |
+| --- | ---: |
+| Seeded occurrences | 8,760 |
+| Occurrences after recovery | 9,852 |
+| Direct recovery | 9,371 ms |
+| Full occurrence read after recovery | 23 ms |
+| Subsequent scheduling of 12 active items | 19 ms |
+
+These are single-sample observations, not proof of the cause of the recovery
+time or Android-delivered recovery performance. The synthetic data and alarms
+were left temporarily on the confirmed disposable emulator for separate UI
+measurement; after measurement, `pm clear com.myreminders` returned Success on
+the confirmed disposable emulator. A separate [UI measurement](long-history-ui.md)
+recorded the first Reminders row and an out-of-memory crash on History. Repeated
+samples, profiling, a History load time and agreed targets remain outstanding.
