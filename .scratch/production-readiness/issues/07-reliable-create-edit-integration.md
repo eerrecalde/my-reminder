@@ -1,6 +1,7 @@
 # 07: Make reminder create and edit integration testing reliable
 
 Status: ready-for-agent
+Completion: done; merge to main pending
 
 **What to build:** Reliably verify that someone can create and edit a reminder through the real app and Android boundary.
 

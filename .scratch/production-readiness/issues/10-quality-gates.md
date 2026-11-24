@@ -1,6 +1,7 @@
 # 10: Add repeatable quality gates
 
 Status: ready-for-agent
+Completion: done; merge to main pending
 
 **What to build:** Make meaningful checks run and report failures consistently for changes to the app without exposing release credentials.
 

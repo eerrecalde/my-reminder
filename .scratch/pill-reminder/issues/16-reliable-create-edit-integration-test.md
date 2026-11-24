@@ -1,6 +1,7 @@
 # Reliable create and edit integration test
 
 Status: needs-triage
+Completion: done; merge to main pending
 
 ## Problem
 
