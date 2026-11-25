@@ -68,6 +68,30 @@ family's use. The date and timezone are recorded for comparisons.
 No acceptance targets have been agreed. Agree them with Emiliano using the
 measurements and the expected family usage before evaluating improvements.
 
+## Repeated baseline, 25 November 2026
+
+On commit `4279e98`, the bundled debug build ran three freshly seeded samples
+on the confirmed `pill_reminder_test` Android 16 (API 36) ARM64 emulator on
+an ARM64 host, in Europe/London. Each sample started with 24 items and 8,760
+occurrences and ended with 12 active items and 9,852 occurrences. The UI
+benchmark followed each recovery, then the installation was cleared before
+the next seed. After the last run, `pm clear` returned `Success`.
+
+| Sample | Direct recovery | Full occurrence read | Subsequent scheduling |
+| --- | ---: | ---: | ---: |
+| 1 | 8,184 ms | 23 ms | 16 ms |
+| 2 | 7,794 ms | 25 ms | 21 ms |
+| 3 | 7,675 ms | 23 ms | 20 ms |
+| Median | 7,794 ms | 23 ms | 20 ms |
+
+These are direct-call, warm-process measurements, not Android broadcast or
+restart timings. The read and scheduling figures are separate subsequent
+operations and cannot be subtracted from recovery to attribute its cost.
+Recovery repeatedly reads all occurrences when processing inactive items and
+also reconciles each active item's gap; these are code-inspection leads, not
+profiled or quantified causes. See [UI results](long-history-ui.md) for the
+separate observed memory failure. Profiling and agreed targets remain open.
+
 ## Initial observation
 
 On 24 November 2026, the `pill_reminder_test` API 36 emulator
