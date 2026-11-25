@@ -274,8 +274,7 @@ object ReminderScheduler {
       if (active != null && active.at == at && active.token == token && at <= now) {
         val following = DailySchedule.next(medicine, Instant.ofEpochMilli(at), ZoneId.systemDefault())
         if (following != null && !following.isAfter(Instant.ofEpochMilli(now))) {
-          repo.invalidateAlarm(id)
-          repo.recordDue(id, at)
+          repo.retireAlarmForRecovery(id, now, Long.MIN_VALUE)
           reconcileOccurrences(context, repo, medicine, Instant.ofEpochMilli(now), ZoneId.systemDefault())
           schedule(context, medicine, Instant.ofEpochMilli(now))
           return
@@ -292,8 +291,7 @@ object ReminderScheduler {
   }
   private fun cancelFuture(context: Context, repo: MedicineRepository, id: String) {
     val alarm = repo.alarm(id)
-    repo.invalidateAlarm(id)
-    if (alarm != null && alarm.at <= System.currentTimeMillis()) repo.recordDue(id, alarm.at)
+    repo.retireAlarmForRecovery(id, System.currentTimeMillis(), Long.MIN_VALUE)
     alarm?.let {
       listOf(pending(context, it), watchdog(context, it)).forEach { operation ->
         alarmManager(context).cancel(operation); operation.cancel()
@@ -461,8 +459,7 @@ object ReminderScheduler {
       val medicine = repo.all().find { it.id == id && it.status == "active" } ?: return
       if (current != null) {
         if (!current.registered && current.at <= System.currentTimeMillis()) {
-          repo.invalidateAlarm(id)
-          repo.recordDue(id, current.at)
+          repo.retireAlarmForRecovery(id, System.currentTimeMillis(), Long.MIN_VALUE)
           schedule(context, medicine)
           return
         }
