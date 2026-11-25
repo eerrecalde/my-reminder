@@ -423,7 +423,7 @@ class ReminderFoundationTest {
       }
     }
   }
-  @Test fun recoveryOfLongGapKeepsRecordedOutcomesAndIsRepeatable() {
+  @Test fun recoveryAfterSimulatedPartialLongGapKeepsOutcomesAndIsRepeatable() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     assertTrue(ReminderScheduler.enabled(context))
     assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
@@ -433,7 +433,8 @@ class ReminderFoundationTest {
     val firstAt = firstDay.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
     val item = MedicineRepository(context).use { repo ->
       repo.save("Long gap", "", listOf("09:00"), created, "reminder").also {
-        repo.recordDue(it.id, firstAt)
+        val partial = (0L until 128L).map { day -> firstDay.plusDays(day).atTime(9, 0).atZone(zone).toInstant().toEpochMilli() }
+        repo.recordDueBatch(it.id, partial)
         repo.setOutcome(it.id, firstAt, "completed")
       }
     }
@@ -444,7 +445,8 @@ class ReminderFoundationTest {
         assertTrue(repo.alarm(item.id)?.registered == true)
         repo.occurrences(true).filter { it.medicineId == item.id }
       }
-      assertTrue(first.size >= 150)
+      val expected = (0L..150L).map { day -> firstDay.plusDays(day).atTime(9, 0).atZone(zone).toInstant().toEpochMilli() }.filter { it <= System.currentTimeMillis() }
+      assertEquals(expected, first.map { it.at })
       ReminderScheduler.rebuild(context, recovery = true)
       MedicineRepository(context).use { repo ->
         assertEquals(first, repo.occurrences(true).filter { it.medicineId == item.id })

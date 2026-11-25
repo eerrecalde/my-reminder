@@ -32,13 +32,15 @@ object ReminderScheduler {
   private fun dismissInactive(context: Context, repo: MedicineRepository, id: String) {
     val manager = context.getSystemService(NotificationManager::class.java)
     val activeIds = manager.activeNotifications.map { it.id }.toSet()
-    repo.occurrencesFor(id, includeCleared = true).forEach { occurrence ->
-      val notificationId = notificationId(id, occurrence.at)
-      if (notificationId in activeIds) manager.cancel(notificationId)
+    repo.occurrencesFor(id, includeCleared = true).chunked(128).forEach { occurrences ->
+      occurrences.forEach { occurrence ->
+        val notificationId = notificationId(id, occurrence.at)
+        if (notificationId in activeIds) manager.cancel(notificationId)
+      }
+      AlarmSoundService.stopOccurrences(context, id, occurrences.map { it.at }.toLongArray())
     }
     repo.snoozes().filter { it.medicineId == id }.forEach { cancelSnooze(context, id, it.at) }
     repo.clearOutstanding(id)
-    AlarmSoundService.stopMedicine(context, id)
   }
 
   private fun snoozeIntent(context: Context, item: MedicineRepository.Snooze, watchdog: Boolean = false): PendingIntent {

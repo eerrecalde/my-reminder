@@ -123,8 +123,8 @@ cleanup and 5,127 ms for active-item reconciliation (7,836 ms total). These
 phase observations are one instrumented sample, not a detailed profile.
 
 After batching recovered occurrences and reducing inactive cleanup, three
-fresh runs measured 3,479, 3,099 and 3,017 ms for direct recovery; full reads
-took 24, 23 and 23 ms and subsequent scheduling 17, 17 and 15 ms. Each began
+fresh runs measured 3,160, 2,967 and 3,011 ms for direct recovery; full reads
+took 23, 24 and 24 ms and subsequent scheduling 19, 17 and 18 ms. Each began
 with 8,760 occurrences and ended with 9,852 occurrences and 12 active items
 with registered alarms. These samples meet the direct-call target but do not
 establish timely delivery while recovery is running. The receiver execution
