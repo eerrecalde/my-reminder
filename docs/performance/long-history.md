@@ -65,8 +65,66 @@ family's use. The date and timezone are recorded for comparisons.
    sections before deciding which queries or operations cause any measured
    delay.
 
-No acceptance targets have been agreed. Agree them with Emiliano using the
-measurements and the expected family usage before evaluating improvements.
+## Agreed targets and comparison
+
+On 25 November 2026 Emiliano agreed these targets for the documented dataset
+on this disposable emulator:
+
+- Direct recovery within **5,000 ms**.
+- The first Reminders row within **3,000 ms** from the Activity launch
+  request, and the first History row within **3,000 ms** from selecting
+  History, using the UI benchmark boundaries described in
+  [long-history-ui.md](long-history-ui.md). Neither screen may run out of
+  memory.
+
+For each comparison use at least three freshly seeded runs with the same
+date, timezone, emulator configuration and build variant, and record every
+result. Each run should meet the relevant limit; a crash, timeout or missing
+row is a failure, not an omitted sample. Preserve the counts and all required
+data and schedules; timing alone is insufficient. Compare direct recovery,
+the separate read and scheduling measurements, and UI values with the baseline
+below. Do not subtract the separate measurements from recovery or treat them
+as Android-delivered timings. Repeat the same UI method after changes; if its
+accessibility polling fails, report that failure and use an additional less
+intrusive check to help distinguish instrumentation overhead. Document changes
+in method and device conditions instead of presenting incomparable results as
+improvements. These emulator targets do not establish physical-device
+performance; the planned device checkpoint remains separate.
+
+## Repeated baseline, 25 November 2026
+
+On commit `4279e98`, the bundled debug build ran three freshly seeded samples
+on the confirmed `pill_reminder_test` Android 16 (API 36) ARM64 emulator on
+an ARM64 host, in Europe/London. Each sample started with 24 items and 8,760
+occurrences and ended with 12 active items and 9,852 occurrences. The UI
+benchmark followed each recovery, then the installation was cleared before
+the next seed. After the last run, `pm clear` returned `Success`.
+
+| Sample | Direct recovery | Full occurrence read | Subsequent scheduling |
+| --- | ---: | ---: | ---: |
+| 1 | 8,184 ms | 23 ms | 16 ms |
+| 2 | 7,794 ms | 25 ms | 21 ms |
+| 3 | 7,675 ms | 23 ms | 20 ms |
+| Median | 7,794 ms | 23 ms | 20 ms |
+
+These are direct-call, warm-process measurements, not Android broadcast or
+restart timings. The read and scheduling figures are separate subsequent
+operations and cannot be subtracted from recovery to attribute its cost.
+Recovery repeatedly reads all occurrences when processing inactive items and
+also reconciles each active item's gap; these are code-inspection leads, not
+quantified causes. See [UI results](long-history-ui.md) for the separate
+observed memory failure.
+
+A separate exploratory CPU sample attached Android `simpleperf` to the
+debuggable benchmark process immediately after it started, with `-e cpu-clock
+-g --duration 8`. It recorded 17,267 samples with none reported lost. Its
+largest individual native symbol was `fdatasync` (4.67% of sampled CPU), and
+SQLite execution and parsing, Android runtime and garbage-collection symbols
+also appeared. The recording includes startup and seeding as well as recovery,
+and CPU samples do not measure time blocked on I/O. It therefore does not
+attribute recovery wall time to any particular operation. Repeat with phase
+boundaries or tracing before choosing an optimization. The profiled benchmark
+passed; the disposable installation was cleared afterwards.
 
 ## Initial observation
 

@@ -78,3 +78,36 @@ render-completion time or product target has been established.
 Afterward, the AVD name was reconfirmed and `pm clear com.myreminders` returned
 `Success` on that disposable installation, removing the synthetic data and
 registered alarms.
+
+## Repeated observations, 25 November 2026
+
+The same three fresh datasets and environment described in the
+[repeated native baseline](long-history.md#repeated-baseline-25-november-2026)
+were measured with the bundled debug build. The first run began with the
+emulator locked and was unlocked during the test; its 100,357 ms Reminders
+time is invalid for comparison. The next two unlocked runs reported 6,982 ms
+and 13,139 ms to the first Reminders row. Neither produced a History timing:
+both exhausted the 192 MiB process heap during accessibility-related work after
+History was selected. The first run also exhausted the heap during benchmark
+accessibility traversal. The instrumentation itself may contribute to memory
+pressure, so these failures do not establish the uninstrumented app's memory
+limit. The earlier observation also recorded an out-of-memory error during
+Fabric mounting. History currently constructs rows within a `ScrollView`, a
+code-inspection lead rather than a measured allocation breakdown.
+
+The two valid Reminders timings show substantial variation; they are not a
+cold-start measurement. The subsequently agreed targets are in the
+[comparison procedure](long-history.md#agreed-targets-and-comparison).
+
+## Check without accessibility polling
+
+On 25 November 2026 the same disposable emulator and dataset were reseeded,
+then the app was opened outside the instrumentation test. After a tap on the
+History tab during loading, a screenshot still showed Today. The process then
+crashed with an out-of-memory error in React Native Fabric view preallocation;
+no accessibility-tree polling was used in this check. A later tap landed on
+the launcher after the app had died. History selection was not confirmed, so
+this is evidence of a memory failure in the loaded app, not a History timing
+or proof that the first tap selected History. The installation was cleared
+afterwards. A successful History timing remains unavailable until the failure
+is addressed; investigate its allocations as part of ticket 06.
