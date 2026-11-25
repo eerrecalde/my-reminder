@@ -1,16 +1,19 @@
 # 04: Measure long-history recovery and establish targets
 
 Status: ready-for-agent
+Completion: done
 
 **What to build:** Give the team a repeatable, evidence-based understanding of how a long-lived installation performs.
 
 **Blocked by:** None (can start immediately).
 
 - [x] Create a documented representative disposable-emulator dataset with long history, many active and inactive reminders, paused and deleted items, and a long gap.
-- [ ] Record dataset sizes and baseline timings for recovery, scheduling and app state/history loading; identify observed bottlenecks.
+- [x] Record dataset sizes and baseline timings for recovery, scheduling and app state/history loading; identify observed bottlenecks.
 - [x] Establish acceptable targets with Emiliano from the measurements and product needs, and document a reproducible comparison procedure.
 
 ## Comments
+
+- 2026-11-25 — Emiliano agreed to accept the documented History crash as the baseline and unblock tickets 05 and 06. No successful History load timing is available; the recovery profile also does not isolate individual operations. Those remain investigation work for the follow-up tickets, not measured successes.
 
 - 2026-11-25 — Emiliano agreed targets of 5 seconds for direct recovery and 3 seconds for each screen's first row, with no out-of-memory failure, evaluated over repeated runs on the documented emulator. The [comparison procedure](../../../docs/performance/long-history.md#agreed-targets-and-comparison) defines the measurement boundaries. A check without accessibility polling also crashed in Fabric view creation; History selection was not confirmed, so no History timing was obtained. The exploratory profile does not isolate recovery operations. Tickets 05 and 06 are intended to address the observed failures and further profiling.
 
