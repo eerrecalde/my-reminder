@@ -161,6 +161,27 @@ clears the disposable installation and its alarms. This is an actual process
 restart and Android delivery, but it is not the 24-item benchmark dataset, a
 process death during recovery, or delivery concurrent with full recovery.
 
+After the version-18 recovery-cursor change, three freshly seeded runs on
+the same Android 16 emulator measured direct recovery at 3,653, 3,291 and
+2,971 ms; occurrence reads took 24, 23 and 22 ms and subsequent scheduling
+took 15, 18 and 15 ms. Each retained 9,852 occurrences and registered alarms
+for all 12 active items. These are direct calls, not recovery broadcasts.
+The separate process-restart delivery script also passed on this version.
+The full instrumentation suite ran 76 tests with one failure in the previously
+intermittent `languagePreferencePersistsAndSystemFallsBackToEnglish` test;
+the channel-delivery test passed in that run. The full suite is not clean.
+
+An uncommitted experiment moved system recovery broadcasts to a queued Android
+job. In a disposable-emulator test, an actual `AlarmManager` alarm was fired
+while recovery was pending and the scheduler was held busy. The occurrence
+was recorded but the expected notification did not appear: recovery could
+retire the due alarm before its delivery receiver claimed it. The experiment
+was removed. A replacement must preserve the delivered alarm's identity
+across that handoff, avoid replaying recovery as a catch-up alert, and let
+delivery proceed without waiting behind an unbounded full-history rebuild.
+This failure describes the experiment, not a completed fix or a claim about
+the unmodified receiver's behaviour in that same sequence.
+
 A separate exploratory CPU sample attached Android `simpleperf` to the
 debuggable benchmark process immediately after it started, with `-e cpu-clock
 -g --duration 8`. It recorded 17,267 samples with none reported lost. Its
