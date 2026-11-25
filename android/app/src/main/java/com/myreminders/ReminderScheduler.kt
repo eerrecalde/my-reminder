@@ -164,8 +164,7 @@ object ReminderScheduler {
       val old = repo.alarm(medicine.id)
       if (old != null) {
         if (!old.registered && old.at <= after.toEpochMilli()) {
-          repo.invalidateAlarm(medicine.id)
-          repo.recordDue(medicine.id, old.at)
+          repo.retireAlarmForRecovery(medicine.id, after.toEpochMilli(), Long.MIN_VALUE)
         } else {
           if (RecoveryPolicy.shouldRegister(old, after.toEpochMilli())) {
             try {

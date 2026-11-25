@@ -367,6 +367,36 @@ class ReminderFoundationTest {
       }
     }
   }
+  @Test fun schedulingKeepsUnregisteredOverdueAlarmWhenRecordingFails() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val now = System.currentTimeMillis()
+    val at = now - 1_000
+    val item = MedicineRepository(context).use { repo ->
+      repo.save("Unregistered", "", listOf("09:00"), now - 10_000, "reminder").also {
+        repo.setAlarm(it.id, at, "unregistered")
+        repo.writableDatabase.execSQL("CREATE TRIGGER reject_recovery_due BEFORE INSERT ON doses BEGIN SELECT RAISE(ABORT, 'simulated interruption'); END")
+      }
+    }
+    try {
+      try {
+        ReminderScheduler.schedule(context, item, java.time.Instant.ofEpochMilli(now))
+        fail("Occurrence insertion should fail")
+      } catch (_: android.database.sqlite.SQLiteException) { }
+      MedicineRepository(context).use { repo ->
+        assertEquals("unregistered", repo.alarm(item.id)?.token)
+        assertNull(repo.occurrence(item.id, at, includeCleared = true))
+      }
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.writableDatabase.execSQL("DROP TRIGGER IF EXISTS reject_recovery_due")
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        for (table in listOf("alarms", "doses", "occurrence_tracking")) repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
   @Test fun recoveryPreservesOverdueAlarmFromBeforeTrackingBegan() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     assertTrue(ReminderScheduler.enabled(context))
