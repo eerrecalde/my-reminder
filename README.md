@@ -56,6 +56,7 @@ For live editing, run `npm start` in one terminal and `npm run android` in anoth
 
 Run `npm run typecheck`, `npm run lint`, and `npm test -- --runInBand` to check the TypeScript project.
 Jest runs in the `Europe/London` time zone so the daylight-saving schedule tests run consistently on every host.
+For every change also run `npm run translations:check` and, with the local Android setup, `(cd android && ./gradlew :app:testDebugUnitTest :app:assembleDebug)`. These are unit tests and a build, not device-level checks.
 
 GitHub Actions runs TypeScript, ESLint, Jest and translation checks on pushes and pull requests. A separate job uses Node 22, JDK 17 and the SDK components listed above to run Android unit tests and assemble a debug APK. These checks need no release signing credentials. Emulator instrumentation, physical-device checks and release signing verification remain separate from routine CI; see the sections below and the release instructions.
 
@@ -78,6 +79,17 @@ In another terminal, run the test script with the emulator serial shown by `adb`
 ANDROID_SERIAL=emulator-5554 ./scripts/test-android-emulator.sh
 ```
 
-The script checks both the serial and virtual-device name, builds the app and test APKs, installs them on that emulator only, enables reminder permissions there, and runs instrumentation. It reports a failed or incomplete test as an error. The recovery test requires the test installation to have no saved reminders. A disposable emulator can be reset using Device Manager if necessary; resetting deletes its data.
+For everyday Android changes, select a relevant instrumentation class or method (quote a method selector to protect `#` from the shell):
+
+```sh
+ANDROID_SERIAL=emulator-5554 ./scripts/test-android-emulator.sh com.myreminders.MedicineRepositoryTest
+ANDROID_SERIAL=emulator-5554 ./scripts/test-android-emulator.sh 'com.myreminders.CreateEditIntegrationTest#createAndEditReminderThroughAppRegistersItsSchedule'
+```
+
+Choose tests from `android/app/src/androidTest/java/com/myreminders`: use `MedicineRepositoryTest` for storage and upgrades, `CreateEditIntegrationTest` for the app-to-schedule path, the channel integration and delivery tests for notification access, `ReminderSoundsTest` for sound choices, and relevant `ReminderFoundationTest` methods for scheduling, recovery, Alarm delivery and display behaviour. Include both affected types and languages where applicable. A focused run gives confidence only in the selected tests. Run the full command with no selector at release checkpoints, before private distribution, and after significant cross-cutting changes to scheduling, recovery, storage, notification delivery or shared Android behaviour.
+
+Both modes check the serial and virtual-device name, build the app and test APKs, install them on that emulator only, enable reminder permissions there, and run instrumentation. They report failed, empty or incomplete runs as errors. The recovery test requires the test installation to have no saved reminders. A disposable emulator can be reset using Device Manager if necessary; resetting deletes its data.
+
+On 25 November 2026 on Emiliano's Mac, the four JavaScript checks above took 11.4 seconds combined; Android unit tests with all Gradle tasks rerun took 16.4 seconds. The full 65-test Android 16 emulator run took 515.3 seconds in instrumentation (552.9 seconds including build and setup), with one failure in `languagePreferencePersistsAndSystemFallsBackToEnglish`. The same assertion has failed intermittently in an earlier full run; its cause remains unconfirmed. The longest tests were `activeAlarmStaysVisibleThroughDisplaySleep` (153.5 seconds, including the two-minute wake limit), `androidDeliversNewScheduleKindsForBothTypes` (112.2 seconds, waiting for scheduled deliveries), and `lockedAlarmCanBeSnoozedAndAnsweredAfterUnlock` (59.6 seconds). The focused repository class ran 17 tests in 3.1 seconds including setup; the language method ran in 5.8 seconds including setup. A nonexistent class produced an instrumentation failure and a nonzero script exit. Times vary with builds, emulator state and schedule alignment. These are emulator results, not physical-device checks.
 
 The emulator is suitable for routine UI, storage, permission, scheduling and recovery checks, but simulated delivery and recovery are not proof of real phone behaviour. Physical-device checks are grouped at the [daily-use checkpoint](.scratch/pill-reminder/issues/06b-daily-use-device-checkpoint.md) and the [private-test checkpoint](.scratch/pill-reminder/issues/12-private-android-test.md).
