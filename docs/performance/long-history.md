@@ -150,6 +150,17 @@ the alarm, and passed all enabled, blocked and restored channel checks. The
 test now models that setup; these observations do not establish an ordinary
 user-visible delivery failure or prove recovery safe under concurrency.
 
+On the disposable Android 16 `pill_reminder_test` emulator, the opt-in
+`ANDROID_SERIAL=emulator-5554 ./scripts/test-restart-delivery.sh` check
+prepared a Reminder and a Medicine with 150-day gaps and a near-future alarm.
+Instrumentation ended the original target process; Android then started a new
+process for the alarm broadcast. Before starting instrumentation again, the
+script observed both notifications and two future Android alarm clocks. It
+then verified the stored occurrences and future alarm records. The script
+clears the disposable installation and its alarms. This is an actual process
+restart and Android delivery, but it is not the 24-item benchmark dataset, a
+process death during recovery, or delivery concurrent with full recovery.
+
 A separate exploratory CPU sample attached Android `simpleperf` to the
 debuggable benchmark process immediately after it started, with `-e cpu-clock
 -g --duration 8`. It recorded 17,267 samples with none reported lost. Its
