@@ -6,6 +6,10 @@ export type Medicine = DailyMedicineInput & {
   id: string;
   status?: 'active' | 'paused';
   blockedNotificationChannel?: string | null;
+  alarmChannelIssue?: {
+    channel: string;
+    severity: 'blocked' | 'reduced' | 'reminderReduced';
+  } | null;
 };
 export type Outcome = 'completed' | 'skipped' | 'missed';
 export type Occurrence = {

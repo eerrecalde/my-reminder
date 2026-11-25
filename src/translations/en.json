@@ -101,7 +101,12 @@
     "deleteQuestion": "Delete this reminder?",
     "language": "Language",
     "systemDefault": "System default",
-    "options": "Options"
+    "options": "Options",
+    "alarmChannelWarning": "Some Alarm alerts need attention.",
+    "alarmChannelHelp": "Check the notification settings for the affected Alarms.",
+    "alarmChannelBlocked": "The notification and Alarm screen are blocked. Alarm sound may still play.",
+    "alarmChannelReduced": "The Alarm screen may not appear with these notification settings.",
+    "alarmReminderReduced": "The Alarm screen may not appear and Alarm sound may be silenced by these notification settings."
   },
   "setup": {
     "once": "Once",

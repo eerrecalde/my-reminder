@@ -101,7 +101,12 @@
     "deleteQuestion": "¿Eliminar este recordatorio?",
     "language": "Idioma",
     "systemDefault": "Predeterminado del sistema",
-    "options": "Opciones"
+    "options": "Opciones",
+    "alarmChannelWarning": "Algunas alertas de alarma necesitan atención.",
+    "alarmChannelHelp": "Revisa la configuración de notificaciones de las alarmas afectadas.",
+    "alarmChannelBlocked": "La notificación y la pantalla de alarma están bloqueadas. El sonido de alarma aún podría sonar.",
+    "alarmChannelReduced": "La pantalla de alarma podría no aparecer con esta configuración de notificaciones.",
+    "alarmReminderReduced": "La pantalla de alarma podría no aparecer y el sonido de alarma podría silenciarse con esta configuración de notificaciones."
   },
   "setup": {
     "once": "Una vez",

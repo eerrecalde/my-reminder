@@ -55,6 +55,19 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
           val channelId = listOf(ReminderSounds.channelId(null), ReminderSounds.channelId(selectedSound))
             .firstOrNull { manager.getNotificationChannel(it)?.importance == NotificationManager.IMPORTANCE_NONE }
           putString("blockedNotificationChannel", channelId)
+          if (medicine.mode == "alarm") {
+            val legacy = manager.getNotificationChannel("medicine_reminders")
+            val alarm = manager.getNotificationChannel("alarm_alerts")
+            val issue = when {
+              legacy != null && legacy.importance in 1 until NotificationManager.IMPORTANCE_HIGH -> "medicine_reminders" to "reminderReduced"
+              (legacy == null || legacy.importance >= NotificationManager.IMPORTANCE_HIGH) && alarm != null && alarm.importance == NotificationManager.IMPORTANCE_NONE -> "alarm_alerts" to "blocked"
+              (legacy == null || legacy.importance >= NotificationManager.IMPORTANCE_HIGH) && alarm != null && alarm.importance < NotificationManager.IMPORTANCE_HIGH -> "alarm_alerts" to "reduced"
+              else -> null
+            }
+            if (issue != null) putMap("alarmChannelIssue", Arguments.createMap().apply {
+              putString("channel", issue.first); putString("severity", issue.second)
+            })
+          }
           putString("notificationSound", notificationSound); putString("alarmSound", repo.soundChoice(medicine.id, "alarm"))
           putString("id", medicine.id); putString("status", medicine.status); putString("type", medicine.type); putString("mode", medicine.mode); putString("name", medicine.name); putString("instructions", medicine.instructions)
           putString("startDate", medicine.startDate); putString("endDate", medicine.endDate)

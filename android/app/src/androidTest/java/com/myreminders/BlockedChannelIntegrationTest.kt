@@ -70,7 +70,8 @@ class BlockedChannelIntegrationTest {
         .putExtra(Settings.EXTRA_CHANNEL_ID, channel)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
       await("selected Android channel settings") {
-        find { it.packageName?.toString() == "com.android.settings" && it.viewIdResourceName == "android:id/switch_widget" } != null
+        find { it.packageName?.toString() == "com.android.settings" && it.viewIdResourceName == "android:id/switch_widget" } != null &&
+          find { it.packageName?.toString() == "com.android.settings" && it.contentDescription?.toString() == manager.getNotificationChannel(channel).name.toString() } != null
       }
     }
     fun setChannelEnabled(enabled: Boolean) {
@@ -100,7 +101,7 @@ class BlockedChannelIntegrationTest {
       context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
       await("blocked channel warning") { find { it.viewIdResourceName == "blocked-channel-warning" } != null }
       click(button(if (language == "es") "Revisar acceso a recordatorios" else "Review reminder access"))
-      await("reminder access screen") { find { it.text?.toString() == if (language == "es") "Acceso a recordatorios" else "Reminder access" } != null }
+      await("reminder access screen") { find { it.text?.toString() == if (language == "es") "Se necesitan notificaciones y alarmas exactas para recibir recordatorios a tiempo." else "Notifications and exact alarms are needed for reminders to arrive on time." } != null }
       val deadline = SystemClock.elapsedRealtime() + 20000
       while (find { it.text?.toString() == "Channel test medicine" && it.isVisibleToUser } == null && SystemClock.elapsedRealtime() < deadline) {
         val scroll = find { it.isScrollable && it.isVisibleToUser }
