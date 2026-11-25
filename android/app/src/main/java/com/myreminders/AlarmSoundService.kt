@@ -33,7 +33,7 @@ class AlarmSoundService : Service() {
     override fun onReceive(context: Context, intent: Intent) {
       val id = intent.getStringExtra("id") ?: return
       val at = intent.getLongExtra("at", 0)
-      if (active[id] == at) active.remove(id)
+      if (intent.action == STOP_MEDICINE || active[id] == at) active.remove(id)
       if (active.isEmpty()) finish()
     }
   }
@@ -46,7 +46,8 @@ class AlarmSoundService : Service() {
       addAction(NotificationManager.ACTION_NOTIFICATION_CHANNEL_BLOCK_STATE_CHANGED)
     }
     androidx.core.content.ContextCompat.registerReceiver(this, settingsChanged, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
-    androidx.core.content.ContextCompat.registerReceiver(this, occurrenceStopped, IntentFilter(STOP_OCCURRENCE), androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+    val stopFilter = IntentFilter().apply { addAction(STOP_OCCURRENCE); addAction(STOP_MEDICINE) }
+    androidx.core.content.ContextCompat.registerReceiver(this, occurrenceStopped, stopFilter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
   }
 
   override fun onBind(intent: Intent?): IBinder? = null
@@ -136,6 +137,10 @@ class AlarmSoundService : Service() {
     private const val NOTIFICATION_ID = 119348
     private const val STOP = "com.myreminders.STOP_SOUND"
     private const val STOP_OCCURRENCE = "com.myreminders.STOP_OCCURRENCE"
+    private const val STOP_MEDICINE = "com.myreminders.STOP_MEDICINE"
+    fun stopMedicine(context: Context, id: String) {
+      context.sendBroadcast(Intent(STOP_MEDICINE).setPackage(context.packageName).putExtra("id", id))
+    }
     fun stopOccurrence(context: Context, id: String, at: Long) {
       context.sendBroadcast(Intent(STOP_OCCURRENCE).setPackage(context.packageName).putExtra("id", id).putExtra("at", at))
     }

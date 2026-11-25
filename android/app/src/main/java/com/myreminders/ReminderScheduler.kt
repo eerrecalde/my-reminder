@@ -29,6 +29,18 @@ object ReminderScheduler {
     AlarmSoundService.stopOccurrence(context, id, at)
   }
 
+  private fun dismissInactive(context: Context, repo: MedicineRepository, id: String) {
+    val manager = context.getSystemService(NotificationManager::class.java)
+    val activeIds = manager.activeNotifications.map { it.id }.toSet()
+    repo.occurrencesFor(id, includeCleared = true).forEach { occurrence ->
+      val notificationId = notificationId(id, occurrence.at)
+      if (notificationId in activeIds) manager.cancel(notificationId)
+    }
+    repo.snoozes().filter { it.medicineId == id }.forEach { cancelSnooze(context, id, it.at) }
+    repo.clearOutstanding(id)
+    AlarmSoundService.stopMedicine(context, id)
+  }
+
   private fun snoozeIntent(context: Context, item: MedicineRepository.Snooze, watchdog: Boolean = false): PendingIntent {
     val intent = Intent(context, SnoozeReceiver::class.java)
       .setData(Uri.parse("myreminders://${if (watchdog) "snooze-watchdog" else "snooze"}/${item.medicineId}/${item.at}/${item.token}"))
@@ -100,7 +112,7 @@ object ReminderScheduler {
       cursor = next
     }
     if (due.isNotEmpty()) repo.recordDueBatch(medicine.id, due)
-    repo.occurrences().filter { it.medicineId == medicine.id && it.outcome == null }.forEach { occurrence ->
+    repo.occurrencesFor(medicine.id, unconfirmedOnly = true).forEach { occurrence ->
       val next = DailySchedule.next(medicine, Instant.ofEpochMilli(maxOf(occurrence.at, medicine.changedAt)), zone)
       if (next != null && next <= now && repo.markMissed(medicine.id, occurrence.at)) {
         dismissOccurrence(context, medicine.id, occurrence.at)
@@ -220,8 +232,7 @@ object ReminderScheduler {
       medicines.filter { it.status != "active" }.forEach { medicine ->
         cancelFuture(context, repo, medicine.id)
         repo.retainUnconfirmed(medicine.id)
-        repo.occurrences(includeCleared = true).filter { it.medicineId == medicine.id }.forEach { dismissOccurrence(context, medicine.id, it.at) }
-        repo.snoozes().filter { it.medicineId == medicine.id }.forEach { cancelSnooze(context, medicine.id, it.at) }
+        dismissInactive(context, repo, medicine.id)
       }
       medicines.filter { it.status == "active" }.forEach { medicine ->
         if (invalidate) {
@@ -316,8 +327,7 @@ object ReminderScheduler {
         repo.setStatus(id, status)
         if (status != "active") {
           repo.retainUnconfirmed(id)
-          repo.occurrences(includeCleared = true).filter { it.medicineId == id }.forEach { dismissOccurrence(context, id, it.at) }
-          repo.snoozes().filter { it.medicineId == id }.forEach { cancelSnooze(context, id, it.at) }
+          dismissInactive(context, repo, id)
         }
         if (status == "active") schedule(context, requireNotNull(repo.all().find { it.id == id }))
         repo.transition(id)?.let { finishTransition(context, repo, it) }

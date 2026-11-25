@@ -115,6 +115,21 @@ also reconciles each active item's gap; these are code-inspection leads, not
 quantified causes. See [UI results](long-history-ui.md) for the separate
 observed memory failure.
 
+## Recovery optimization in progress, 25 November 2026
+
+On the same disposable API 36 ARM64 emulator and dataset, a fresh baseline
+run took 8,003 ms. Temporary phase timing measured 2,699 ms for inactive-item
+cleanup and 5,127 ms for active-item reconciliation (7,836 ms total). These
+phase observations are one instrumented sample, not a detailed profile.
+
+After batching recovered occurrences and reducing inactive cleanup, three
+fresh runs measured 3,479, 3,099 and 3,017 ms for direct recovery; full reads
+took 24, 23 and 23 ms and subsequent scheduling 17, 17 and 15 ms. Each began
+with 8,760 occurrences and ended with 9,852 occurrences and 12 active items
+with registered alarms. These samples meet the direct-call target but do not
+establish timely delivery while recovery is running. The receiver execution
+strategy and real process-interruption and Android-delivery checks remain open.
+
 A separate exploratory CPU sample attached Android `simpleperf` to the
 debuggable benchmark process immediately after it started, with `-e cpu-clock
 -g --duration 8`. It recorded 17,267 samples with none reported lost. Its

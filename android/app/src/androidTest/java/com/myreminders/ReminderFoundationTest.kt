@@ -841,6 +841,40 @@ class ReminderFoundationTest {
       }
     }
   }
+  @Test fun pausingOneOfTwoSoundingAlarmsLeavesTheOtherSounding() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val manager = context.getSystemService(NotificationManager::class.java)
+    val items = mutableListOf<Medicine>()
+    val at = System.currentTimeMillis() - 1_000
+    try {
+      for (type in listOf("medicine", "reminder")) {
+        val item = MedicineRepository(context).use { it.save("Sounding", "", listOf(LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))), at - 10_000, type, "alarm") }
+        items.add(item)
+        MedicineRepository(context).use { it.setAlarm(item.id, at, item.id) }
+        ReminderScheduler.deliver(context, item.id, at, item.id)
+      }
+      repeat(100) { if (manager.activeNotifications.none { it.id == 119348 }) Thread.sleep(50) }
+      assertTrue(manager.activeNotifications.any { it.id == 119348 })
+      ReminderScheduler.setStatus(context, items[0].id, "paused")
+      androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+      assertTrue("The other alarm must keep the shared session", manager.activeNotifications.any { it.id == 119348 })
+      assertTrue(manager.activeNotifications.any { it.id == ("${items[1].id}:$at").hashCode() })
+      ReminderScheduler.setStatus(context, items[1].id, "paused")
+      repeat(100) { if (manager.activeNotifications.any { it.id == 119348 }) Thread.sleep(50) }
+      assertFalse(manager.activeNotifications.any { it.id == 119348 })
+      MedicineRepository(context).use { repo -> items.forEach { assertNull(repo.outcome(it.id, at)) } }
+    } finally {
+      context.stopService(Intent(context, AlarmSoundService::class.java))
+      MedicineRepository(context).use { repo -> items.forEach { item ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        manager.cancel(("${item.id}:$at").hashCode())
+        for (table in listOf("alarms", "doses", "occurrence_tracking")) repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      } }
+    }
+  }
   @Test fun overlappingAlarmsShareSoundAndStopWithoutChangingOccurrences() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     assertTrue(ReminderScheduler.enabled(context))

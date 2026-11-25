@@ -125,6 +125,10 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
   fun occurrences(includeCleared: Boolean = false): List<Occurrence> =
     readOccurrences(if (includeCleared) "" else "WHERE cleared = 0")
 
+  fun occurrencesFor(medicineId: String, includeCleared: Boolean = false, unconfirmedOnly: Boolean = false): List<Occurrence> =
+    readOccurrences("WHERE medicine_id = ?" + (if (includeCleared) "" else " AND cleared = 0") +
+      (if (unconfirmedOnly) " AND outcome IS NULL" else ""), arrayOf(medicineId))
+
   fun occurrence(medicineId: String, at: Long, includeCleared: Boolean = false): Occurrence? =
     readOccurrences("WHERE id = ?" + if (includeCleared) "" else " AND cleared = 0",
       arrayOf("$medicineId:$at")).singleOrNull()
@@ -146,6 +150,10 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
 
   fun setOutstanding(id: String, at: Long, outstanding: Boolean) {
     update("UPDATE doses SET outstanding = ? WHERE id = ?", if (outstanding) 1 else 0, "$id:$at")
+  }
+
+  fun clearOutstanding(id: String) {
+    update("UPDATE doses SET outstanding = 0 WHERE medicine_id = ? AND outstanding != 0", id)
   }
 
   fun clearHistory() {
