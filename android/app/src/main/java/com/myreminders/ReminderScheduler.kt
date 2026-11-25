@@ -101,7 +101,7 @@ object ReminderScheduler {
   }
 
   private fun reconcileOccurrences(context: Context, repo: MedicineRepository, medicine: Medicine, now: Instant, zone: ZoneId) {
-    var cursor = Instant.ofEpochMilli(maxOf(repo.latestOccurrence(medicine.id) ?: medicine.createdAt, repo.trackingStart(medicine.id)))
+    var cursor = Instant.ofEpochMilli(maxOf(medicine.createdAt, repo.trackingStart(medicine.id)))
     val due = mutableListOf<Long>()
     while (true) {
       val next = DailySchedule.next(medicine, cursor, zone) ?: break
@@ -170,7 +170,7 @@ object ReminderScheduler {
             try {
               register(context, old)
               repo.markAlarmRegistered(medicine.id, old.token)
-            } catch (_: SecurityException) { repo.invalidateAlarm(medicine.id) }
+            } catch (_: SecurityException) { repo.retireAlarmForRecovery(medicine.id, System.currentTimeMillis(), Long.MIN_VALUE) }
           }
           return
         }
@@ -181,7 +181,7 @@ object ReminderScheduler {
       try {
         register(context, alarm)
         repo.markAlarmRegistered(medicine.id, alarm.token)
-      } catch (_: SecurityException) { repo.invalidateAlarm(medicine.id) }
+      } catch (_: SecurityException) { repo.retireAlarmForRecovery(medicine.id, System.currentTimeMillis(), Long.MIN_VALUE) }
     }
   }
 
@@ -468,7 +468,7 @@ object ReminderScheduler {
           val now = Instant.now()
           val following = DailySchedule.next(medicine, Instant.ofEpochMilli(at), ZoneId.systemDefault())
           if (following != null && !following.isAfter(now)) {
-            repo.invalidateAlarm(id)
+            repo.retireAlarmForRecovery(id, now.toEpochMilli(), Long.MIN_VALUE)
             DailySchedule.dueToday(medicine, now, ZoneId.systemDefault()).forEach { due ->
               repo.recordDue(id, due.toEpochMilli())
             }
@@ -478,7 +478,7 @@ object ReminderScheduler {
           try {
             register(context, current)
             repo.markAlarmRegistered(id, current.token)
-          } catch (_: SecurityException) { repo.invalidateAlarm(id) }
+          } catch (_: SecurityException) { repo.retireAlarmForRecovery(id, System.currentTimeMillis(), Long.MIN_VALUE) }
         } else {
           schedule(context, medicine)
         }

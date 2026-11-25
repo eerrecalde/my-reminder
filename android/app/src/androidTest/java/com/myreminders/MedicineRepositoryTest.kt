@@ -9,6 +9,74 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MedicineRepositoryTest {
+  @Test fun failedAlarmClaimKeepsReservedOccurrenceRecoverable() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "recovery-claim-rollback.db"
+    context.deleteDatabase(db)
+    try {
+      MedicineRepository(context, db).use { repo ->
+        val item = repo.save("Claim", "", listOf("09:00"), 1000, "reminder")
+        repo.setAlarm(item.id, 2000, "reserved")
+        repo.recordDueBatch(item.id, listOf(2000))
+        assertEquals(2000L, repo.trackingStart(item.id))
+        repo.writableDatabase.execSQL("CREATE TRIGGER reject_claim BEFORE INSERT ON doses BEGIN SELECT RAISE(IGNORE); END")
+        try {
+          repo.claimAlarm(item.id, 2000, "reserved")
+          fail("An ignored insert must abort the claim")
+        } catch (_: IllegalStateException) { }
+        assertEquals("reserved", repo.alarm(item.id)?.token)
+        assertNull(repo.occurrence(item.id, 2000, includeCleared = true))
+        repo.writableDatabase.execSQL("DROP TRIGGER reject_claim")
+        assertTrue(repo.claimAlarm(item.id, 2000, "reserved"))
+        assertNotNull(repo.occurrence(item.id, 2000, includeCleared = true))
+      }
+    } finally { context.deleteDatabase(db) }
+  }
+  @Test fun version17UpgradeRetainsHistoryAlarmAndRecoveryBoundary() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "recovery-cursor-upgrade.db"
+    context.deleteDatabase(db)
+    try {
+      val id = MedicineRepository(context, db).use { repo ->
+        val item = repo.save("Upgrade", "", listOf("09:00"), 1000, "reminder")
+        repo.recordDue(item.id, 2000)
+        repo.setOutcome(item.id, 2000, "completed")
+        repo.clearHistory()
+        repo.setAlarm(item.id, 3000, "future")
+        repo.markAlarmRegistered(item.id, "future")
+        repo.writableDatabase.version = 17
+        item.id
+      }
+      MedicineRepository(context, db).use { repo ->
+        assertEquals(1000L, repo.trackingStart(id))
+        assertEquals(MedicineRepository.Alarm(id, 3000, "future", true), repo.alarm(id))
+        val occurrence = requireNotNull(repo.occurrence(id, 2000, includeCleared = true))
+        assertEquals("completed", occurrence.outcome)
+        assertTrue(occurrence.cleared)
+      }
+    } finally { context.deleteDatabase(db) }
+  }
+  @Test fun failedRecoveryBatchDoesNotAdvanceCursor() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "recovery-cursor-rollback.db"
+    context.deleteDatabase(db)
+    try {
+      MedicineRepository(context, db).use { repo ->
+        val item = repo.save("Rollback", "", listOf("09:00"), 1000, "reminder")
+        repo.writableDatabase.execSQL("CREATE TRIGGER reject_batch BEFORE INSERT ON doses WHEN NEW.scheduled_at = 3000 BEGIN SELECT RAISE(IGNORE); END")
+        try {
+          repo.recordDueBatch(item.id, listOf(2000, 3000))
+          fail("The simulated batch failure should abort")
+        } catch (_: IllegalStateException) { }
+        assertEquals(1000L, repo.trackingStart(item.id))
+        assertTrue(repo.occurrences(true).isEmpty())
+        repo.writableDatabase.execSQL("DROP TRIGGER reject_batch")
+        repo.recordDueBatch(item.id, listOf(2000, 3000))
+        assertEquals(3000L, repo.trackingStart(item.id))
+        assertEquals(listOf(2000L, 3000L), repo.occurrences(true).map { it.at })
+      }
+    } finally { context.deleteDatabase(db) }
+  }
   @Test fun interruptedAlarmRetirementKeepsOverdueAlarmUntilOccurrenceIsStored() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val db = "recovery-retirement.db"

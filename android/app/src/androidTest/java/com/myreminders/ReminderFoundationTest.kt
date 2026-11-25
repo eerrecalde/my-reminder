@@ -453,6 +453,73 @@ class ReminderFoundationTest {
       }
     }
   }
+  @Test fun watchdogRetainsReservedOccurrenceAfterRecoveryCursorAdvances() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    ReminderScheduler.rebuild(context)
+    val zone = java.time.ZoneId.systemDefault()
+    val day = java.time.LocalDate.now(zone).minusDays(3)
+    val created = day.atStartOfDay(zone).toInstant().toEpochMilli()
+    val at = day.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+    val item = MedicineRepository(context).use { repo ->
+      repo.save("Reserved", "", listOf("09:00"), created, "reminder").also {
+        repo.setAlarm(it.id, at, "old-registered")
+        repo.markAlarmRegistered(it.id, "old-registered")
+      }
+    }
+    try {
+      ReminderScheduler.rebuild(context)
+      MedicineRepository(context).use { repo ->
+        assertTrue(repo.trackingStart(item.id) > at)
+        assertNull(repo.occurrence(item.id, at, includeCleared = true))
+      }
+      ReminderScheduler.recoverInterruptedDelivery(context, item.id, at, "old-registered")
+      ReminderScheduler.rebuild(context, recovery = true)
+      MedicineRepository(context).use { repo ->
+        assertNotNull(repo.occurrence(item.id, at, includeCleared = true))
+        assertTrue(repo.alarm(item.id)?.registered == true)
+      }
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        for (table in listOf("alarms", "doses", "occurrence_tracking")) repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
+  @Test fun recoveryFillsOlderGapWhenNewerOccurrenceAlreadyExists() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val zone = java.time.ZoneId.systemDefault()
+    val firstDay = java.time.LocalDate.now(zone).minusDays(5)
+    val created = firstDay.atStartOfDay(zone).toInstant().toEpochMilli()
+    val laterAt = firstDay.plusDays(4).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+    val item = MedicineRepository(context).use { repo ->
+      repo.save("Older gap", "", listOf("09:00"), created, "reminder").also {
+        repo.recordDue(it.id, laterAt)
+        repo.setOutcome(it.id, laterAt, "completed")
+        // Version 17 used the same schema but inferred progress from the latest row.
+        repo.writableDatabase.version = 17
+      }
+    }
+    try {
+      ReminderScheduler.rebuild(context, recovery = true)
+      val expected = (0L..5L).map { firstDay.plusDays(it).atTime(9, 0).atZone(zone).toInstant().toEpochMilli() }.filter { it <= System.currentTimeMillis() }
+      MedicineRepository(context).use { repo ->
+        assertEquals(expected, repo.occurrences(true).filter { it.medicineId == item.id }.map { it.at })
+        assertEquals("completed", repo.outcome(item.id, laterAt))
+        assertTrue(repo.alarm(item.id)?.registered == true)
+      }
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        for (table in listOf("alarms", "doses", "occurrence_tracking")) repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
   @Test fun recoveryAfterSimulatedPartialLongGapKeepsOutcomesAndIsRepeatable() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     assertTrue(ReminderScheduler.enabled(context))

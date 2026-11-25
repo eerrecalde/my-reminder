@@ -10,7 +10,7 @@ import java.util.UUID
 data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification", val status: String = "active", val changedAt: Long = 0, val startDate: String? = null, val endDate: String? = null, val scheduleKind: String = "daily", val weekdays: List<Int> = emptyList(), val intervalHours: Int? = null, val intervalAnchor: Long? = null, val monthlyDay: Int? = null, val shortMonthPolicy: String = "last")
 
 /** Shared by the React Native bridge and Android receivers. */
-class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 17) {
+class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 18) {
   override fun onCreate(db: SQLiteDatabase) {
     db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification', status TEXT NOT NULL DEFAULT 'active', changed_at INTEGER NOT NULL DEFAULT 0, start_date TEXT, end_date TEXT, schedule_kind TEXT NOT NULL DEFAULT 'daily', weekdays TEXT NOT NULL DEFAULT '[]', interval_hours INTEGER, interval_anchor INTEGER, monthly_day INTEGER, short_month_policy TEXT NOT NULL DEFAULT 'last')")
     createSoundChoices(db)
@@ -412,14 +412,22 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
   fun recordDue(medicineId: String, at: Long) {
     if (alarm(medicineId)?.at == at) return
     val values = occurrenceValues(medicineId, at).apply { put("alerted", 1) }
-    writableDatabase.insertWithOnConflict("doses", null, values, SQLiteDatabase.CONFLICT_IGNORE)
+    insertOccurrence(writableDatabase, values, medicineId, at)
+  }
+
+  private fun insertOccurrence(db: SQLiteDatabase, values: ContentValues, medicineId: String, at: Long) {
+    if (db.insertWithOnConflict("doses", null, values, SQLiteDatabase.CONFLICT_IGNORE) == -1L) {
+      check(db.rawQuery("SELECT 1 FROM doses WHERE id = ?", arrayOf("$medicineId:$at")).use { it.moveToFirst() }) { "Could not retain due occurrence" }
+    }
   }
 
   fun recordDueBatch(medicineId: String, times: List<Long>) {
+    if (times.isEmpty()) return
     val db = writableDatabase
     db.beginTransaction()
     try {
       times.forEach { recordDue(medicineId, it) }
+      db.execSQL("UPDATE occurrence_tracking SET starts_after = MAX(starts_after, ?) WHERE medicine_id = ?", arrayOf<Any>(times.max(), medicineId))
       db.setTransactionSuccessful()
     } finally { db.endTransaction() }
   }
@@ -429,7 +437,7 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     db.beginTransaction()
     try {
       val initial = occurrenceValues(medicineId, at)
-      db.insertWithOnConflict("doses", null, initial, SQLiteDatabase.CONFLICT_IGNORE)
+      insertOccurrence(db, initial, medicineId, at)
       val values = ContentValues().apply { put("alerted", 1) }
       val changed = db.update("doses", values, "id = ? AND alerted = 0", arrayOf("$medicineId:$at")) == 1
       db.setTransactionSuccessful()
