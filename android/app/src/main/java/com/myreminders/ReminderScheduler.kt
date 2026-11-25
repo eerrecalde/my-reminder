@@ -246,8 +246,7 @@ object ReminderScheduler {
             alarmManager(context).cancel(pending(context, it))
             alarmManager(context).cancel(watchdog(context, it))
           }
-          repo.invalidateAlarm(medicine.id)
-          if (oldAlarm != null && oldAlarm.at <= now.toEpochMilli() && oldAlarm.at > medicine.createdAt) repo.recordDue(medicine.id, oldAlarm.at)
+          repo.retireAlarmForRecovery(medicine.id, now.toEpochMilli(), medicine.createdAt)
         }
         reconcileOccurrences(context, repo, medicine, now, zone)
         if (available) schedule(context, medicine, now)

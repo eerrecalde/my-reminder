@@ -9,6 +9,28 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MedicineRepositoryTest {
+  @Test fun interruptedAlarmRetirementKeepsOverdueAlarmUntilOccurrenceIsStored() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = "recovery-retirement.db"
+    context.deleteDatabase(db)
+    try {
+      MedicineRepository(context, db).use { repo ->
+        val item = repo.save("Old alarm", "", listOf("09:00"), 1000, "reminder")
+        repo.setAlarm(item.id, 2000, "old")
+        repo.writableDatabase.execSQL("CREATE TRIGGER reject_due BEFORE INSERT ON doses BEGIN SELECT RAISE(ABORT, 'simulated interruption'); END")
+        try {
+          repo.retireAlarmForRecovery(item.id, 3000, item.createdAt)
+          fail("The simulated insertion failure must abort recovery")
+        } catch (_: android.database.sqlite.SQLiteException) { }
+        assertEquals("old", repo.alarm(item.id)?.token)
+        assertNull(repo.occurrence(item.id, 2000, includeCleared = true))
+        repo.writableDatabase.execSQL("DROP TRIGGER reject_due")
+        repo.retireAlarmForRecovery(item.id, 3000, item.createdAt)
+        assertNull(repo.alarm(item.id))
+        assertNotNull(repo.occurrence(item.id, 2000, includeCleared = true))
+      }
+    } finally { context.deleteDatabase(db) }
+  }
   @Test fun recentUpgradesRetainAlarmAndOccurrenceDetails() {
     for (version in listOf(12, 13, 14)) {
     val context = ApplicationProvider.getApplicationContext<Context>()

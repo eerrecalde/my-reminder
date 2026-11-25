@@ -319,6 +319,20 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(medicineId))
   }
 
+  fun retireAlarmForRecovery(medicineId: String, now: Long, createdAt: Long) {
+    val db = writableDatabase
+    db.beginTransaction()
+    try {
+      val old = alarm(medicineId)
+      invalidateAlarm(medicineId)
+      if (old != null && old.at <= now && old.at > createdAt) {
+        recordDue(medicineId, old.at)
+        check(occurrence(medicineId, old.at, includeCleared = true) != null) { "Could not retain due occurrence" }
+      }
+      db.setTransactionSuccessful()
+    } finally { db.endTransaction() }
+  }
+
   fun claimAlarm(medicineId: String, at: Long, token: String): Boolean {
     val db = writableDatabase
     db.beginTransaction()
