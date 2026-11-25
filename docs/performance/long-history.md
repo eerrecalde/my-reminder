@@ -65,8 +65,31 @@ family's use. The date and timezone are recorded for comparisons.
    sections before deciding which queries or operations cause any measured
    delay.
 
-No acceptance targets have been agreed. Agree them with Emiliano using the
-measurements and the expected family usage before evaluating improvements.
+## Agreed targets and comparison
+
+On 25 November 2026 Emiliano agreed these targets for the documented dataset
+on this disposable emulator:
+
+- Direct recovery within **5,000 ms**.
+- The first Reminders row within **3,000 ms** from the Activity launch
+  request, and the first History row within **3,000 ms** from selecting
+  History, using the UI benchmark boundaries described in
+  [long-history-ui.md](long-history-ui.md). Neither screen may run out of
+  memory.
+
+For each comparison use at least three freshly seeded runs with the same
+date, timezone, emulator configuration and build variant, and record every
+result. Each run should meet the relevant limit; a crash, timeout or missing
+row is a failure, not an omitted sample. Preserve the counts and all required
+data and schedules; timing alone is insufficient. Compare direct recovery,
+the separate read and scheduling measurements, and UI values with the baseline
+below. Do not subtract the separate measurements from recovery or treat them
+as Android-delivered timings. Repeat the same UI method after changes; if its
+accessibility polling fails, report that failure and use an additional less
+intrusive check to help distinguish instrumentation overhead. Document changes
+in method and device conditions instead of presenting incomparable results as
+improvements. These emulator targets do not establish physical-device
+performance; the planned device checkpoint remains separate.
 
 ## Repeated baseline, 25 November 2026
 
@@ -101,8 +124,7 @@ also appeared. The recording includes startup and seeding as well as recovery,
 and CPU samples do not measure time blocked on I/O. It therefore does not
 attribute recovery wall time to any particular operation. Repeat with phase
 boundaries or tracing before choosing an optimization. The profiled benchmark
-passed; the disposable installation was cleared afterwards. Agreed targets
-remain open.
+passed; the disposable installation was cleared afterwards.
 
 ## Initial observation
 

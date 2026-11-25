@@ -96,5 +96,18 @@ Fabric mounting. History currently constructs rows within a `ScrollView`, a
 code-inspection lead rather than a measured allocation breakdown.
 
 The two valid Reminders timings show substantial variation; they are not a
-cold-start measurement or a product target. Obtain a History measurement with
-a less intrusive method and profile the work before attributing a root cause.
+cold-start measurement. The subsequently agreed targets are in the
+[comparison procedure](long-history.md#agreed-targets-and-comparison).
+
+## Check without accessibility polling
+
+On 25 November 2026 the same disposable emulator and dataset were reseeded,
+then the app was opened outside the instrumentation test. After a tap on the
+History tab during loading, a screenshot still showed Today. The process then
+crashed with an out-of-memory error in React Native Fabric view preallocation;
+no accessibility-tree polling was used in this check. A later tap landed on
+the launcher after the app had died. History selection was not confirmed, so
+this is evidence of a memory failure in the loaded app, not a History timing
+or proof that the first tap selected History. The installation was cleared
+afterwards. A successful History timing remains unavailable until the failure
+is addressed; investigate its allocations as part of ticket 06.

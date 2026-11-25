@@ -1,16 +1,19 @@
 # 04: Measure long-history recovery and establish targets
 
 Status: ready-for-agent
+Completion: done
 
 **What to build:** Give the team a repeatable, evidence-based understanding of how a long-lived installation performs.
 
 **Blocked by:** None (can start immediately).
 
 - [x] Create a documented representative disposable-emulator dataset with long history, many active and inactive reminders, paused and deleted items, and a long gap.
-- [ ] Record dataset sizes and baseline timings for recovery, scheduling and app state/history loading; identify observed bottlenecks.
-- [ ] Establish acceptable targets with Emiliano from the measurements and product needs, and document a reproducible comparison procedure.
+- [x] Record dataset sizes and baseline timings for recovery, scheduling and app state/history loading; identify observed bottlenecks.
+- [x] Establish acceptable targets with Emiliano from the measurements and product needs, and document a reproducible comparison procedure.
 
 ## Comments
+
+- 2026-11-25 — Emiliano agreed targets of 5 seconds for direct recovery and 3 seconds for each screen's first row, with no out-of-memory failure, evaluated over repeated runs on the documented emulator. The [comparison procedure](../../../docs/performance/long-history.md#agreed-targets-and-comparison) defines the measurement boundaries. A check without accessibility polling also crashed in Fabric view creation; History selection was not confirmed, so no History timing was obtained. Tickets 05 and 06 address the observed failures and further profiling.
 
 - 2026-11-25 — Three freshly seeded runs recorded direct recovery at 8,184, 7,794 and 7,675 ms; subsequent full reads and scheduling were much shorter. Two unlocked UI runs showed Reminders at 6,982 and 13,139 ms and failed with out-of-memory errors while measuring History. The accessibility measurement may contribute to memory pressure. See [baseline](../../../docs/performance/long-history.md#repeated-baseline-25-november-2026) and [UI results](../../../docs/performance/long-history-ui.md#repeated-observations-25-november-2026). Profiling, a less intrusive History measurement and targets agreed with Emiliano remain outstanding.
 
