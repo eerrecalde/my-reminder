@@ -393,6 +393,15 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     writableDatabase.insertWithOnConflict("doses", null, values, SQLiteDatabase.CONFLICT_IGNORE)
   }
 
+  fun recordDueBatch(medicineId: String, times: List<Long>) {
+    val db = writableDatabase
+    db.beginTransaction()
+    try {
+      times.forEach { recordDue(medicineId, it) }
+      db.setTransactionSuccessful()
+    } finally { db.endTransaction() }
+  }
+
   fun recordDose(medicineId: String, at: Long): Boolean {
     val db = writableDatabase
     db.beginTransaction()

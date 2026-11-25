@@ -423,6 +423,43 @@ class ReminderFoundationTest {
       }
     }
   }
+  @Test fun recoveryOfLongGapKeepsRecordedOutcomesAndIsRepeatable() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val zone = java.time.ZoneId.systemDefault()
+    val firstDay = java.time.LocalDate.now(zone).minusDays(150)
+    val created = firstDay.atStartOfDay(zone).toInstant().toEpochMilli()
+    val firstAt = firstDay.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+    val item = MedicineRepository(context).use { repo ->
+      repo.save("Long gap", "", listOf("09:00"), created, "reminder").also {
+        repo.recordDue(it.id, firstAt)
+        repo.setOutcome(it.id, firstAt, "completed")
+      }
+    }
+    try {
+      ReminderScheduler.rebuild(context, recovery = true)
+      val first = MedicineRepository(context).use { repo ->
+        assertEquals("completed", repo.outcome(item.id, firstAt))
+        assertTrue(repo.alarm(item.id)?.registered == true)
+        repo.occurrences(true).filter { it.medicineId == item.id }
+      }
+      assertTrue(first.size >= 150)
+      ReminderScheduler.rebuild(context, recovery = true)
+      MedicineRepository(context).use { repo ->
+        assertEquals(first, repo.occurrences(true).filter { it.medicineId == item.id })
+        assertTrue(repo.alarm(item.id)?.registered == true)
+      }
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        for (table in listOf("alarms", "doses", "occurrence_tracking")) {
+          repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        }
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
   @Test fun notificationActionsDismissWithoutConfirmationAndKeepFutureScheduleForBothTypes() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val manager = context.getSystemService(NotificationManager::class.java)

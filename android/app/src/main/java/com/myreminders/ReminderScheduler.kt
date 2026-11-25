@@ -88,12 +88,18 @@ object ReminderScheduler {
 
   private fun reconcileOccurrences(context: Context, repo: MedicineRepository, medicine: Medicine, now: Instant, zone: ZoneId) {
     var cursor = Instant.ofEpochMilli(maxOf(repo.latestOccurrence(medicine.id) ?: medicine.createdAt, repo.trackingStart(medicine.id)))
+    val due = mutableListOf<Long>()
     while (true) {
       val next = DailySchedule.next(medicine, cursor, zone) ?: break
       if (next > now) break
-      repo.recordDue(medicine.id, next.toEpochMilli())
+      due.add(next.toEpochMilli())
+      if (due.size == 128) {
+        repo.recordDueBatch(medicine.id, due)
+        due.clear()
+      }
       cursor = next
     }
+    if (due.isNotEmpty()) repo.recordDueBatch(medicine.id, due)
     repo.occurrences().filter { it.medicineId == medicine.id && it.outcome == null }.forEach { occurrence ->
       val next = DailySchedule.next(medicine, Instant.ofEpochMilli(maxOf(occurrence.at, medicine.changedAt)), zone)
       if (next != null && next <= now && repo.markMissed(medicine.id, occurrence.at)) {
