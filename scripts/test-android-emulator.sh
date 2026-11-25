@@ -26,7 +26,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 "$adb" -s "$ANDROID_SERIAL" shell locksettings set-disabled false
 result="$(mktemp)"
 trap 'rm -f "$result"' EXIT
-"$adb" -s "$ANDROID_SERIAL" shell am instrument -w "${instrument_args[@]}" com.myreminders.test/androidx.test.runner.AndroidJUnitRunner | tee "$result"
+"$adb" -s "$ANDROID_SERIAL" shell am instrument -w ${instrument_args[@]+"${instrument_args[@]}"} com.myreminders.test/androidx.test.runner.AndroidJUnitRunner | tee "$result"
 if ! grep -Eq '^OK \([1-9][0-9]* tests?\)' "$result"; then
   echo 'Android instrumentation tests failed or did not finish.' >&2
   exit 1
