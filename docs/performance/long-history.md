@@ -140,6 +140,16 @@ actual Android schedule and snooze delivery tests; those were not long-history
 or simultaneous-recovery delivery tests. The partial-batch test simulates a
 committed partial recovery; it does not kill or restart the process.
 
+Follow-up diagnostic runs reproduced the missing notification once in three
+fresh focused runs. Temporary logging showed the failure arrived while
+`recovery_pending` was true and took the recovery path; the two passing runs
+arrived with recovery clear and claimed the injected alarm. The test inserted
+the alarm directly, bypassing the app's access reconciliation. As a control,
+three runs explicitly set recovery pending, reconciled it before inserting
+the alarm, and passed all enabled, blocked and restored channel checks. The
+test now models that setup; these observations do not establish an ordinary
+user-visible delivery failure or prove recovery safe under concurrency.
+
 A separate exploratory CPU sample attached Android `simpleperf` to the
 debuggable benchmark process immediately after it started, with `-e cpu-clock
 -g --duration 8`. It recorded 17,267 samples with none reported lost. Its
