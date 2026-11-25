@@ -177,9 +177,14 @@ test.each([
   },
 );
 
-test.each(['reminder', 'medicine'])(
-  'allows saving a %s while a selected channel is blocked',
-  async type => {
+test.each([
+  ['reminder', 'notification'],
+  ['medicine', 'notification'],
+  ['reminder', 'alarm'],
+  ['medicine', 'alarm'],
+])(
+  'allows saving a %s in %s mode while a channel is blocked',
+  async (type, mode) => {
     const subscription = jest
       .spyOn(AppState, 'addEventListener')
       .mockReturnValue({ remove: jest.fn() });
@@ -196,9 +201,14 @@ test.each(['reminder', 'medicine'])(
             id: 'blocked',
             name: 'Existing',
             type: 'reminder',
-            mode: 'notification',
+            mode,
             times: ['09:00'],
-            blockedNotificationChannel: 'blocked-sound',
+            blockedNotificationChannel:
+              mode === 'notification' ? 'blocked-sound' : null,
+            alarmChannelIssue:
+              mode === 'alarm'
+                ? { channel: 'alarm_alerts', severity: 'blocked' }
+                : null,
           },
         ],
         todayDoses: [],
@@ -226,7 +236,7 @@ test.each(['reminder', 'medicine'])(
         name: 'New',
         instructions: '',
         times: ['09:00'],
-        mode: 'notification',
+        mode,
         startDate: '2026-01-01',
         endDate: null,
         scheduleKind: 'daily',
@@ -242,7 +252,7 @@ test.each(['reminder', 'medicine'])(
       'New',
       '',
       ['09:00'],
-      'notification',
+      mode,
       '2026-01-01',
       null,
       'daily',
@@ -260,11 +270,51 @@ test.each(['reminder', 'medicine'])(
 );
 
 test.each([
-  ['en', 'Review reminder access'],
-  ['es', 'Revisar acceso a recordatorios'],
+  [
+    'en',
+    'Review reminder access',
+    'blocked',
+    'alarm_alerts',
+    'The notification and Alarm screen are blocked. Alarm sound may still play.',
+  ],
+  [
+    'es',
+    'Revisar acceso a recordatorios',
+    'blocked',
+    'alarm_alerts',
+    'La notificación y la pantalla de alarma están bloqueadas. El sonido de alarma aún podría sonar.',
+  ],
+  [
+    'en',
+    'Review reminder access',
+    'reduced',
+    'alarm_alerts',
+    'The Alarm screen may not appear with these notification settings.',
+  ],
+  [
+    'es',
+    'Revisar acceso a recordatorios',
+    'reduced',
+    'alarm_alerts',
+    'La pantalla de alarma podría no aparecer con esta configuración de notificaciones.',
+  ],
+  [
+    'en',
+    'Review reminder access',
+    'reminderReduced',
+    'medicine_reminders',
+    'The Alarm screen may not appear and Alarm sound may be silenced by these notification settings.',
+  ],
+  [
+    'es',
+    'Revisar acceso a recordatorios',
+    'reminderReduced',
+    'medicine_reminders',
+    'La pantalla de alarma podría no aparecer y el sonido de alarma podría silenciarse con esta configuración de notificaciones.',
+  ],
 ])(
-  'shows affected Alarms and refreshes after settings in %s',
-  async (language, accessLabel) => {
+  'shows affected Alarms and refreshes after settings in %s (%s)',
+  async (language, accessLabel, severity, channel, message) => {
     let resume!: (state: 'active') => void;
     const subscription = jest
       .spyOn(AppState, 'addEventListener')
@@ -278,7 +328,7 @@ test.each([
       type,
       mode: 'alarm',
       times: ['09:00'],
-      alarmChannelIssue: { channel: 'alarm_alerts', severity: 'blocked' },
+      alarmChannelIssue: { channel, severity },
     }));
     const base = {
       enabled: true,
@@ -325,15 +375,19 @@ test.each([
       expect(
         view.root.findByProps({ testID: `alarm-channel-${item.id}` }),
       ).toBeTruthy();
+    expect(
+      view.root
+        .findByProps({ testID: 'alarm-channel-reminder' })
+        .findAllByType(Text)
+        .some(node => node.props.children === message),
+    ).toBe(true);
     await ReactTestRenderer.act(() =>
       view.root
         .findByProps({ testID: 'alarm-channel-reminder' })
         .findByType(PillAction)
         .props.onPress(),
     );
-    expect(openNotificationChannelSettings).toHaveBeenCalledWith(
-      'alarm_alerts',
-    );
+    expect(openNotificationChannelSettings).toHaveBeenCalledWith(channel);
     await ReactTestRenderer.act(async () => {
       resume('active');
     });

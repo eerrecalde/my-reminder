@@ -63,7 +63,8 @@ class AlarmChannelIntegrationTest {
         .putExtra(Settings.EXTRA_CHANNEL_ID, channel)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
       await("selected Android channel settings") {
-        find { it.packageName?.toString() == "com.android.settings" && it.viewIdResourceName == "android:id/switch_widget" } != null
+        find { it.packageName?.toString() == "com.android.settings" && it.viewIdResourceName == "android:id/switch_widget" } != null &&
+          find { it.packageName?.toString() == "com.android.settings" && it.contentDescription?.toString() == manager.getNotificationChannel(channel).name.toString() } != null
       }
     }
     fun setChannelEnabled(enabled: Boolean) {
