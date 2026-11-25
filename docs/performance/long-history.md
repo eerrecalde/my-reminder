@@ -89,8 +89,20 @@ restart timings. The read and scheduling figures are separate subsequent
 operations and cannot be subtracted from recovery to attribute its cost.
 Recovery repeatedly reads all occurrences when processing inactive items and
 also reconciles each active item's gap; these are code-inspection leads, not
-profiled or quantified causes. See [UI results](long-history-ui.md) for the
-separate observed memory failure. Profiling and agreed targets remain open.
+quantified causes. See [UI results](long-history-ui.md) for the separate
+observed memory failure.
+
+A separate exploratory CPU sample attached Android `simpleperf` to the
+debuggable benchmark process immediately after it started, with `-e cpu-clock
+-g --duration 8`. It recorded 17,267 samples with none reported lost. Its
+largest individual native symbol was `fdatasync` (4.67% of sampled CPU), and
+SQLite execution and parsing, Android runtime and garbage-collection symbols
+also appeared. The recording includes startup and seeding as well as recovery,
+and CPU samples do not measure time blocked on I/O. It therefore does not
+attribute recovery wall time to any particular operation. Repeat with phase
+boundaries or tracing before choosing an optimization. The profiled benchmark
+passed; the disposable installation was cleared afterwards. Agreed targets
+remain open.
 
 ## Initial observation
 
