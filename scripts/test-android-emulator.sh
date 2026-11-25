@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if (( $# > 1 )) || { (( $# == 1 )) && [[ ! "$1" =~ ^com\.myreminders\.[A-Za-z_][A-Za-z0-9_]*(#[A-Za-z_][A-Za-z0-9_]*)?$ ]]; }; then
+  echo 'Usage: test-android-emulator.sh [com.myreminders.TestClass[#testMethod]]' >&2
+  exit 2
+fi
+instrument_args=()
+if (( $# == 1 )); then
+  instrument_args=(-e class "$1")
+fi
+
 : "${ANDROID_HOME:?Set ANDROID_HOME to your Android SDK directory}"
 : "${ANDROID_SERIAL:?Set ANDROID_SERIAL to the disposable emulator serial}"
 [[ "$ANDROID_SERIAL" =~ ^emulator-[0-9]+$ ]] || { echo 'Select an emulator serial, never a physical device.' >&2; exit 1; }
@@ -17,8 +26,8 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 "$adb" -s "$ANDROID_SERIAL" shell locksettings set-disabled false
 result="$(mktemp)"
 trap 'rm -f "$result"' EXIT
-"$adb" -s "$ANDROID_SERIAL" shell am instrument -w com.myreminders.test/androidx.test.runner.AndroidJUnitRunner | tee "$result"
-if ! grep -Eq '^OK \([0-9]+ tests?\)' "$result"; then
+"$adb" -s "$ANDROID_SERIAL" shell am instrument -w ${instrument_args[@]+"${instrument_args[@]}"} com.myreminders.test/androidx.test.runner.AndroidJUnitRunner | tee "$result"
+if ! grep -Eq '^OK \([1-9][0-9]* tests?\)' "$result"; then
   echo 'Android instrumentation tests failed or did not finish.' >&2
   exit 1
 fi
