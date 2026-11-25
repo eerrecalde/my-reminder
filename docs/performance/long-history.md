@@ -130,6 +130,16 @@ with registered alarms. These samples meet the direct-call target but do not
 establish timely delivery while recovery is running. The receiver execution
 strategy and real process-interruption and Android-delivery checks remain open.
 
+The full Android 16 instrumentation run on the partial feature branch ran 67
+tests with one failure: `AlarmChannelDeliveryTest` recorded the enabled alarm
+occurrence without its expected notification. A subsequent focused feature
+run passed; the same focused test then failed with the same assertion on an
+independent checkout of baseline `a76b0dd`. This reproduces the failure without
+the optimization but does not establish its cause. The full run did pass its
+actual Android schedule and snooze delivery tests; those were not long-history
+or simultaneous-recovery delivery tests. The partial-batch test simulates a
+committed partial recovery; it does not kill or restart the process.
+
 A separate exploratory CPU sample attached Android `simpleperf` to the
 debuggable benchmark process immediately after it started, with `-e cpu-clock
 -g --duration 8`. It recorded 17,267 samples with none reported lost. Its
