@@ -3,12 +3,12 @@ import { SoundChoice } from './src/SoundChoice';
 import { LanguageSelector } from './src/LanguageSelector';
 import { MainNavigation } from './src/MainNavigation';
 import { useHistory } from './src/useHistory';
+import { HistoryScreen } from './src/HistoryScreen';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppState,
   Alert,
   Image,
-  FlatList,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -75,7 +75,7 @@ export default function App() {
     } catch {
       if (generation === refreshGeneration.current) setError('load');
     }
-  }, []);
+  }, [historyRevision]);
   useEffect(() => {
     refresh();
     const timer = setInterval(() => refresh(), 30000);
@@ -448,113 +448,22 @@ export default function App() {
         ) : (
           <>
             {screen === 'history' ? (
-              <FlatList
-                contentContainerStyle={styles.content}
-                data={history}
-                onEndReached={() => { if (historyHasMore && !historyLoading && !historyError) loadHistory(false); }}
-                onEndReachedThreshold={0.5}
-                keyExtractor={item => `${item.medicineId}:${item.scheduledAt}`}
-                ListHeaderComponent={
-                  <>
-                    <Text accessibilityRole="header" style={styles.title}>
-                      {t.history}
-                    </Text>
-                    {undo && <PillAction title={t.undo} onPress={undoChange} />}
-                    {(!state || (historyLoading && history.length === 0)) && <Text style={styles.text}>{t.loading}</Text>}
-                    {!state && !!error && (
-                      <Text accessibilityRole="alert" style={styles.error}>
-                        {error === 'load' ? t.loadError : error}
-                      </Text>
-                    )}
-                    {historyError === 'first' && <>
-                      <Text accessibilityRole="alert" style={styles.error}>{t.loadError}</Text>
-                      <PillAction secondary title={t.retry} onPress={() => loadHistory(true)} />
-                    </>}
-                    {state && !historyLoading && !historyError && history.length === 0 && (
-                      <Text style={styles.text}>{t.noHistory}</Text>
-                    )}
-                  </>
-                }
-                renderItem={({ item: occurrence, index }) => {
-                  const formatDate = (at: number) =>
-                    new Date(at).toLocaleDateString(
-                      translations[language].locale,
-                      { dateStyle: 'full' },
-                    );
-                  const date = formatDate(occurrence.scheduledAt);
-                  const previousDate =
-                    index > 0 ? formatDate(history[index - 1].scheduledAt) : null;
-                  const medicine = state?.medicines.find(
-                    item => item.id === occurrence.medicineId,
-                  );
-                  const details = medicine ?? {
-                    id: occurrence.medicineId,
-                    name: occurrence.name ?? '',
-                    instructions: occurrence.instructions ?? '',
-                    type: occurrence.type ?? 'reminder',
-                    times: [],
-                    mode: 'notification' as const,
-                  };
-                  return (
-                    <View>
-                      {date !== previousDate && (
-                        <Text
-                          accessibilityRole="header"
-                          style={styles.sectionTitle}
-                        >
-                          {date}
-                        </Text>
-                      )}
-                      {occurrenceView(occurrence, details, true)}
-                    </View>
-                  );
-                }}
-                ListFooterComponent={
-                  state ? (
-                    <>
-                      {historyError === 'more' && <>
-                        <Text accessibilityRole="alert" style={styles.error}>{t.loadError}</Text>
-                        <PillAction secondary title={t.retry} onPress={() => loadHistory(false)} />
-                      </>}
-                      <PillAction
-                        secondary
-                        title={t.clearHistory}
-                        onPress={() =>
-                          Alert.alert(t.clearHistory, t.clearQuestion, [
-                            { text: t.cancel, style: 'cancel' },
-                            {
-                              text: t.clear,
-                              style: 'destructive',
-                              onPress: async () => {
-                                try {
-                                  await reminderRepository.clearHistory();
-                                  await loadHistory(true);
-                                  setUndo(undefined);
-                                  await refresh();
-                                } catch {
-                                  setError(t.actionError);
-                                }
-                              },
-                            },
-                          ])
-                        }
-                      />
-                      <PillAction
-                        secondary
-                        title={t.cancel}
-                        onPress={() => {
-                          setUndo(undefined);
-                          setScreen('today');
-                        }}
-                      />
-                      {!!error && (
-                        <Text accessibilityRole="alert" style={styles.error}>
-                          {error === 'load' ? t.loadError : error}
-                        </Text>
-                      )}
-                    </>
-                  ) : undefined
-                }
+              <HistoryScreen
+                history={history}
+                historyLoading={historyLoading}
+                historyHasMore={historyHasMore}
+                historyError={historyError}
+                state={state}
+                error={error}
+                language={language}
+                undo={!!undo}
+                undoChange={undoChange}
+                loadHistory={loadHistory}
+                refresh={refresh}
+                setUndo={setUndo}
+                setError={setError}
+                onCancel={() => { setUndo(undefined); setScreen('today'); }}
+                occurrenceView={occurrenceView}
               />
             ) : (
             <ScrollView contentContainerStyle={styles.content}>
