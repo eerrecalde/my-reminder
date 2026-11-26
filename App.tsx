@@ -2,6 +2,7 @@ import { AppIcon } from './src/AppIcon';
 import { SoundChoice } from './src/SoundChoice';
 import { LanguageSelector } from './src/LanguageSelector';
 import { MainNavigation } from './src/MainNavigation';
+import { useHistory } from './src/useHistory';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppState,
@@ -62,7 +63,7 @@ export default function App() {
     revision: number;
     previousCleared: boolean;
   }>();
-  const historyRevision = useRef<number | undefined>(undefined);
+  const { history, historyLoading, historyHasMore, historyError, historyRevision, loadHistory, updateHistoryOccurrence } = useHistory(screen === 'history', state?.historyRevision);
   const refreshGeneration = useRef(0);
   const refresh = useCallback(async (localRevision?: number) => {
     const generation = ++refreshGeneration.current;
@@ -86,84 +87,6 @@ export default function App() {
       listener.remove();
     };
   }, [refresh]);
-  const [history, setHistory] = useState<Occurrence[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyHasMore, setHistoryHasMore] = useState(true);
-  const [historyError, setHistoryError] = useState<'first' | 'more' | null>(null);
-  const historyRef = useRef<Occurrence[]>([]);
-  const historyGeneration = useRef(0);
-  const historyInFlight = useRef(false);
-  const historyResetInFlight = useRef(false);
-  const loadHistory = useCallback(async (reset: boolean, minimum = 50) => {
-    if (!reset && historyInFlight.current) return;
-    const generation = reset ? ++historyGeneration.current : historyGeneration.current;
-    if (reset && minimum === 50) {
-      historyRef.current = [];
-      setHistory([]);
-    }
-    historyInFlight.current = true;
-    historyResetInFlight.current = reset;
-    setHistoryLoading(true);
-    setHistoryError(null);
-    try {
-      let rows = reset ? [] : historyRef.current;
-      let page: Occurrence[];
-      do {
-        const last = rows[rows.length - 1];
-        page = await reminderRepository.historyPage(last?.scheduledAt ?? null, last?.medicineId ?? null);
-        rows = [...rows, ...page];
-      } while (reset && rows.length < minimum && page.length === 50);
-      if (generation !== historyGeneration.current) return;
-      if (!reset) {
-        const keys = new Set(historyRef.current.map(row => `${row.medicineId}:${row.scheduledAt}`));
-        rows = [...historyRef.current, ...page.filter(row => !keys.has(`${row.medicineId}:${row.scheduledAt}`))];
-      }
-      historyRef.current = rows;
-      setHistory(rows);
-      setHistoryHasMore(page.length === 50);
-    } catch {
-      if (generation === historyGeneration.current) setHistoryError(reset ? 'first' : 'more');
-    } finally {
-      if (generation === historyGeneration.current) {
-        historyInFlight.current = false;
-        historyResetInFlight.current = false;
-        setHistoryLoading(false);
-      }
-    }
-  }, []);
-  useEffect(() => {
-    const generation = historyGeneration;
-    const inFlight = historyInFlight;
-    if (screen === 'history') {
-      historyRevision.current = undefined;
-      loadHistory(true);
-    }
-    return () => { generation.current++; inFlight.current = false; };
-  }, [screen, loadHistory]);
-  useEffect(() => {
-    if (screen !== 'history' || state?.historyRevision == null) return;
-    if (historyRevision.current == null) {
-      historyRevision.current = state.historyRevision;
-    } else if (historyRevision.current !== state.historyRevision) {
-      historyRevision.current = state.historyRevision;
-      loadHistory(true);
-    }
-  }, [screen, state?.historyRevision, loadHistory]);
-  const updateHistoryOccurrence = (occurrence: Occurrence, outcome: Outcome | null, cleared = false) => {
-    if (historyInFlight.current && historyResetInFlight.current) {
-      historyGeneration.current++;
-      historyInFlight.current = false;
-      loadHistory(true);
-      return;
-    }
-    const rows = historyRef.current.filter(row => row.medicineId !== occurrence.medicineId || row.scheduledAt !== occurrence.scheduledAt);
-    if (outcome != null && !cleared) {
-      rows.push({ ...occurrence, outcome });
-      rows.sort((a, b) => b.scheduledAt - a.scheduledAt || (a.medicineId < b.medicineId ? 1 : a.medicineId > b.medicineId ? -1 : 0));
-    }
-    historyRef.current = rows;
-    setHistory(rows);
-  };
   const sortedUpcoming = (state?.upcoming ?? [])
     .filter(
       item =>
