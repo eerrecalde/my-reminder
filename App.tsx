@@ -7,6 +7,7 @@ import {
   AppState,
   Alert,
   Image,
+  FlatList,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -86,6 +87,9 @@ export default function App() {
         new Date(item.scheduledAt).toDateString() === new Date().toDateString(),
     )
     .sort((a, b) => a.scheduledAt - b.scheduledAt);
+  const sortedHistory = [...(state?.history ?? [])].sort(
+    (a, b) => b.scheduledAt - a.scheduledAt,
+  );
   const nextUpcoming = sortedUpcoming[0];
   const overdueIds = new Set(
     (state?.todayDoses ?? [])
@@ -435,6 +439,105 @@ export default function App() {
           </>
         ) : (
           <>
+            {screen === 'history' ? (
+              <FlatList
+                contentContainerStyle={styles.content}
+                data={sortedHistory}
+                keyExtractor={item => `${item.medicineId}:${item.scheduledAt}`}
+                ListHeaderComponent={
+                  <>
+                    <Text accessibilityRole="header" style={styles.title}>
+                      {t.history}
+                    </Text>
+                    {undo && <PillAction title={t.undo} onPress={undoChange} />}
+                    {!state && <Text style={styles.text}>{t.loading}</Text>}
+                    {!state && !!error && (
+                      <Text accessibilityRole="alert" style={styles.error}>
+                        {error === 'load' ? t.loadError : error}
+                      </Text>
+                    )}
+                    {state && state.history.length === 0 && (
+                      <Text style={styles.text}>{t.noHistory}</Text>
+                    )}
+                  </>
+                }
+                renderItem={({ item: occurrence, index }) => {
+                  const formatDate = (at: number) =>
+                    new Date(at).toLocaleDateString(
+                      translations[language].locale,
+                      { dateStyle: 'full' },
+                    );
+                  const date = formatDate(occurrence.scheduledAt);
+                  const previousDate =
+                    index > 0 ? formatDate(sortedHistory[index - 1].scheduledAt) : null;
+                  const medicine = state?.medicines.find(
+                    item => item.id === occurrence.medicineId,
+                  );
+                  const details = medicine ?? {
+                    id: occurrence.medicineId,
+                    name: occurrence.name ?? '',
+                    instructions: occurrence.instructions ?? '',
+                    type: occurrence.type ?? 'reminder',
+                    times: [],
+                    mode: 'notification' as const,
+                  };
+                  return (
+                    <View>
+                      {date !== previousDate && (
+                        <Text
+                          accessibilityRole="header"
+                          style={styles.sectionTitle}
+                        >
+                          {date}
+                        </Text>
+                      )}
+                      {occurrenceView(occurrence, details, true)}
+                    </View>
+                  );
+                }}
+                ListFooterComponent={
+                  state ? (
+                    <>
+                      <PillAction
+                        secondary
+                        title={t.clearHistory}
+                        onPress={() =>
+                          Alert.alert(t.clearHistory, t.clearQuestion, [
+                            { text: t.cancel, style: 'cancel' },
+                            {
+                              text: t.clear,
+                              style: 'destructive',
+                              onPress: async () => {
+                                try {
+                                  await reminderRepository.clearHistory();
+                                  setUndo(undefined);
+                                  await refresh();
+                                } catch {
+                                  setError(t.actionError);
+                                }
+                              },
+                            },
+                          ])
+                        }
+                      />
+                      <PillAction
+                        secondary
+                        title={t.cancel}
+                        onPress={() => {
+                          setUndo(undefined);
+                          setScreen('today');
+                        }}
+                      />
+                      {!!error && (
+                        <Text accessibilityRole="alert" style={styles.error}>
+                          {error === 'load' ? t.loadError : error}
+                        </Text>
+                      )}
+                    </>
+                  ) : undefined
+                }
+              />
+            ) : (
             <ScrollView contentContainerStyle={styles.content}>
               {screen === 'today' && (
                 <View style={styles.brandRow}>
@@ -484,8 +587,6 @@ export default function App() {
                 <Text accessibilityRole="header" style={styles.title}>
                   {screen === 'reminders'
                     ? t.reminders
-                    : screen === 'history'
-                    ? t.history
                     : t.options}
                 </Text>
               )}
@@ -920,87 +1021,6 @@ export default function App() {
                     })
                   )}
                 </>
-              ) : screen === 'history' ? (
-                <>
-                  {undo && <PillAction title={t.undo} onPress={undoChange} />}
-                  {(state.history ?? []).length === 0 && (
-                    <Text style={styles.text}>{t.noHistory}</Text>
-                  )}
-                  {[...(state.history ?? [])]
-                    .sort((a, b) => b.scheduledAt - a.scheduledAt)
-                    .map((occurrence, index, items) => {
-                      const date = new Date(
-                        occurrence.scheduledAt,
-                      ).toLocaleDateString(translations[language].locale, {
-                        dateStyle: 'full',
-                      });
-                      const previousDate =
-                        index > 0
-                          ? new Date(
-                              items[index - 1].scheduledAt,
-                            ).toLocaleDateString(
-                              translations[language].locale,
-                              { dateStyle: 'full' },
-                            )
-                          : null;
-                      const medicine = state.medicines.find(
-                        item => item.id === occurrence.medicineId,
-                      );
-                      const details = medicine ?? {
-                        id: occurrence.medicineId,
-                        name: occurrence.name ?? '',
-                        instructions: occurrence.instructions ?? '',
-                        type: occurrence.type ?? 'reminder',
-                        times: [],
-                        mode: 'notification' as const,
-                      };
-                      return (
-                        <View
-                          key={`${occurrence.medicineId}:${occurrence.scheduledAt}`}
-                        >
-                          {date !== previousDate && (
-                            <Text
-                              accessibilityRole="header"
-                              style={styles.sectionTitle}
-                            >
-                              {date}
-                            </Text>
-                          )}
-                          {occurrenceView(occurrence, details, true)}
-                        </View>
-                      );
-                    })}
-                  <PillAction
-                    secondary
-                    title={t.clearHistory}
-                    onPress={() =>
-                      Alert.alert(t.clearHistory, t.clearQuestion, [
-                        { text: t.cancel, style: 'cancel' },
-                        {
-                          text: t.clear,
-                          style: 'destructive',
-                          onPress: async () => {
-                            try {
-                              await reminderRepository.clearHistory();
-                              setUndo(undefined);
-                              await refresh();
-                            } catch {
-                              setError(t.actionError);
-                            }
-                          },
-                        },
-                      ])
-                    }
-                  />
-                  <PillAction
-                    secondary
-                    title={t.cancel}
-                    onPress={() => {
-                      setUndo(undefined);
-                      setScreen('today');
-                    }}
-                  />
-                </>
               ) : (
                 <>
                   <Text style={styles.sectionTitle}>{t.settings}</Text>
@@ -1223,6 +1243,7 @@ export default function App() {
                 </Text>
               )}
             </ScrollView>
+            )}
             {screen !== 'access' && (
               <MainNavigation
                 selected={screen}

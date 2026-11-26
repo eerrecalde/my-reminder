@@ -111,3 +111,33 @@ this is evidence of a memory failure in the loaded app, not a History timing
 or proof that the first tap selected History. The installation was cleared
 afterwards. A successful History timing remains unavailable until the failure
 is addressed; investigate its allocations as part of ticket 06.
+
+## Virtualized History, 26 November 2026
+
+On the `pill_reminder_test` API 36 ARM64 emulator, a bundled debug build with
+History rendered as a virtualized list was measured three times using the same
+benchmark and a freshly seeded dataset each time. The emulator ran headless
+with software graphics, in Europe/London. Each sample seeded 8,760 records and
+contained 9,852 after direct recovery; 12 of 24 items were active. Times are
+milliseconds:
+
+| Run | Direct recovery | Occurrence read | Scheduling | Reminders first row | History first row | History idle |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 3,686 | 24 | 23 | 1,236 | 385 | 1,051 |
+| 2 | 3,848 | 26 | 21 | 1,399 | 364 | 1,052 |
+| 3 | 3,352 | 25 | 16 | 1,354 | 368 | 937 |
+
+All instrumented runs completed without an out-of-memory failure and met the
+agreed first-row and direct-recovery limits. Earlier unlocked Reminders samples
+were 6,982 and 13,139 ms, and the History measurement crashed before a first
+row. Recovery changes from ticket 05 also landed since those baselines, so the
+Reminders improvement cannot be attributed to list virtualization alone. The
+headless graphics configuration may also differ from the original run. This is
+not a cold-start or physical-device measurement, and first-row and idle times
+do not prove every history row has been rendered.
+
+This change bounds mounted History rows but still loads and serializes the full
+history on each app refresh, including per-occurrence snooze lookups. Larger
+datasets may require a paginated native query; these measurements do not
+establish an upper supported history size. Clearing history continues to mark
+stored records as cleared rather than deleting the occurrences.
