@@ -2,12 +2,13 @@ import { AppIcon } from './src/AppIcon';
 import { SoundChoice } from './src/SoundChoice';
 import { LanguageSelector } from './src/LanguageSelector';
 import { MainNavigation } from './src/MainNavigation';
+import { useHistory } from './src/useHistory';
+import { HistoryScreen } from './src/HistoryScreen';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppState,
   Alert,
   Image,
-  FlatList,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -62,19 +63,20 @@ export default function App() {
     revision: number;
     previousCleared: boolean;
   }>();
-  const historyRevision = useRef<number | undefined>(undefined);
+  const historyState = useHistory(screen === 'history', state?.historyRevision);
+  const { currentRevision, acceptLocalRevision, updateHistoryOccurrence } = historyState;
   const refreshGeneration = useRef(0);
   const refresh = useCallback(async (localRevision?: number) => {
     const generation = ++refreshGeneration.current;
     try {
       const next = await reminderRepository.state();
       if (generation !== refreshGeneration.current) return;
-      if (localRevision != null && historyRevision.current === localRevision && next.historyRevision === localRevision + 1) historyRevision.current = next.historyRevision;
+      acceptLocalRevision(localRevision, next.historyRevision);
       setState(next);
     } catch {
       if (generation === refreshGeneration.current) setError('load');
     }
-  }, []);
+  }, [acceptLocalRevision]);
   useEffect(() => {
     refresh();
     const timer = setInterval(() => refresh(), 30000);
@@ -86,84 +88,6 @@ export default function App() {
       listener.remove();
     };
   }, [refresh]);
-  const [history, setHistory] = useState<Occurrence[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyHasMore, setHistoryHasMore] = useState(true);
-  const [historyError, setHistoryError] = useState<'first' | 'more' | null>(null);
-  const historyRef = useRef<Occurrence[]>([]);
-  const historyGeneration = useRef(0);
-  const historyInFlight = useRef(false);
-  const historyResetInFlight = useRef(false);
-  const loadHistory = useCallback(async (reset: boolean, minimum = 50) => {
-    if (!reset && historyInFlight.current) return;
-    const generation = reset ? ++historyGeneration.current : historyGeneration.current;
-    if (reset && minimum === 50) {
-      historyRef.current = [];
-      setHistory([]);
-    }
-    historyInFlight.current = true;
-    historyResetInFlight.current = reset;
-    setHistoryLoading(true);
-    setHistoryError(null);
-    try {
-      let rows = reset ? [] : historyRef.current;
-      let page: Occurrence[];
-      do {
-        const last = rows[rows.length - 1];
-        page = await reminderRepository.historyPage(last?.scheduledAt ?? null, last?.medicineId ?? null);
-        rows = [...rows, ...page];
-      } while (reset && rows.length < minimum && page.length === 50);
-      if (generation !== historyGeneration.current) return;
-      if (!reset) {
-        const keys = new Set(historyRef.current.map(row => `${row.medicineId}:${row.scheduledAt}`));
-        rows = [...historyRef.current, ...page.filter(row => !keys.has(`${row.medicineId}:${row.scheduledAt}`))];
-      }
-      historyRef.current = rows;
-      setHistory(rows);
-      setHistoryHasMore(page.length === 50);
-    } catch {
-      if (generation === historyGeneration.current) setHistoryError(reset ? 'first' : 'more');
-    } finally {
-      if (generation === historyGeneration.current) {
-        historyInFlight.current = false;
-        historyResetInFlight.current = false;
-        setHistoryLoading(false);
-      }
-    }
-  }, []);
-  useEffect(() => {
-    const generation = historyGeneration;
-    const inFlight = historyInFlight;
-    if (screen === 'history') {
-      historyRevision.current = undefined;
-      loadHistory(true);
-    }
-    return () => { generation.current++; inFlight.current = false; };
-  }, [screen, loadHistory]);
-  useEffect(() => {
-    if (screen !== 'history' || state?.historyRevision == null) return;
-    if (historyRevision.current == null) {
-      historyRevision.current = state.historyRevision;
-    } else if (historyRevision.current !== state.historyRevision) {
-      historyRevision.current = state.historyRevision;
-      loadHistory(true);
-    }
-  }, [screen, state?.historyRevision, loadHistory]);
-  const updateHistoryOccurrence = (occurrence: Occurrence, outcome: Outcome | null, cleared = false) => {
-    if (historyInFlight.current && historyResetInFlight.current) {
-      historyGeneration.current++;
-      historyInFlight.current = false;
-      loadHistory(true);
-      return;
-    }
-    const rows = historyRef.current.filter(row => row.medicineId !== occurrence.medicineId || row.scheduledAt !== occurrence.scheduledAt);
-    if (outcome != null && !cleared) {
-      rows.push({ ...occurrence, outcome });
-      rows.sort((a, b) => b.scheduledAt - a.scheduledAt || (a.medicineId < b.medicineId ? 1 : a.medicineId > b.medicineId ? -1 : 0));
-    }
-    historyRef.current = rows;
-    setHistory(rows);
-  };
   const sortedUpcoming = (state?.upcoming ?? [])
     .filter(
       item =>
@@ -260,7 +184,7 @@ export default function App() {
     occurrence: Occurrence,
     outcome: Outcome | null,
   ) => {
-    const previousHistoryRevision = historyRevision.current;
+    const previousHistoryRevision = currentRevision();
     try {
       const change = await reminderRepository.setOutcome(
         occurrence.medicineId,
@@ -283,7 +207,7 @@ export default function App() {
   };
   const undoChange = async () => {
     if (!undo) return;
-    const previousHistoryRevision = historyRevision.current;
+    const previousHistoryRevision = currentRevision();
     try {
       await reminderRepository.undoOutcome(
         undo.occurrence.medicineId,
@@ -525,113 +449,17 @@ export default function App() {
         ) : (
           <>
             {screen === 'history' ? (
-              <FlatList
-                contentContainerStyle={styles.content}
-                data={history}
-                onEndReached={() => { if (historyHasMore && !historyLoading && !historyError) loadHistory(false); }}
-                onEndReachedThreshold={0.5}
-                keyExtractor={item => `${item.medicineId}:${item.scheduledAt}`}
-                ListHeaderComponent={
-                  <>
-                    <Text accessibilityRole="header" style={styles.title}>
-                      {t.history}
-                    </Text>
-                    {undo && <PillAction title={t.undo} onPress={undoChange} />}
-                    {(!state || (historyLoading && history.length === 0)) && <Text style={styles.text}>{t.loading}</Text>}
-                    {!state && !!error && (
-                      <Text accessibilityRole="alert" style={styles.error}>
-                        {error === 'load' ? t.loadError : error}
-                      </Text>
-                    )}
-                    {historyError === 'first' && <>
-                      <Text accessibilityRole="alert" style={styles.error}>{t.loadError}</Text>
-                      <PillAction secondary title={t.retry} onPress={() => loadHistory(true)} />
-                    </>}
-                    {state && !historyLoading && !historyError && history.length === 0 && (
-                      <Text style={styles.text}>{t.noHistory}</Text>
-                    )}
-                  </>
-                }
-                renderItem={({ item: occurrence, index }) => {
-                  const formatDate = (at: number) =>
-                    new Date(at).toLocaleDateString(
-                      translations[language].locale,
-                      { dateStyle: 'full' },
-                    );
-                  const date = formatDate(occurrence.scheduledAt);
-                  const previousDate =
-                    index > 0 ? formatDate(history[index - 1].scheduledAt) : null;
-                  const medicine = state?.medicines.find(
-                    item => item.id === occurrence.medicineId,
-                  );
-                  const details = medicine ?? {
-                    id: occurrence.medicineId,
-                    name: occurrence.name ?? '',
-                    instructions: occurrence.instructions ?? '',
-                    type: occurrence.type ?? 'reminder',
-                    times: [],
-                    mode: 'notification' as const,
-                  };
-                  return (
-                    <View>
-                      {date !== previousDate && (
-                        <Text
-                          accessibilityRole="header"
-                          style={styles.sectionTitle}
-                        >
-                          {date}
-                        </Text>
-                      )}
-                      {occurrenceView(occurrence, details, true)}
-                    </View>
-                  );
-                }}
-                ListFooterComponent={
-                  state ? (
-                    <>
-                      {historyError === 'more' && <>
-                        <Text accessibilityRole="alert" style={styles.error}>{t.loadError}</Text>
-                        <PillAction secondary title={t.retry} onPress={() => loadHistory(false)} />
-                      </>}
-                      <PillAction
-                        secondary
-                        title={t.clearHistory}
-                        onPress={() =>
-                          Alert.alert(t.clearHistory, t.clearQuestion, [
-                            { text: t.cancel, style: 'cancel' },
-                            {
-                              text: t.clear,
-                              style: 'destructive',
-                              onPress: async () => {
-                                try {
-                                  await reminderRepository.clearHistory();
-                                  await loadHistory(true);
-                                  setUndo(undefined);
-                                  await refresh();
-                                } catch {
-                                  setError(t.actionError);
-                                }
-                              },
-                            },
-                          ])
-                        }
-                      />
-                      <PillAction
-                        secondary
-                        title={t.cancel}
-                        onPress={() => {
-                          setUndo(undefined);
-                          setScreen('today');
-                        }}
-                      />
-                      {!!error && (
-                        <Text accessibilityRole="alert" style={styles.error}>
-                          {error === 'load' ? t.loadError : error}
-                        </Text>
-                      )}
-                    </>
-                  ) : undefined
-                }
+              <HistoryScreen
+                historyState={historyState}
+                state={state}
+                error={error}
+                language={language}
+                undo={!!undo}
+                undoChange={undoChange}
+                onCleared={async () => { setUndo(undefined); await refresh(); }}
+                onClearError={() => setError(t.actionError)}
+                onCancel={() => { setUndo(undefined); setScreen('today'); }}
+                occurrenceView={occurrenceView}
               />
             ) : (
             <ScrollView contentContainerStyle={styles.content}>
