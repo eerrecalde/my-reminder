@@ -29,7 +29,7 @@ export function ScheduleFrequency({
         accessibilityRole="button"
         accessibilityLabel={`${t.frequency}: ${t[value]}`}
         accessibilityState={{ expanded: open }}
-        onPress={() => onOpenChange(open => !open)}
+        onPress={() => onOpenChange(current => !current)}
         style={styles.fieldControl}
       >
         <Text style={styles.fieldValue}>{t[value]}</Text>
