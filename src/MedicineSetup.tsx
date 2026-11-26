@@ -11,28 +11,16 @@ import {
   View,
 } from 'react-native';
 import {
-  finalDailyOccurrence,
   isOneOffSchedule,
   localDate,
   localDateString,
   nextDailyOccurrences,
 } from './dailySchedule';
-import {
-  nextWeekdayOccurrences,
-  finalWeekdayOccurrence,
-} from './weekdaySchedule';
-import {
-  nextIntervalOccurrences,
-  finalIntervalOccurrence,
-} from './intervalSchedule';
-import {
-  nextMonthlyOccurrences,
-  finalMonthlyOccurrence,
-} from './monthlySchedule';
 import type { ReminderType } from './reminderRepository';
 import { PillAction } from './PillAction';
 import type { FullScreenAccess } from './reminderRepository';
 import { ReminderAlertChoice } from './ReminderAlertChoice';
+import { SetupReview } from './SetupReview';
 
 export type DailyMedicineInput = {
   type: ReminderType;
@@ -228,66 +216,6 @@ export function MedicineSetup({
     setError('');
     setStep(step + 1);
   };
-  const preview =
-    step !== 3
-      ? []
-      : scheduleKind === 'once'
-      ? nextDailyOccurrences(
-          [onceTime],
-          now ?? new Date(),
-          1,
-          onceDate,
-          onceDate,
-        )
-      : scheduleKind === 'weekday'
-      ? nextWeekdayOccurrences(
-          times,
-          weekdays,
-          now ?? new Date(),
-          3,
-          startDate,
-          endDate,
-        )
-      : scheduleKind === 'interval'
-      ? nextIntervalOccurrences(
-          anchor,
-          Number(intervalHours),
-          new Date(
-            Math.max(
-              (now ?? new Date()).getTime(),
-              new Date(`${startDate}T00:00:00`).getTime() - 1,
-            ),
-          ),
-          3,
-          endDate,
-        )
-      : scheduleKind === 'monthly'
-      ? nextMonthlyOccurrences(
-          times,
-          monthlyDay === 'last' ? 'last' : Number(monthlyDay),
-          shortMonthPolicy,
-          now ?? new Date(),
-          3,
-          startDate,
-          endDate,
-        )
-      : nextDailyOccurrences(times, now ?? new Date(), 3, startDate, endDate);
-  const final =
-    step === 3 && scheduleKind !== 'once' && endDate
-      ? scheduleKind === 'weekday'
-        ? finalWeekdayOccurrence(times, weekdays, endDate)
-        : scheduleKind === 'interval'
-        ? finalIntervalOccurrence(anchor, Number(intervalHours), endDate)
-        : scheduleKind === 'monthly'
-        ? finalMonthlyOccurrence(
-            times,
-            monthlyDay === 'last' ? 'last' : Number(monthlyDay),
-            shortMonthPolicy,
-            startDate,
-            endDate,
-          )
-        : finalDailyOccurrence(times, endDate)
-      : undefined;
   const formatDate = (value: string) =>
     localDate(value).toLocaleDateString(translations[language].locale, {
       day: 'numeric',
@@ -727,51 +655,25 @@ export function MedicineSetup({
           </>
         )}
         {step === 3 && (
-          <>
-            <Text style={styles.label}>
-              {type === 'medicine' ? t.medicine : t.reminder}
-            </Text>
-            <Text style={styles.label}>{name.trim()}</Text>
-            {type === 'medicine' && !!instructions.trim() && (
-              <Text style={styles.label}>{instructions.trim()}</Text>
-            )}
-            <Text style={styles.label}>
-              {mode === 'alarm' ? t.alarmMode : t.mode}
-            </Text>
-            <Text style={styles.label}>
-              {t[scheduleKind]}
-              {scheduleKind === 'once'
-                ? `: ${onceDate}, ${onceTime}`
-                : scheduleKind !== 'interval'
-                ? `: ${times.join(', ')}`
-                : `: ${intervalHours}h`}
-            </Text>
-            <Text accessibilityRole="header" style={styles.label}>
-              {scheduleKind === 'once' ? t.oncePreview : t.nextThree}
-            </Text>
-            {preview.map(date => (
-              <Text key={date.toISOString()} style={styles.label}>
-                {date.toLocaleString(translations[language].locale, {
-                  dateStyle: 'full',
-                  timeStyle: 'short',
-                })}
-              </Text>
-            ))}
-            {preview.length === 0 && <Text style={styles.label}>{t.none}</Text>}
-            {preview.length > 0 && final && (
-              <>
-                <Text accessibilityRole="header" style={styles.label}>
-                  {t.final}
-                </Text>
-                <Text style={styles.label}>
-                  {final.toLocaleString(translations[language].locale, {
-                    dateStyle: 'full',
-                    timeStyle: 'short',
-                  })}
-                </Text>
-              </>
-            )}
-          </>
+          <SetupReview
+            language={language}
+            type={type}
+            name={name}
+            instructions={instructions}
+            mode={mode}
+            scheduleKind={scheduleKind}
+            times={times}
+            onceDate={onceDate}
+            onceTime={onceTime}
+            weekdays={weekdays}
+            anchor={anchor}
+            intervalHours={intervalHours}
+            monthlyDay={monthlyDay}
+            shortMonthPolicy={shortMonthPolicy}
+            startDate={startDate}
+            endDate={endDate}
+            now={now}
+          />
         )}
         {!!error && (
           <Text accessibilityRole="alert" style={styles.error}>
