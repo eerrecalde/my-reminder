@@ -115,7 +115,8 @@ is addressed; investigate its allocations as part of ticket 06.
 ## Virtualized History, 26 November 2026
 
 On the `pill_reminder_test` API 36 ARM64 emulator, a bundled debug build with
-History rendered as a virtualized list was measured three times using the same
+History rendered as a virtualized list and snoozes read in one batch was measured
+three times using the same
 benchmark and a freshly seeded dataset each time. The emulator ran headless
 with software graphics, in Europe/London. Each sample seeded 8,760 records and
 contained 9,852 after direct recovery; 12 of 24 items were active. Times are
@@ -123,9 +124,9 @@ milliseconds:
 
 | Run | Direct recovery | Occurrence read | Scheduling | Reminders first row | History first row | History idle |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | 3,686 | 24 | 23 | 1,236 | 385 | 1,051 |
-| 2 | 3,848 | 26 | 21 | 1,399 | 364 | 1,052 |
-| 3 | 3,352 | 25 | 16 | 1,354 | 368 | 937 |
+| 1 | 3,360 | 24 | 16 | 1,172 | 403 | 980 |
+| 2 | 3,707 | 27 | 21 | 1,195 | 373 | 977 |
+| 3 | 3,187 | 24 | 20 | 1,099 | 378 | 960 |
 
 All instrumented runs completed without an out-of-memory failure and met the
 agreed first-row and direct-recovery limits. Earlier unlocked Reminders samples
@@ -137,7 +138,17 @@ not a cold-start or physical-device measurement, and first-row and idle times
 do not prove every history row has been rendered.
 
 This change bounds mounted History rows but still loads and serializes the full
-history on each app refresh, including per-occurrence snooze lookups. Larger
-datasets may require a paginated native query; these measurements do not
+history on each app refresh, although snoozes now use a single read. Larger datasets may require a paginated native query; these measurements do not
 establish an upper supported history size. Clearing history continues to mark
 stored records as cleared rather than deleting the occurrences.
+
+A separate manual check on the final seeded build scrolled from 25 November
+to 23 November and displayed older Reminder and Medicine rows with their
+outcomes and instructions. It did not inspect every row or verify the oldest
+record. The synthetic data was cleared afterwards.
+
+The existing direct-delivery snooze test failed at the first snooze assertion
+when run immediately after clearing the installation; it passed after the app
+was opened and stopped to initialize its state. The cause of the first failure
+was not established. This is a direct-delivery test, not an Android-delivered
+alarm or process-restart check.

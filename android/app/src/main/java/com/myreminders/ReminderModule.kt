@@ -90,10 +90,11 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       MedicineRepository(reactContext).use { repo ->
         val now = java.time.Instant.now()
         val medicinesById = repo.all().associateBy { it.id }
+        val snoozedOccurrences = repo.snoozes().map { it.medicineId to it.at }.toSet()
         repo.occurrences(includeCleared = true).forEach { occurrence ->
           val medicine = medicinesById[occurrence.medicineId]
           fun occurrenceMap() = Arguments.createMap().apply {
-            putString("name", occurrence.name); putString("instructions", occurrence.instructions); putString("type", occurrence.type); putString("medicineId", occurrence.medicineId); putDouble("scheduledAt", occurrence.at.toDouble()); putString("outcome", occurrence.outcome); putBoolean("outstanding", occurrence.outstanding); putBoolean("actionable", TodayPolicy.actionable(occurrence, medicine, now, zone)); putBoolean("snoozed", repo.snooze(occurrence.medicineId, occurrence.at) != null)
+            putString("name", occurrence.name); putString("instructions", occurrence.instructions); putString("type", occurrence.type); putString("medicineId", occurrence.medicineId); putDouble("scheduledAt", occurrence.at.toDouble()); putString("outcome", occurrence.outcome); putBoolean("outstanding", occurrence.outstanding); putBoolean("actionable", TodayPolicy.actionable(occurrence, medicine, now, zone)); putBoolean("snoozed", (occurrence.medicineId to occurrence.at) in snoozedOccurrences)
           }
           if (TodayPolicy.includes(occurrence, medicine, now, zone)) doses.pushMap(occurrenceMap())
           if (!occurrence.cleared && occurrence.outcome != null) history.pushMap(occurrenceMap())

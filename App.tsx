@@ -2,7 +2,7 @@ import { AppIcon } from './src/AppIcon';
 import { SoundChoice } from './src/SoundChoice';
 import { LanguageSelector } from './src/LanguageSelector';
 import { MainNavigation } from './src/MainNavigation';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AppState,
   Alert,
@@ -87,8 +87,11 @@ export default function App() {
         new Date(item.scheduledAt).toDateString() === new Date().toDateString(),
     )
     .sort((a, b) => a.scheduledAt - b.scheduledAt);
-  const sortedHistory = [...(state?.history ?? [])].sort(
-    (a, b) => b.scheduledAt - a.scheduledAt,
+  const sortedHistory = useMemo(
+    () => screen === 'history'
+      ? [...(state?.history ?? [])].sort((a, b) => b.scheduledAt - a.scheduledAt)
+      : [],
+    [screen, state?.history],
   );
   const nextUpcoming = sortedUpcoming[0];
   const overdueIds = new Set(
