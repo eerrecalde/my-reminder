@@ -1,3 +1,4 @@
+import { AppHeader } from './src/AppHeader';
 import { AppIcon } from './src/AppIcon';
 import { SoundChoice } from './src/SoundChoice';
 import { LanguageSelector } from './src/LanguageSelector';
@@ -468,6 +469,7 @@ export default function App() {
           </>
         ) : (
           <>
+            <AppHeader action={screen === 'access' ? { kind: 'back', label: translations[language].setup.back, onPress: leaveAccess } : screen === 'today' ? { kind: 'settings', label: t.settings, onPress: openAccess } : undefined} />
             {screen === 'history' ? (
               <HistoryScreen
                 historyState={historyState}
@@ -483,44 +485,7 @@ export default function App() {
               />
             ) : (
             <>
-            {screen === 'access' && (
-              <View style={styles.accessHeader}>
-                <Pressable accessibilityRole="button" accessibilityLabel={translations[language].setup.back} onPress={leaveAccess} style={styles.accessBack}>
-                  <AppIcon name="arrowLeft" color="#36542b" />
-                  <Text style={styles.accessBackText}>{translations[language].setup.back}</Text>
-                </Pressable>
-                <View style={styles.accessBrand}>
-                  <Image
-                    source={require('./assets/brand-sprig.png')}
-                    style={styles.accessBrandLeaf}
-                    resizeMode="contain"
-                    accessible={false}
-                  />
-                  <Text style={styles.accessBrandText}>My Reminders</Text>
-                </View>
-              </View>
-            )}
             <ScrollView contentContainerStyle={styles.content}>
-              {screen === 'today' && (
-                <View style={styles.brandRow}>
-                  <View style={styles.brandName}>
-                    <Image
-                      source={require('./assets/brand-sprig.png')}
-                      style={styles.brandLeaf}
-                      resizeMode="contain"
-                    />
-                    <Text style={styles.brandText}>My Reminders</Text>
-                  </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t.settings}
-                    onPress={openAccess}
-                    hitSlop={12}
-                  >
-                    <AppIcon name="moreVertical" color="#142219" />
-                  </Pressable>
-                </View>
-              )}
               {screen === 'today' ? (
                 <View style={styles.headerArt}>
                   <View style={styles.headerCopy}>
@@ -1217,12 +1182,6 @@ export default function App() {
 }
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fbf6eb' },
-  accessHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: 8, gap: 12 },
-  accessBrand: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, gap: 6 },
-  accessBrandLeaf: { width: 40, height: 36 },
-  accessBrandText: { color: '#17231a', fontSize: 17, fontWeight: '700', flexShrink: 1 },
-  accessBack: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48 },
-  accessBackText: { color: '#36542b', fontSize: 18, fontWeight: '600' },
   content: {
     paddingHorizontal: 20,
     paddingTop: 18,
@@ -1230,16 +1189,6 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     flexGrow: 1,
   },
-  brandRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    minHeight: 36,
-    marginBottom: 8,
-  },
-  brandName: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  brandLeaf: { width: 48, height: 36, marginHorizontal: -7 },
-  brandText: { color: '#17231a', fontSize: 17, fontWeight: '700' },
   headerArt: {
     flexDirection: 'row',
     alignItems: 'center',
