@@ -87,6 +87,7 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       val doses = Arguments.createArray()
       val upcoming = Arguments.createArray()
       MedicineRepository(reactContext).use { repo ->
+        result.putDouble("historyRevision", repo.historyRevision().toDouble())
         val now = java.time.Instant.now()
         val medicinesById = repo.all().associateBy { it.id }
         val snoozedOccurrences = repo.snoozes().map { it.medicineId to it.at }.toSet()

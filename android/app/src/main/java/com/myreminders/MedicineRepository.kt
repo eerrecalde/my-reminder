@@ -10,7 +10,7 @@ import java.util.UUID
 data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification", val status: String = "active", val changedAt: Long = 0, val startDate: String? = null, val endDate: String? = null, val scheduleKind: String = "daily", val weekdays: List<Int> = emptyList(), val intervalHours: Int? = null, val intervalAnchor: Long? = null, val monthlyDay: Int? = null, val shortMonthPolicy: String = "last")
 
 /** Shared by the React Native bridge and Android receivers. */
-class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 20) {
+class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 21) {
   override fun onCreate(db: SQLiteDatabase) {
     db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification', status TEXT NOT NULL DEFAULT 'active', changed_at INTEGER NOT NULL DEFAULT 0, start_date TEXT, end_date TEXT, schedule_kind TEXT NOT NULL DEFAULT 'daily', weekdays TEXT NOT NULL DEFAULT '[]', interval_hours INTEGER, interval_anchor INTEGER, monthly_day INTEGER, short_month_policy TEXT NOT NULL DEFAULT 'last')")
     createSoundChoices(db)
@@ -18,6 +18,7 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0, outcome TEXT, cleared INTEGER NOT NULL DEFAULT 0, missed_acknowledged INTEGER NOT NULL DEFAULT 0, silenced INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0, outstanding INTEGER NOT NULL DEFAULT 0, name TEXT, instructions TEXT, type TEXT, mode TEXT, times TEXT, retained INTEGER NOT NULL DEFAULT 0, one_off INTEGER NOT NULL DEFAULT 0)")
     createHistoryIndexes(db)
     createHistoryPageIndex(db)
+    createHistoryRevision(db)
     db.execSQL("CREATE TABLE snoozes (medicine_id TEXT NOT NULL, occurrence_at INTEGER NOT NULL, alert_at INTEGER NOT NULL, token TEXT NOT NULL, PRIMARY KEY (medicine_id, occurrence_at))")
     db.execSQL("CREATE TABLE reminder_transitions (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER, token TEXT, registered INTEGER, changed_at INTEGER NOT NULL, committed INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE occurrence_tracking (medicine_id TEXT PRIMARY KEY, starts_after INTEGER NOT NULL)")
@@ -34,6 +35,16 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
   private fun createHistoryPageIndex(db: SQLiteDatabase) {
     db.execSQL("CREATE INDEX IF NOT EXISTS doses_history_page ON doses (scheduled_at DESC, medicine_id DESC) WHERE cleared = 0 AND outcome IS NOT NULL")
   }
+
+  private fun createHistoryRevision(db: SQLiteDatabase) {
+    db.execSQL("CREATE TABLE IF NOT EXISTS history_revision (id INTEGER PRIMARY KEY CHECK (id = 1), revision INTEGER NOT NULL)")
+    db.execSQL("INSERT OR IGNORE INTO history_revision VALUES (1, 0)")
+    db.execSQL("CREATE TRIGGER IF NOT EXISTS history_insert AFTER INSERT ON doses WHEN NEW.outcome IS NOT NULL AND NEW.cleared = 0 BEGIN UPDATE history_revision SET revision = revision + 1 WHERE id = 1; END")
+    db.execSQL("CREATE TRIGGER IF NOT EXISTS history_update AFTER UPDATE OF outcome, cleared ON doses WHEN OLD.outcome IS NOT NEW.outcome OR OLD.cleared != NEW.cleared BEGIN UPDATE history_revision SET revision = revision + 1 WHERE id = 1; END")
+    db.execSQL("CREATE TRIGGER IF NOT EXISTS history_delete AFTER DELETE ON doses WHEN OLD.outcome IS NOT NULL AND OLD.cleared = 0 BEGIN UPDATE history_revision SET revision = revision + 1 WHERE id = 1; END")
+  }
+
+  fun historyRevision(): Long = readableDatabase.rawQuery("SELECT revision FROM history_revision WHERE id = 1", null).use { cursor -> cursor.moveToFirst(); cursor.getLong(0) }
 
   override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
     if (oldVersion < 16) createSoundChoices(db)
@@ -98,6 +109,7 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     }
     if (oldVersion < 19) createHistoryIndexes(db)
     if (oldVersion < 20) createHistoryPageIndex(db)
+    if (oldVersion < 21) createHistoryRevision(db)
   }
 
   data class SoundChoices(val notification: String?, val alarm: String?)

@@ -148,6 +148,144 @@ test('loads older history without losing tied occurrences or retained details', 
   await ReactTestRenderer.act(() => view.unmount());
 });
 
+test('offers a retry instead of reporting empty history when loading fails', async () => {
+  const repo = require('../src/reminderRepository');
+  const historyPage = jest.fn().mockRejectedValueOnce(new Error('unavailable')).mockResolvedValueOnce([{ medicineId: 'm', scheduledAt: 2000, outcome: 'skipped', name: 'Water', type: 'reminder' }]);
+  repo.reminderRepository = {
+    state: jest.fn().mockResolvedValue({ enabled: true, exactAlarms: true, notifications: true, language: 'en', medicines: [], todayDoses: [], upcoming: [] }),
+    historyPage,
+  };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+  await ReactTestRenderer.act(async () => { view.root.findByProps({ testID: 'nav-history' }).props.onPress(); });
+  expect(view.root.findAllByType(Text).some(text => text.props.children === 'No history yet.')).toBe(false);
+  await ReactTestRenderer.act(async () => { await view.root.findAllByType(PillAction).find(button => button.props.title === 'Try again')!.props.onPress(); });
+  expect(view.root.findByType(FlatList).props.data[0].name).toBe('Water');
+  await ReactTestRenderer.act(() => view.unmount());
+});
+
+test('updates an edited history row locally and reloads after an external change', async () => {
+  const repo = require('../src/reminderRepository');
+  const base = { enabled: true, exactAlarms: true, notifications: true, language: 'en', medicines: [], todayDoses: [], upcoming: [] };
+  const row = { medicineId: 'm', scheduledAt: 2000, outcome: 'completed', name: 'Water', type: 'reminder' };
+  const historyPage = jest.fn().mockResolvedValueOnce([row]).mockResolvedValueOnce([{ ...row, outcome: 'missed' }]);
+  repo.reminderRepository = {
+    state: jest.fn().mockResolvedValueOnce({ ...base, historyRevision: 1 }).mockResolvedValueOnce({ ...base, historyRevision: 2 }).mockResolvedValue({ ...base, historyRevision: 3 }),
+    historyPage,
+    setOutcome: jest.fn().mockResolvedValue({ previous: 'completed', revision: 1, previousCleared: false, changed: true }),
+  };
+  jest.useFakeTimers();
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+  await ReactTestRenderer.act(async () => { view.root.findByProps({ testID: 'nav-history' }).props.onPress(); });
+  await ReactTestRenderer.act(async () => { view.root.findAllByType(PillAction).find(button => button.props.title === 'Change outcome')!.props.onPress(); });
+  await ReactTestRenderer.act(async () => { await view.root.findAllByType(PillAction).find(button => button.props.title === 'Skip')!.props.onPress(); });
+  expect(view.root.findByType(FlatList).props.data[0].outcome).toBe('skipped');
+  expect(historyPage).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(30000); });
+  expect(historyPage).toHaveBeenCalledTimes(2);
+  expect(view.root.findByType(FlatList).props.data[0].outcome).toBe('missed');
+  await ReactTestRenderer.act(() => view.unmount());
+  jest.useRealTimers();
+});
+
+test('does not suppress an external change concurrent with a history edit', async () => {
+  const repo = require('../src/reminderRepository');
+  const base = { enabled: true, exactAlarms: true, notifications: true, language: 'en', medicines: [], todayDoses: [], upcoming: [] };
+  const row = { medicineId: 'm', scheduledAt: 2000, outcome: 'completed', name: 'Water', type: 'reminder' };
+  const historyPage = jest.fn().mockResolvedValueOnce([row]).mockResolvedValueOnce([{ ...row, outcome: 'missed' }]);
+  repo.reminderRepository = {
+    state: jest.fn().mockResolvedValueOnce({ ...base, historyRevision: 1 }).mockResolvedValue({ ...base, historyRevision: 3 }),
+    historyPage,
+    setOutcome: jest.fn().mockResolvedValue({ previous: 'completed', revision: 1, previousCleared: false, changed: true }),
+  };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+  await ReactTestRenderer.act(async () => { view.root.findByProps({ testID: 'nav-history' }).props.onPress(); });
+  await ReactTestRenderer.act(async () => { view.root.findAllByType(PillAction).find(button => button.props.title === 'Change outcome')!.props.onPress(); });
+  await ReactTestRenderer.act(async () => { await view.root.findAllByType(PillAction).find(button => button.props.title === 'Skip')!.props.onPress(); });
+  expect(historyPage).toHaveBeenCalledTimes(2);
+  expect(view.root.findByType(FlatList).props.data[0].outcome).toBe('missed');
+  await ReactTestRenderer.act(() => view.unmount());
+});
+
+test('undo during a pending history reset cannot be overwritten by a stale page', async () => {
+  const repo = require('../src/reminderRepository');
+  const base = { enabled: true, exactAlarms: true, notifications: true, language: 'en', medicines: [], todayDoses: [], upcoming: [] };
+  const row = { medicineId: 'm', scheduledAt: 2000, outcome: 'completed', name: 'Water', type: 'reminder' };
+  let finishStale!: (rows: unknown[]) => void;
+  const stalePage = new Promise<unknown[]>(resolve => { finishStale = resolve; });
+  const historyPage = jest.fn().mockResolvedValueOnce([row]).mockReturnValueOnce(stalePage).mockResolvedValueOnce([row]);
+  repo.reminderRepository = {
+    state: jest.fn().mockResolvedValueOnce({ ...base, historyRevision: 1 }).mockResolvedValueOnce({ ...base, historyRevision: 2 }).mockResolvedValueOnce({ ...base, historyRevision: 3 }).mockResolvedValue({ ...base, historyRevision: 4 }),
+    historyPage,
+    setOutcome: jest.fn().mockResolvedValue({ previous: 'completed', revision: 1, previousCleared: false, changed: true }),
+    undoOutcome: jest.fn().mockResolvedValue(undefined),
+  };
+  jest.useFakeTimers();
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+  await ReactTestRenderer.act(async () => { view.root.findByProps({ testID: 'nav-history' }).props.onPress(); });
+  await ReactTestRenderer.act(async () => { view.root.findAllByType(PillAction).find(button => button.props.title === 'Change outcome')!.props.onPress(); });
+  await ReactTestRenderer.act(async () => { await view.root.findAllByType(PillAction).find(button => button.props.title === 'Skip')!.props.onPress(); });
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(30000); });
+  await ReactTestRenderer.act(async () => { await view.root.findAllByType(PillAction).find(button => button.props.title === 'Undo')!.props.onPress(); });
+  await ReactTestRenderer.act(async () => { finishStale([{ ...row, outcome: 'skipped' }]); });
+  expect(view.root.findByType(FlatList).props.data[0].outcome).toBe('completed');
+  await ReactTestRenderer.act(() => view.unmount());
+  jest.useRealTimers();
+});
+
+test('an older state response cannot replace a newer history revision', async () => {
+  const repo = require('../src/reminderRepository');
+  const base = { enabled: true, exactAlarms: true, notifications: true, language: 'en', medicines: [], todayDoses: [], upcoming: [] };
+  const row = { medicineId: 'm', scheduledAt: 2000, outcome: 'completed', name: 'Water', type: 'reminder' };
+  let finishOld!: (state: unknown) => void;
+  const oldState = new Promise<unknown>(resolve => { finishOld = resolve; });
+  const historyPage = jest.fn().mockResolvedValueOnce([row]).mockResolvedValueOnce([{ ...row, outcome: 'skipped' }]);
+  repo.reminderRepository = {
+    state: jest.fn().mockResolvedValueOnce({ ...base, historyRevision: 1 }).mockReturnValueOnce(oldState).mockResolvedValueOnce({ ...base, historyRevision: 3 }),
+    historyPage,
+  };
+  jest.useFakeTimers();
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+  await ReactTestRenderer.act(async () => { view.root.findByProps({ testID: 'nav-history' }).props.onPress(); });
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(30000); });
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(30000); });
+  await ReactTestRenderer.act(async () => { finishOld({ ...base, historyRevision: 2 }); });
+  expect(historyPage).toHaveBeenCalledTimes(2);
+  expect(view.root.findByType(FlatList).props.data[0].outcome).toBe('skipped');
+  await ReactTestRenderer.act(() => view.unmount());
+  jest.useRealTimers();
+});
+
+test('keeps an edited row when an older page finishes loading', async () => {
+  const repo = require('../src/reminderRepository');
+  const base = { enabled: true, exactAlarms: true, notifications: true, language: 'en', medicines: [], todayDoses: [], upcoming: [] };
+  const rows = Array.from({ length: 50 }, (_, index) => ({ medicineId: `m${index}`, scheduledAt: 2000, outcome: 'completed', name: `Reminder ${index}`, type: 'reminder' }));
+  let finishPage!: (rows: unknown[]) => void;
+  const pendingPage = new Promise<unknown[]>(resolve => { finishPage = resolve; });
+  const historyPage = jest.fn().mockResolvedValueOnce(rows).mockReturnValueOnce(pendingPage);
+  repo.reminderRepository = {
+    state: jest.fn().mockResolvedValueOnce({ ...base, historyRevision: 1 }).mockResolvedValue({ ...base, historyRevision: 2 }),
+    historyPage,
+    setOutcome: jest.fn().mockResolvedValue({ previous: 'completed', revision: 1, previousCleared: false, changed: true }),
+  };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+  await ReactTestRenderer.act(async () => { view.root.findByProps({ testID: 'nav-history' }).props.onPress(); });
+  await ReactTestRenderer.act(async () => { view.root.findByType(FlatList).props.onEndReached(); });
+  await ReactTestRenderer.act(async () => { view.root.findAllByType(PillAction).find(button => button.props.title === 'Change outcome')!.props.onPress(); });
+  await ReactTestRenderer.act(async () => { await view.root.findAllByType(PillAction).find(button => button.props.title === 'Skip')!.props.onPress(); });
+  await ReactTestRenderer.act(async () => { finishPage([{ medicineId: 'old', scheduledAt: 1000, outcome: 'missed', name: 'Older', type: 'reminder' }]); });
+  const data = view.root.findByType(FlatList).props.data;
+  expect(data).toHaveLength(51);
+  expect(data.find((item: { medicineId: string }) => item.medicineId === 'm0').outcome).toBe('skipped');
+  expect(data[50].name).toBe('Older');
+  await ReactTestRenderer.act(() => view.unmount());
+});
+
 test('shows reminders off and offers an enable action when access is missing', async () => {
   NativeModules.ReminderRepository = {
     state: jest.fn().mockResolvedValue({

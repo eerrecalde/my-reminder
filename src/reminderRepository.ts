@@ -33,6 +33,7 @@ export type ReminderState = {
   languagePreference: 'system' | 'en' | 'es';
   medicines: Medicine[];
   todayDoses: Occurrence[];
+  historyRevision?: number;
   upcoming: Occurrence[];
 };
 export interface ReminderRepository {

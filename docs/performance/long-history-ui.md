@@ -156,8 +156,7 @@ alarm or process-restart check.
 ## Paged History, 26 November 2026
 
 On the same confirmed API 36 ARM64 disposable emulator, using the bundled
-headless debug build and the documented freshly seeded dataset, the final
-paged build produced these measurements (milliseconds):
+headless debug build and the documented freshly seeded dataset, the paged build before change tracking produced these measurements (milliseconds):
 
 | Run | Direct recovery | Occurrence read | Scheduling | Reminders first row | History first row | History idle |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -175,10 +174,28 @@ or Android-delivered alarm measurements.
 
 Routine state refresh now reads Today candidates instead of all completed
 history. History uses 50-row pages ordered by scheduled time and reminder ID;
-loaded pages are refreshed after a history action and on returning to the app.
+local edits update the affected row, and a history revision triggers a reload
+when a separate action changes stored outcomes.
 The partial history index supports the ordered cursor query. A local SQLite
 query-plan check showed a full scan and temporary sort before the index, and an
 index range search after it; this is a query-plan observation, not an Android
 write-cost measurement. User-loaded rows remain in JavaScript memory while
 History is open, and large numbers of unconfirmed occurrences may still make
 Today processing grow. No upper supported dataset size has been established.
+
+## Paged History with change tracking
+
+After adding transactional history revision tracking, three fresh samples on
+the same emulator and dataset produced these values (milliseconds):
+
+| Run | Direct recovery | Occurrence read | Scheduling | Reminders first row | History first row | History idle |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 3,296 | 25 | 18 | 1,044 | 300 | 961 |
+| 2 | 3,208 | 24 | 17 | 1,045 | 280 | 862 |
+| 3 | 3,241 | 25 | 17 | 1,077 | 265 | 938 |
+
+All samples completed and met the agreed limits. This also measures the added
+revision-trigger work during recovery for this dataset, but does not establish
+its cost on other devices or datasets. When an external change is detected,
+History reloads from the first page; it does not retain the previous scroll
+position. The local-only checks above do not replace physical-device testing.

@@ -19,6 +19,8 @@ class MedicineRepositoryTest {
         items.forEach { repo.recordDue(it.id, 2000); repo.setOutcome(it.id, 2000, "completed") }
         repo.setAlarm(items[0].id, 3000, "future")
         repo.writableDatabase.execSQL("DROP INDEX doses_history_page")
+        listOf("history_insert", "history_update", "history_delete").forEach { repo.writableDatabase.execSQL("DROP TRIGGER $it") }
+        repo.writableDatabase.execSQL("DROP TABLE history_revision")
         repo.writableDatabase.version = 19
         items.map { it.id }
       }
@@ -32,6 +34,27 @@ class MedicineRepositoryTest {
         assertEquals("future", repo.alarm(ids[0])?.token)
         repo.clearHistory()
         assertTrue(repo.historyPage(null, null, 2).isEmpty())
+      }
+    } finally { context.deleteDatabase(name) }
+  }
+  @Test fun historyRevisionChangesForOutcomeAndClearButNotUnconfirmedInsert() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val name = "history-revision.db"
+    context.deleteDatabase(name)
+    try {
+      MedicineRepository(context, name).use { repo ->
+        val item = repo.save("Water", "", listOf("09:00"), 1000, "reminder")
+        val initial = repo.historyRevision()
+        repo.recordDue(item.id, 2000)
+        assertEquals(initial, repo.historyRevision())
+        repo.setOutcome(item.id, 2000, "completed")
+        val completed = repo.historyRevision()
+        assertTrue(completed > initial)
+        repo.setOutcome(item.id, 2000, "skipped")
+        assertTrue(repo.historyRevision() > completed)
+        val beforeClear = repo.historyRevision()
+        repo.clearHistory()
+        assertTrue(repo.historyRevision() > beforeClear)
       }
     } finally { context.deleteDatabase(name) }
   }
