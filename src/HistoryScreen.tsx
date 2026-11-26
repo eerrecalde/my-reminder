@@ -8,21 +8,24 @@ import {
   ReminderState,
 } from './reminderRepository';
 import { translations } from './translations';
+import { useHistory } from './useHistory';
 
 type Props = {
-  history: Occurrence[];
-  historyLoading: boolean;
-  historyHasMore: boolean;
-  historyError: 'first' | 'more' | null;
+  historyState: Pick<
+    ReturnType<typeof useHistory>,
+    | 'history'
+    | 'historyLoading'
+    | 'historyHasMore'
+    | 'historyError'
+    | 'loadHistory'
+  >;
   state: ReminderState | undefined;
   error: string;
   language: keyof typeof translations;
   undo: boolean;
   undoChange: () => void;
-  loadHistory: (reset: boolean) => Promise<void>;
-  refresh: () => Promise<void>;
-  setUndo: (value: undefined) => void;
-  setError: (value: string) => void;
+  onCleared: () => Promise<void>;
+  onClearError: () => void;
   onCancel: () => void;
   occurrenceView: (
     occurrence: Occurrence,
@@ -32,23 +35,20 @@ type Props = {
 };
 
 export function HistoryScreen({
-  history,
-  historyLoading,
-  historyHasMore,
-  historyError,
+  historyState,
   state,
   error,
   language,
   undo,
   undoChange,
-  loadHistory,
-  refresh,
-  setUndo,
-  setError,
+  onCleared,
+  onClearError,
   onCancel,
   occurrenceView,
 }: Props) {
   const t = translations[language].app;
+  const { history, historyLoading, historyHasMore, historyError, loadHistory } =
+    historyState;
   return (
     <FlatList
       contentContainerStyle={styles.content}
@@ -151,10 +151,9 @@ export function HistoryScreen({
                       try {
                         await reminderRepository.clearHistory();
                         await loadHistory(true);
-                        setUndo(undefined);
-                        await refresh();
+                        await onCleared();
                       } catch {
-                        setError(t.actionError);
+                        onClearError();
                       }
                     },
                   },

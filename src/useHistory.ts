@@ -115,12 +115,25 @@ export function useHistory(active: boolean, revision: number | undefined) {
     historyRef.current = rows;
     setHistory(rows);
   };
+  const currentRevision = useCallback(() => historyRevision.current, []);
+  const acceptLocalRevision = useCallback(
+    (previous: number | undefined, next: number | undefined) => {
+      if (
+        previous != null &&
+        historyRevision.current === previous &&
+        next === previous + 1
+      )
+        historyRevision.current = next;
+    },
+    [],
+  );
   return {
     history,
     historyLoading,
     historyHasMore,
     historyError,
-    historyRevision,
+    currentRevision,
+    acceptLocalRevision,
     loadHistory,
     updateHistoryOccurrence,
   };

@@ -63,19 +63,20 @@ export default function App() {
     revision: number;
     previousCleared: boolean;
   }>();
-  const { history, historyLoading, historyHasMore, historyError, historyRevision, loadHistory, updateHistoryOccurrence } = useHistory(screen === 'history', state?.historyRevision);
+  const historyState = useHistory(screen === 'history', state?.historyRevision);
+  const { currentRevision, acceptLocalRevision, updateHistoryOccurrence } = historyState;
   const refreshGeneration = useRef(0);
   const refresh = useCallback(async (localRevision?: number) => {
     const generation = ++refreshGeneration.current;
     try {
       const next = await reminderRepository.state();
       if (generation !== refreshGeneration.current) return;
-      if (localRevision != null && historyRevision.current === localRevision && next.historyRevision === localRevision + 1) historyRevision.current = next.historyRevision;
+      acceptLocalRevision(localRevision, next.historyRevision);
       setState(next);
     } catch {
       if (generation === refreshGeneration.current) setError('load');
     }
-  }, [historyRevision]);
+  }, [acceptLocalRevision]);
   useEffect(() => {
     refresh();
     const timer = setInterval(() => refresh(), 30000);
@@ -183,7 +184,7 @@ export default function App() {
     occurrence: Occurrence,
     outcome: Outcome | null,
   ) => {
-    const previousHistoryRevision = historyRevision.current;
+    const previousHistoryRevision = currentRevision();
     try {
       const change = await reminderRepository.setOutcome(
         occurrence.medicineId,
@@ -206,7 +207,7 @@ export default function App() {
   };
   const undoChange = async () => {
     if (!undo) return;
-    const previousHistoryRevision = historyRevision.current;
+    const previousHistoryRevision = currentRevision();
     try {
       await reminderRepository.undoOutcome(
         undo.occurrence.medicineId,
@@ -449,19 +450,14 @@ export default function App() {
           <>
             {screen === 'history' ? (
               <HistoryScreen
-                history={history}
-                historyLoading={historyLoading}
-                historyHasMore={historyHasMore}
-                historyError={historyError}
+                historyState={historyState}
                 state={state}
                 error={error}
                 language={language}
                 undo={!!undo}
                 undoChange={undoChange}
-                loadHistory={loadHistory}
-                refresh={refresh}
-                setUndo={setUndo}
-                setError={setError}
+                onCleared={async () => { setUndo(undefined); await refresh(); }}
+                onClearError={() => setError(t.actionError)}
                 onCancel={() => { setUndo(undefined); setScreen('today'); }}
                 occurrenceView={occurrenceView}
               />
