@@ -1,8 +1,8 @@
+import { AppHeader } from './AppHeader';
 import { AppIcon } from './AppIcon';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -252,26 +252,7 @@ export function MedicineSetup({
   );
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t.back}
-          onPress={goBack}
-          style={styles.back}
-        >
-          <AppIcon name="arrowLeft" color="#36542b" />
-          <Text style={styles.backText}>{t.back}</Text>
-        </Pressable>
-        <View style={styles.brand}>
-          <Image
-            source={require('../assets/brand-sprig.png')}
-            style={styles.brandLeaf}
-            resizeMode="contain"
-            accessible={false}
-          />
-          <Text style={styles.brandText}>My Reminders</Text>
-        </View>
-      </View>
+      <AppHeader action={{ kind: 'back', label: t.back, onPress: goBack }} />
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
@@ -714,31 +695,7 @@ export function MedicineSetup({
 }
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fbf6eb' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    gap: 12,
-  },
-  brand: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, gap: 6 },
-  brandLeaf: { width: 40, height: 36 },
-  brandText: {
-    color: '#17231a',
-    fontSize: 17,
-    fontWeight: '700',
-    flexShrink: 1,
-  },
   content: { padding: 24, backgroundColor: '#fbf6eb', flexGrow: 1 },
-  back: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    minHeight: 48,
-  },
-  backText: { color: '#36542b', fontSize: 18, fontWeight: '600' },
   heading: {
     color: '#162524',
     fontSize: 28,
