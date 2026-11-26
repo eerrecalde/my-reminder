@@ -111,3 +111,91 @@ this is evidence of a memory failure in the loaded app, not a History timing
 or proof that the first tap selected History. The installation was cleared
 afterwards. A successful History timing remains unavailable until the failure
 is addressed; investigate its allocations as part of ticket 06.
+
+## Virtualized History, 26 November 2026
+
+On the `pill_reminder_test` API 36 ARM64 emulator, a bundled debug build with
+History rendered as a virtualized list and snoozes read in one batch was measured
+three times using the same
+benchmark and a freshly seeded dataset each time. The emulator ran headless
+with software graphics, in Europe/London. Each sample seeded 8,760 records and
+contained 9,852 after direct recovery; 12 of 24 items were active. Times are
+milliseconds:
+
+| Run | Direct recovery | Occurrence read | Scheduling | Reminders first row | History first row | History idle |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 3,360 | 24 | 16 | 1,172 | 403 | 980 |
+| 2 | 3,707 | 27 | 21 | 1,195 | 373 | 977 |
+| 3 | 3,187 | 24 | 20 | 1,099 | 378 | 960 |
+
+All instrumented runs completed without an out-of-memory failure and met the
+agreed first-row and direct-recovery limits. Earlier unlocked Reminders samples
+were 6,982 and 13,139 ms, and the History measurement crashed before a first
+row. Recovery changes from ticket 05 also landed since those baselines, so the
+Reminders improvement cannot be attributed to list virtualization alone. The
+headless graphics configuration may also differ from the original run. This is
+not a cold-start or physical-device measurement, and first-row and idle times
+do not prove every history row has been rendered.
+
+At this stage the change bounded mounted History rows but still loaded and
+serialized full history on each app refresh. The later paging work below
+addresses that remaining limit. Clearing history continues to mark
+stored records as cleared rather than deleting the occurrences.
+
+A separate manual check on the final seeded build scrolled from 25 November
+to 23 November and displayed older Reminder and Medicine rows with their
+outcomes and instructions. It did not inspect every row or verify the oldest
+record. The synthetic data was cleared afterwards.
+
+The existing direct-delivery snooze test failed at the first snooze assertion
+when run immediately after clearing the installation; it passed after the app
+was opened and stopped to initialize its state. The cause of the first failure
+was not established. This is a direct-delivery test, not an Android-delivered
+alarm or process-restart check.
+
+## Paged History, 26 November 2026
+
+On the same confirmed API 36 ARM64 disposable emulator, using the bundled
+headless debug build and the documented freshly seeded dataset, the paged build before change tracking produced these measurements (milliseconds):
+
+| Run | Direct recovery | Occurrence read | Scheduling | Reminders first row | History first row | History idle |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 3,120 | 24 | 17 | 2,660 | 272 | 939 |
+| 2 | 3,228 | 26 | 18 | 989 | 302 | 865 |
+| 3 | 3,167 | 23 | 19 | 2,664 | 278 | 833 |
+
+All three samples completed without an out-of-memory failure and met the
+agreed limits. Each contained 9,852 occurrences after direct recovery from
+8,760 seeded records; 12 of 24 reminders were active. A manual check scrolled
+past the first 50 rows and changed an older Medicine outcome from missed to
+taken, retaining its name and instructions. The synthetic data was cleared
+afterwards. These are warm-process emulator measurements, not physical-device
+or Android-delivered alarm measurements.
+
+Routine state refresh now reads Today candidates instead of all completed
+history. History uses 50-row pages ordered by scheduled time and reminder ID;
+local edits update the affected row, and a history revision triggers a reload
+when a separate action changes stored outcomes.
+The partial history index supports the ordered cursor query. A local SQLite
+query-plan check showed a full scan and temporary sort before the index, and an
+index range search after it; this is a query-plan observation, not an Android
+write-cost measurement. User-loaded rows remain in JavaScript memory while
+History is open, and large numbers of unconfirmed occurrences may still make
+Today processing grow. No upper supported dataset size has been established.
+
+## Paged History with change tracking
+
+After adding transactional history revision tracking, three fresh samples on
+the same emulator and dataset produced these values (milliseconds):
+
+| Run | Direct recovery | Occurrence read | Scheduling | Reminders first row | History first row | History idle |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 3,296 | 25 | 18 | 1,044 | 300 | 961 |
+| 2 | 3,208 | 24 | 17 | 1,045 | 280 | 862 |
+| 3 | 3,241 | 25 | 17 | 1,077 | 265 | 938 |
+
+All samples completed and met the agreed limits. This also measures the added
+revision-trigger work during recovery for this dataset, but does not establish
+its cost on other devices or datasets. When an external change is detected,
+History reloads from the first page; it does not retain the previous scroll
+position. The local-only checks above do not replace physical-device testing.

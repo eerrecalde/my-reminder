@@ -73,6 +73,7 @@
     "error": "No se pudo guardar. Inténtalo de nuevo.",
     "loading": "Cargando recordatorios…",
     "loadError": "No se pudieron cargar los recordatorios",
+    "retry": "Intentar de nuevo",
     "upcoming": "Próximo",
     "next": "Próximo recordatorio",
     "done": "Hecho",

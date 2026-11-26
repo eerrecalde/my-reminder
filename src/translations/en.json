@@ -73,6 +73,7 @@
     "error": "Could not save. Please try again.",
     "loading": "Loading reminders…",
     "loadError": "Unable to load reminders",
+    "retry": "Try again",
     "upcoming": "Upcoming",
     "next": "Next reminder",
     "done": "Done",

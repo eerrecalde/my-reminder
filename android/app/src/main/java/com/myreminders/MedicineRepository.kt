@@ -10,13 +10,15 @@ import java.util.UUID
 data class Medicine(val id: String, val name: String, val instructions: String, val times: List<String>, val createdAt: Long, val type: String = "medicine", val mode: String = "notification", val status: String = "active", val changedAt: Long = 0, val startDate: String? = null, val endDate: String? = null, val scheduleKind: String = "daily", val weekdays: List<Int> = emptyList(), val intervalHours: Int? = null, val intervalAnchor: Long? = null, val monthlyDay: Int? = null, val shortMonthPolicy: String = "last")
 
 /** Shared by the React Native bridge and Android receivers. */
-class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 19) {
+class MedicineRepository(context: Context, databaseName: String = "medicines.db") : SQLiteOpenHelper(context.applicationContext, databaseName, null, 21) {
   override fun onCreate(db: SQLiteDatabase) {
     db.execSQL("CREATE TABLE medicines (id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL, times TEXT NOT NULL, created_at INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'medicine', mode TEXT NOT NULL DEFAULT 'notification', status TEXT NOT NULL DEFAULT 'active', changed_at INTEGER NOT NULL DEFAULT 0, start_date TEXT, end_date TEXT, schedule_kind TEXT NOT NULL DEFAULT 'daily', weekdays TEXT NOT NULL DEFAULT '[]', interval_hours INTEGER, interval_anchor INTEGER, monthly_day INTEGER, short_month_policy TEXT NOT NULL DEFAULT 'last')")
     createSoundChoices(db)
     db.execSQL("CREATE TABLE alarms (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER NOT NULL, token TEXT NOT NULL, registered INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE doses (id TEXT PRIMARY KEY, medicine_id TEXT NOT NULL, scheduled_at INTEGER NOT NULL, alerted INTEGER NOT NULL DEFAULT 0, outcome TEXT, cleared INTEGER NOT NULL DEFAULT 0, missed_acknowledged INTEGER NOT NULL DEFAULT 0, silenced INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0, outstanding INTEGER NOT NULL DEFAULT 0, name TEXT, instructions TEXT, type TEXT, mode TEXT, times TEXT, retained INTEGER NOT NULL DEFAULT 0, one_off INTEGER NOT NULL DEFAULT 0)")
     createHistoryIndexes(db)
+    createHistoryPageIndex(db)
+    createHistoryRevision(db)
     db.execSQL("CREATE TABLE snoozes (medicine_id TEXT NOT NULL, occurrence_at INTEGER NOT NULL, alert_at INTEGER NOT NULL, token TEXT NOT NULL, PRIMARY KEY (medicine_id, occurrence_at))")
     db.execSQL("CREATE TABLE reminder_transitions (medicine_id TEXT PRIMARY KEY, scheduled_at INTEGER, token TEXT, registered INTEGER, changed_at INTEGER NOT NULL, committed INTEGER NOT NULL DEFAULT 0)")
     db.execSQL("CREATE TABLE occurrence_tracking (medicine_id TEXT PRIMARY KEY, starts_after INTEGER NOT NULL)")
@@ -29,6 +31,20 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     db.execSQL("CREATE INDEX IF NOT EXISTS doses_medicine_time ON doses (medicine_id, scheduled_at)")
     db.execSQL("CREATE INDEX IF NOT EXISTS doses_unconfirmed_time ON doses (medicine_id, scheduled_at) WHERE cleared = 0 AND outcome IS NULL")
   }
+
+  private fun createHistoryPageIndex(db: SQLiteDatabase) {
+    db.execSQL("CREATE INDEX IF NOT EXISTS doses_history_page ON doses (scheduled_at DESC, medicine_id DESC) WHERE cleared = 0 AND outcome IS NOT NULL")
+  }
+
+  private fun createHistoryRevision(db: SQLiteDatabase) {
+    db.execSQL("CREATE TABLE IF NOT EXISTS history_revision (id INTEGER PRIMARY KEY CHECK (id = 1), revision INTEGER NOT NULL)")
+    db.execSQL("INSERT OR IGNORE INTO history_revision VALUES (1, 0)")
+    db.execSQL("CREATE TRIGGER IF NOT EXISTS history_insert AFTER INSERT ON doses WHEN NEW.outcome IS NOT NULL AND NEW.cleared = 0 BEGIN UPDATE history_revision SET revision = revision + 1 WHERE id = 1; END")
+    db.execSQL("CREATE TRIGGER IF NOT EXISTS history_update AFTER UPDATE OF outcome, cleared ON doses WHEN OLD.outcome IS NOT NEW.outcome OR OLD.cleared != NEW.cleared BEGIN UPDATE history_revision SET revision = revision + 1 WHERE id = 1; END")
+    db.execSQL("CREATE TRIGGER IF NOT EXISTS history_delete AFTER DELETE ON doses WHEN OLD.outcome IS NOT NULL AND OLD.cleared = 0 BEGIN UPDATE history_revision SET revision = revision + 1 WHERE id = 1; END")
+  }
+
+  fun historyRevision(): Long = readableDatabase.rawQuery("SELECT revision FROM history_revision WHERE id = 1", null).use { cursor -> cursor.moveToFirst(); cursor.getLong(0) }
 
   override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
     if (oldVersion < 16) createSoundChoices(db)
@@ -92,6 +108,8 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
       }
     }
     if (oldVersion < 19) createHistoryIndexes(db)
+    if (oldVersion < 20) createHistoryPageIndex(db)
+    if (oldVersion < 21) createHistoryRevision(db)
   }
 
   data class SoundChoices(val notification: String?, val alarm: String?)
@@ -144,13 +162,23 @@ class MedicineRepository(context: Context, databaseName: String = "medicines.db"
     return readOccurrences(where, args, limit)
   }
 
+  fun todayCandidates(start: Long, end: Long): List<Occurrence> =
+    readOccurrences("WHERE (scheduled_at >= ? AND scheduled_at < ?) OR (cleared = 0 AND outcome IS NULL)", arrayOf(start.toString(), end.toString()))
+
+  fun historyPage(beforeAt: Long?, beforeMedicineId: String?, limit: Int): List<Occurrence> {
+    require(limit in 1..200 && (beforeAt == null) == (beforeMedicineId == null))
+    val cursor = if (beforeAt == null) "" else " AND (scheduled_at, medicine_id) < (?, ?)"
+    val args = if (beforeAt == null) null else arrayOf(beforeAt.toString(), requireNotNull(beforeMedicineId))
+    return readOccurrences("WHERE cleared = 0 AND outcome IS NOT NULL$cursor", args, limit, "scheduled_at DESC, medicine_id DESC")
+  }
+
   fun occurrence(medicineId: String, at: Long, includeCleared: Boolean = false): Occurrence? =
     readOccurrences("WHERE id = ?" + if (includeCleared) "" else " AND cleared = 0",
       arrayOf("$medicineId:$at")).singleOrNull()
 
-  private fun readOccurrences(where: String, args: Array<String>? = null, limit: Int? = null): List<Occurrence> {
+  private fun readOccurrences(where: String, args: Array<String>? = null, limit: Int? = null, order: String = "scheduled_at"): List<Occurrence> {
     val result = mutableListOf<Occurrence>()
-    readableDatabase.rawQuery("SELECT medicine_id, scheduled_at, outcome, cleared, outstanding, name, instructions, type, mode, times, retained, missed_acknowledged, one_off FROM doses $where ORDER BY scheduled_at" + (limit?.let { " LIMIT $it" } ?: ""), args).use { cursor ->
+    readableDatabase.rawQuery("SELECT medicine_id, scheduled_at, outcome, cleared, outstanding, name, instructions, type, mode, times, retained, missed_acknowledged, one_off FROM doses $where ORDER BY $order" + (limit?.let { " LIMIT $it" } ?: ""), args).use { cursor ->
       while (cursor.moveToNext()) {
         val times = cursor.getString(9)?.let { value -> JSONArray(value).let { array -> (0 until array.length()).map { array.getString(it) } } }
         result.add(Occurrence(cursor.getString(0), cursor.getLong(1), cursor.getString(2), cursor.getInt(3) != 0, cursor.getInt(4) != 0, cursor.getString(5), cursor.getString(6), cursor.getString(7), cursor.getString(8), times, cursor.getInt(10) != 0, cursor.getInt(11) != 0, cursor.getInt(12) != 0))
