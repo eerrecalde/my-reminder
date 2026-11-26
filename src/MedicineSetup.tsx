@@ -11,28 +11,17 @@ import {
   View,
 } from 'react-native';
 import {
-  finalDailyOccurrence,
   isOneOffSchedule,
   localDate,
   localDateString,
   nextDailyOccurrences,
 } from './dailySchedule';
-import {
-  nextWeekdayOccurrences,
-  finalWeekdayOccurrence,
-} from './weekdaySchedule';
-import {
-  nextIntervalOccurrences,
-  finalIntervalOccurrence,
-} from './intervalSchedule';
-import {
-  nextMonthlyOccurrences,
-  finalMonthlyOccurrence,
-} from './monthlySchedule';
 import type { ReminderType } from './reminderRepository';
 import { PillAction } from './PillAction';
 import type { FullScreenAccess } from './reminderRepository';
 import { ReminderAlertChoice } from './ReminderAlertChoice';
+import { SetupReview } from './SetupReview';
+import { ScheduleFrequency } from './ScheduleFrequency';
 
 export type DailyMedicineInput = {
   type: ReminderType;
@@ -228,66 +217,6 @@ export function MedicineSetup({
     setError('');
     setStep(step + 1);
   };
-  const preview =
-    step !== 3
-      ? []
-      : scheduleKind === 'once'
-      ? nextDailyOccurrences(
-          [onceTime],
-          now ?? new Date(),
-          1,
-          onceDate,
-          onceDate,
-        )
-      : scheduleKind === 'weekday'
-      ? nextWeekdayOccurrences(
-          times,
-          weekdays,
-          now ?? new Date(),
-          3,
-          startDate,
-          endDate,
-        )
-      : scheduleKind === 'interval'
-      ? nextIntervalOccurrences(
-          anchor,
-          Number(intervalHours),
-          new Date(
-            Math.max(
-              (now ?? new Date()).getTime(),
-              new Date(`${startDate}T00:00:00`).getTime() - 1,
-            ),
-          ),
-          3,
-          endDate,
-        )
-      : scheduleKind === 'monthly'
-      ? nextMonthlyOccurrences(
-          times,
-          monthlyDay === 'last' ? 'last' : Number(monthlyDay),
-          shortMonthPolicy,
-          now ?? new Date(),
-          3,
-          startDate,
-          endDate,
-        )
-      : nextDailyOccurrences(times, now ?? new Date(), 3, startDate, endDate);
-  const final =
-    step === 3 && scheduleKind !== 'once' && endDate
-      ? scheduleKind === 'weekday'
-        ? finalWeekdayOccurrence(times, weekdays, endDate)
-        : scheduleKind === 'interval'
-        ? finalIntervalOccurrence(anchor, Number(intervalHours), endDate)
-        : scheduleKind === 'monthly'
-        ? finalMonthlyOccurrence(
-            times,
-            monthlyDay === 'last' ? 'last' : Number(monthlyDay),
-            shortMonthPolicy,
-            startDate,
-            endDate,
-          )
-        : finalDailyOccurrence(times, endDate)
-      : undefined;
   const formatDate = (value: string) =>
     localDate(value).toLocaleDateString(translations[language].locale, {
       day: 'numeric',
@@ -401,49 +330,13 @@ export function MedicineSetup({
         )}
         {step === 2 && (
           <>
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>{t.frequency}</Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${t.frequency}: ${t[scheduleKind]}`}
-                accessibilityState={{ expanded: frequencyOpen }}
-                onPress={() => setFrequencyOpen(open => !open)}
-                style={styles.fieldControl}
-              >
-                <Text style={styles.fieldValue}>{t[scheduleKind]}</Text>
-                <AppIcon
-                  name={frequencyOpen ? 'chevronUp' : 'chevronDown'}
-                  color="#36542b"
-                />
-              </Pressable>
-              {frequencyOpen && (
-                <View
-                  accessibilityRole="radiogroup"
-                  style={styles.scheduleOptions}
-                >
-                  {(
-                    ['once', 'daily', 'weekday', 'interval', 'monthly'] as const
-                  ).map(kind => (
-                    <Pressable
-                      key={kind}
-                      accessibilityRole="radio"
-                      accessibilityState={{ checked: scheduleKind === kind }}
-                      onPress={() => {
-                        setScheduleKind(kind);
-                        setFrequencyOpen(false);
-                      }}
-                      style={styles.scheduleOption}
-                    >
-                      <AppIcon
-                        name={scheduleKind === kind ? 'circleDot' : 'circle'}
-                        color="#36542b"
-                      />
-                      <Text style={styles.modeText}>{t[kind]}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
+            <ScheduleFrequency
+              language={language}
+              value={scheduleKind}
+              onChange={setScheduleKind}
+              open={frequencyOpen}
+              onOpenChange={setFrequencyOpen}
+            />
             {scheduleKind === 'weekday' &&
               t.weekdays.map((label, index) => (
                 <Pressable
@@ -727,51 +620,25 @@ export function MedicineSetup({
           </>
         )}
         {step === 3 && (
-          <>
-            <Text style={styles.label}>
-              {type === 'medicine' ? t.medicine : t.reminder}
-            </Text>
-            <Text style={styles.label}>{name.trim()}</Text>
-            {type === 'medicine' && !!instructions.trim() && (
-              <Text style={styles.label}>{instructions.trim()}</Text>
-            )}
-            <Text style={styles.label}>
-              {mode === 'alarm' ? t.alarmMode : t.mode}
-            </Text>
-            <Text style={styles.label}>
-              {t[scheduleKind]}
-              {scheduleKind === 'once'
-                ? `: ${onceDate}, ${onceTime}`
-                : scheduleKind !== 'interval'
-                ? `: ${times.join(', ')}`
-                : `: ${intervalHours}h`}
-            </Text>
-            <Text accessibilityRole="header" style={styles.label}>
-              {scheduleKind === 'once' ? t.oncePreview : t.nextThree}
-            </Text>
-            {preview.map(date => (
-              <Text key={date.toISOString()} style={styles.label}>
-                {date.toLocaleString(translations[language].locale, {
-                  dateStyle: 'full',
-                  timeStyle: 'short',
-                })}
-              </Text>
-            ))}
-            {preview.length === 0 && <Text style={styles.label}>{t.none}</Text>}
-            {preview.length > 0 && final && (
-              <>
-                <Text accessibilityRole="header" style={styles.label}>
-                  {t.final}
-                </Text>
-                <Text style={styles.label}>
-                  {final.toLocaleString(translations[language].locale, {
-                    dateStyle: 'full',
-                    timeStyle: 'short',
-                  })}
-                </Text>
-              </>
-            )}
-          </>
+          <SetupReview
+            language={language}
+            type={type}
+            name={name}
+            instructions={instructions}
+            mode={mode}
+            scheduleKind={scheduleKind}
+            times={times}
+            onceDate={onceDate}
+            onceTime={onceTime}
+            weekdays={weekdays}
+            anchor={anchor}
+            intervalHours={intervalHours}
+            monthlyDay={monthlyDay}
+            shortMonthPolicy={shortMonthPolicy}
+            startDate={startDate}
+            endDate={endDate}
+            now={now}
+          />
         )}
         {!!error && (
           <Text accessibilityRole="alert" style={styles.error}>
@@ -891,19 +758,6 @@ const styles = StyleSheet.create({
   },
   error: { color: '#a01818', fontSize: 18, marginVertical: 12 },
   actions: { gap: 12, marginTop: 24 },
-  scheduleOptions: {
-    borderWidth: 1,
-    borderColor: '#a4b398',
-    backgroundColor: '#fffaf1',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-  },
-  scheduleOption: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   fieldGroup: { gap: 8, marginVertical: 8 },
   fieldLabel: { color: '#162524', fontSize: 17, fontWeight: '600' },
   fieldControl: {
