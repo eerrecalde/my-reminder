@@ -33,11 +33,11 @@ export type ReminderState = {
   languagePreference: 'system' | 'en' | 'es';
   medicines: Medicine[];
   todayDoses: Occurrence[];
-  history: Occurrence[];
   upcoming: Occurrence[];
 };
 export interface ReminderRepository {
   state(): Promise<ReminderState>;
+  historyPage(beforeAt: number | null, beforeMedicineId: string | null): Promise<Occurrence[]>;
   setLanguage(language: 'system' | 'en' | 'es'): Promise<void>;
   selectSound(
     mode: 'notification' | 'alarm',

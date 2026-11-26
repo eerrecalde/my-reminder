@@ -9,6 +9,48 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MedicineRepositoryTest {
+  @Test fun historyPagesKeepTiedOccurrencesAndExcludeClearedRecordsAfterUpgrade() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val name = "history-pages-upgrade.db"
+    context.deleteDatabase(name)
+    try {
+      val ids = MedicineRepository(context, name).use { repo ->
+        val items = (0 until 3).map { repo.save("Item $it", "", listOf("09:00"), 1000, "reminder") }
+        items.forEach { repo.recordDue(it.id, 2000); repo.setOutcome(it.id, 2000, "completed") }
+        repo.setAlarm(items[0].id, 3000, "future")
+        repo.writableDatabase.execSQL("DROP INDEX doses_history_page")
+        repo.writableDatabase.version = 19
+        items.map { it.id }
+      }
+      MedicineRepository(context, name).use { repo ->
+        val first = repo.historyPage(null, null, 2)
+        assertEquals(2, first.size)
+        val last = first.last()
+        val second = repo.historyPage(last.at, last.medicineId, 2)
+        assertEquals(ids.toSet(), (first + second).map { it.medicineId }.toSet())
+        assertEquals(3, first.size + second.size)
+        assertEquals("future", repo.alarm(ids[0])?.token)
+        repo.clearHistory()
+        assertTrue(repo.historyPage(null, null, 2).isEmpty())
+      }
+    } finally { context.deleteDatabase(name) }
+  }
+  @Test fun todayCandidatesKeepTodayAndUnconfirmedOccurrencesWithoutOldHistory() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val name = "today-candidates.db"
+    context.deleteDatabase(name)
+    try {
+      MedicineRepository(context, name).use { repo ->
+        val item = repo.save("Water", "", listOf("09:00"), 1000, "reminder")
+        listOf(2000L, 3000L, 4000L).forEach { repo.recordDue(item.id, it) }
+        repo.setOutcome(item.id, 2000, "completed")
+        repo.setOutcome(item.id, 4000, "skipped")
+        assertEquals(listOf(3000L, 4000L), repo.todayCandidates(4000, 5000).map { it.at })
+        repo.clearHistory()
+        assertEquals(listOf(3000L, 4000L), repo.todayCandidates(4000, 5000).map { it.at })
+      }
+    } finally { context.deleteDatabase(name) }
+  }
   @Test fun failedAlarmClaimKeepsReservedOccurrenceRecoverable() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val db = "recovery-claim-rollback.db"

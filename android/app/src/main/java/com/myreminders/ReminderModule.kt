@@ -85,19 +85,18 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
       val zone = java.time.ZoneId.systemDefault()
       val end = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
       val doses = Arguments.createArray()
-      val history = Arguments.createArray()
       val upcoming = Arguments.createArray()
       MedicineRepository(reactContext).use { repo ->
         val now = java.time.Instant.now()
         val medicinesById = repo.all().associateBy { it.id }
         val snoozedOccurrences = repo.snoozes().map { it.medicineId to it.at }.toSet()
-        repo.occurrences(includeCleared = true).forEach { occurrence ->
+        val start = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        repo.todayCandidates(start, end).forEach { occurrence ->
           val medicine = medicinesById[occurrence.medicineId]
           fun occurrenceMap() = Arguments.createMap().apply {
             putString("name", occurrence.name); putString("instructions", occurrence.instructions); putString("type", occurrence.type); putString("medicineId", occurrence.medicineId); putDouble("scheduledAt", occurrence.at.toDouble()); putString("outcome", occurrence.outcome); putBoolean("outstanding", occurrence.outstanding); putBoolean("actionable", TodayPolicy.actionable(occurrence, medicine, now, zone)); putBoolean("snoozed", (occurrence.medicineId to occurrence.at) in snoozedOccurrences)
           }
           if (TodayPolicy.includes(occurrence, medicine, now, zone)) doses.pushMap(occurrenceMap())
-          if (!occurrence.cleared && occurrence.outcome != null) history.pushMap(occurrenceMap())
         }
         medicinesById.values.filter { it.status == "active" }.forEach { medicine ->
           var next = DailySchedule.next(medicine, now, zone)
@@ -110,10 +109,24 @@ class ReminderModule(private val reactContext: ReactApplicationContext) : ReactC
         }
       }
       result.putArray("todayDoses", doses)
-      result.putArray("history", history)
       result.putArray("upcoming", upcoming)
       promise.resolve(result)
     } catch (error: Exception) { promise.reject("state_failed", error) }
+  }
+  @ReactMethod fun historyPage(beforeAt: Double?, beforeMedicineId: String?, promise: Promise) {
+    try {
+      val result = Arguments.createArray()
+      MedicineRepository(reactContext).use { repo ->
+        repo.historyPage(beforeAt?.toLong(), beforeMedicineId, 50).forEach { occurrence ->
+          result.pushMap(Arguments.createMap().apply {
+            putString("name", occurrence.name); putString("instructions", occurrence.instructions); putString("type", occurrence.type)
+            putString("medicineId", occurrence.medicineId); putDouble("scheduledAt", occurrence.at.toDouble()); putString("outcome", occurrence.outcome)
+            putBoolean("outstanding", occurrence.outstanding)
+          })
+        }
+      }
+      promise.resolve(result)
+    } catch (error: Exception) { promise.reject("history_failed", error) }
   }
   @ReactMethod fun setLanguage(language: String, promise: Promise) {
     try { AppLanguage.set(reactContext, language); promise.resolve(null) }

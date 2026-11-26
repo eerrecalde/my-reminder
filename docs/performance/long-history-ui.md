@@ -137,9 +137,9 @@ headless graphics configuration may also differ from the original run. This is
 not a cold-start or physical-device measurement, and first-row and idle times
 do not prove every history row has been rendered.
 
-This change bounds mounted History rows but still loads and serializes the full
-history on each app refresh, although snoozes now use a single read. Larger datasets may require a paginated native query; these measurements do not
-establish an upper supported history size. Clearing history continues to mark
+At this stage the change bounded mounted History rows but still loaded and
+serialized full history on each app refresh. The later paging work below
+addresses that remaining limit. Clearing history continues to mark
 stored records as cleared rather than deleting the occurrences.
 
 A separate manual check on the final seeded build scrolled from 25 November
@@ -152,3 +152,33 @@ when run immediately after clearing the installation; it passed after the app
 was opened and stopped to initialize its state. The cause of the first failure
 was not established. This is a direct-delivery test, not an Android-delivered
 alarm or process-restart check.
+
+## Paged History, 26 November 2026
+
+On the same confirmed API 36 ARM64 disposable emulator, using the bundled
+headless debug build and the documented freshly seeded dataset, the final
+paged build produced these measurements (milliseconds):
+
+| Run | Direct recovery | Occurrence read | Scheduling | Reminders first row | History first row | History idle |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 3,120 | 24 | 17 | 2,660 | 272 | 939 |
+| 2 | 3,228 | 26 | 18 | 989 | 302 | 865 |
+| 3 | 3,167 | 23 | 19 | 2,664 | 278 | 833 |
+
+All three samples completed without an out-of-memory failure and met the
+agreed limits. Each contained 9,852 occurrences after direct recovery from
+8,760 seeded records; 12 of 24 reminders were active. A manual check scrolled
+past the first 50 rows and changed an older Medicine outcome from missed to
+taken, retaining its name and instructions. The synthetic data was cleared
+afterwards. These are warm-process emulator measurements, not physical-device
+or Android-delivered alarm measurements.
+
+Routine state refresh now reads Today candidates instead of all completed
+history. History uses 50-row pages ordered by scheduled time and reminder ID;
+loaded pages are refreshed after a history action and on returning to the app.
+The partial history index supports the ordered cursor query. A local SQLite
+query-plan check showed a full scan and temporary sort before the index, and an
+index range search after it; this is a query-plan observation, not an Android
+write-cost measurement. User-loaded rows remain in JavaScript memory while
+History is open, and large numbers of unconfirmed occurrences may still make
+Today processing grow. No upper supported dataset size has been established.

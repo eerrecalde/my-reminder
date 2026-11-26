@@ -3,6 +3,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import {
   Alert,
   AppState,
+  FlatList,
   NativeModules,
   Platform,
   StyleSheet,
@@ -69,7 +70,9 @@ jest.mock('react-native-safe-area-context', () => {
 
 test('history is cleared only after confirmation', async () => {
   const repo = require('../src/reminderRepository');
-  const clearHistory = jest.fn().mockResolvedValue(undefined);
+  let cleared = false;
+  const clearHistory = jest.fn().mockImplementation(async () => { cleared = true; });
+  const historyPage = jest.fn().mockImplementation(async () => cleared ? [] : [{ medicineId: 'm', scheduledAt: 2000, outcome: 'skipped' }]);
   repo.reminderRepository = {
     state: jest.fn().mockResolvedValue({
       enabled: true,
@@ -90,15 +93,16 @@ test('history is cleared only after confirmation', async () => {
       history: [{ medicineId: 'm', scheduledAt: 2000, outcome: 'skipped' }],
     }),
     clearHistory,
+    historyPage,
   };
   const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
     renderer = ReactTestRenderer.create(<App />);
   });
-  await ReactTestRenderer.act(() =>
-    renderer.root.findByProps({ testID: 'nav-history' }).props.onPress(),
-  );
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByProps({ testID: 'nav-history' }).props.onPress();
+  });
   expect(
     renderer.root
       .findAllByType(Text)
@@ -118,6 +122,30 @@ test('history is cleared only after confirmation', async () => {
   expect(clearHistory).toHaveBeenCalledTimes(1);
   alert.mockRestore();
   await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('loads older history without losing tied occurrences or retained details', async () => {
+  const repo = require('../src/reminderRepository');
+  const first = Array.from({ length: 50 }, (_, index) => ({
+    medicineId: `m${index}`, scheduledAt: 2000, outcome: 'completed',
+    name: `Reminder ${index}`, type: 'reminder',
+  }));
+  const older = { medicineId: 'old', scheduledAt: 2000, outcome: 'skipped', name: 'Old medicine', instructions: 'With food', type: 'medicine' };
+  const historyPage = jest.fn().mockResolvedValueOnce(first).mockResolvedValueOnce([older]);
+  repo.reminderRepository = {
+    state: jest.fn().mockResolvedValue({ enabled: true, exactAlarms: true, notifications: true, language: 'en', medicines: [], todayDoses: [], upcoming: [] }),
+    historyPage,
+  };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+  await ReactTestRenderer.act(async () => { view.root.findByProps({ testID: 'nav-history' }).props.onPress(); });
+  expect(historyPage).toHaveBeenCalledWith(null, null);
+  await ReactTestRenderer.act(async () => { view.root.findByType(FlatList).props.onEndReached(); });
+  expect(historyPage).toHaveBeenLastCalledWith(2000, 'm49');
+  const data = view.root.findByType(FlatList).props.data;
+  expect(data).toHaveLength(51);
+  expect(data[50]).toEqual(older);
+  await ReactTestRenderer.act(() => view.unmount());
 });
 
 test('shows reminders off and offers an enable action when access is missing', async () => {

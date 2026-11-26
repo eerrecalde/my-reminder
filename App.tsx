@@ -2,7 +2,7 @@ import { AppIcon } from './src/AppIcon';
 import { SoundChoice } from './src/SoundChoice';
 import { LanguageSelector } from './src/LanguageSelector';
 import { MainNavigation } from './src/MainNavigation';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppState,
   Alert,
@@ -80,6 +80,55 @@ export default function App() {
       listener.remove();
     };
   }, [refresh]);
+  const [history, setHistory] = useState<Occurrence[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyHasMore, setHistoryHasMore] = useState(true);
+  const historyRef = useRef<Occurrence[]>([]);
+  const historyGeneration = useRef(0);
+  const historyInFlight = useRef(false);
+  const loadHistory = useCallback(async (reset: boolean, minimum = 50) => {
+    if (!reset && historyInFlight.current) return;
+    const generation = reset ? ++historyGeneration.current : historyGeneration.current;
+    if (reset && minimum === 50) {
+      historyRef.current = [];
+      setHistory([]);
+    }
+    historyInFlight.current = true;
+    setHistoryLoading(true);
+    try {
+      let rows = reset ? [] : historyRef.current;
+      let page: Occurrence[];
+      do {
+        const last = rows[rows.length - 1];
+        page = await reminderRepository.historyPage(last?.scheduledAt ?? null, last?.medicineId ?? null);
+        rows = [...rows, ...page];
+      } while (reset && rows.length < minimum && page.length === 50);
+      if (generation !== historyGeneration.current) return;
+      historyRef.current = rows;
+      setHistory(rows);
+      setHistoryHasMore(page.length === 50);
+    } catch {
+      if (generation === historyGeneration.current) setError('load');
+    } finally {
+      if (generation === historyGeneration.current) {
+        historyInFlight.current = false;
+        setHistoryLoading(false);
+      }
+    }
+  }, []);
+  useEffect(() => {
+    const generation = historyGeneration;
+    const inFlight = historyInFlight;
+    if (screen === 'history') loadHistory(true);
+    return () => { generation.current++; inFlight.current = false; };
+  }, [screen, loadHistory]);
+  useEffect(() => {
+    if (screen !== 'history') return;
+    const listener = AppState.addEventListener('change', value => {
+      if (value === 'active') loadHistory(true, historyRef.current.length);
+    });
+    return () => listener.remove();
+  }, [screen, loadHistory]);
   const sortedUpcoming = (state?.upcoming ?? [])
     .filter(
       item =>
@@ -87,12 +136,6 @@ export default function App() {
         new Date(item.scheduledAt).toDateString() === new Date().toDateString(),
     )
     .sort((a, b) => a.scheduledAt - b.scheduledAt);
-  const sortedHistory = useMemo(
-    () => screen === 'history'
-      ? [...(state?.history ?? [])].sort((a, b) => b.scheduledAt - a.scheduledAt)
-      : [],
-    [screen, state?.history],
-  );
   const nextUpcoming = sortedUpcoming[0];
   const overdueIds = new Set(
     (state?.todayDoses ?? [])
@@ -197,6 +240,7 @@ export default function App() {
         });
       setError('');
       await refresh();
+      if (screen === 'history') await loadHistory(true, historyRef.current.length);
     } catch {
       setError(t.actionError);
     }
@@ -214,6 +258,7 @@ export default function App() {
       setUndo(undefined);
       setError('');
       await refresh();
+      if (screen === 'history') await loadHistory(true, historyRef.current.length);
     } catch {
       setUndo(undefined);
       setError(t.actionError);
@@ -445,7 +490,9 @@ export default function App() {
             {screen === 'history' ? (
               <FlatList
                 contentContainerStyle={styles.content}
-                data={sortedHistory}
+                data={history}
+                onEndReached={() => { if (historyHasMore && !historyLoading) loadHistory(false); }}
+                onEndReachedThreshold={0.5}
                 keyExtractor={item => `${item.medicineId}:${item.scheduledAt}`}
                 ListHeaderComponent={
                   <>
@@ -453,13 +500,13 @@ export default function App() {
                       {t.history}
                     </Text>
                     {undo && <PillAction title={t.undo} onPress={undoChange} />}
-                    {!state && <Text style={styles.text}>{t.loading}</Text>}
+                    {(!state || (historyLoading && history.length === 0)) && <Text style={styles.text}>{t.loading}</Text>}
                     {!state && !!error && (
                       <Text accessibilityRole="alert" style={styles.error}>
                         {error === 'load' ? t.loadError : error}
                       </Text>
                     )}
-                    {state && state.history.length === 0 && (
+                    {state && !historyLoading && history.length === 0 && (
                       <Text style={styles.text}>{t.noHistory}</Text>
                     )}
                   </>
@@ -472,7 +519,7 @@ export default function App() {
                     );
                   const date = formatDate(occurrence.scheduledAt);
                   const previousDate =
-                    index > 0 ? formatDate(sortedHistory[index - 1].scheduledAt) : null;
+                    index > 0 ? formatDate(history[index - 1].scheduledAt) : null;
                   const medicine = state?.medicines.find(
                     item => item.id === occurrence.medicineId,
                   );
@@ -513,6 +560,7 @@ export default function App() {
                               onPress: async () => {
                                 try {
                                   await reminderRepository.clearHistory();
+                                  await loadHistory(true);
                                   setUndo(undefined);
                                   await refresh();
                                 } catch {
