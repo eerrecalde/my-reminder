@@ -367,6 +367,36 @@ class ReminderFoundationTest {
       }
     }
   }
+  @Test fun schedulingKeepsUnregisteredOverdueAlarmWhenRecordingFails() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val now = System.currentTimeMillis()
+    val at = now - 1_000
+    val item = MedicineRepository(context).use { repo ->
+      repo.save("Unregistered", "", listOf("09:00"), now - 10_000, "reminder").also {
+        repo.setAlarm(it.id, at, "unregistered")
+        repo.writableDatabase.execSQL("CREATE TRIGGER reject_recovery_due BEFORE INSERT ON doses BEGIN SELECT RAISE(ABORT, 'simulated interruption'); END")
+      }
+    }
+    try {
+      try {
+        ReminderScheduler.schedule(context, item, java.time.Instant.ofEpochMilli(now))
+        fail("Occurrence insertion should fail")
+      } catch (_: android.database.sqlite.SQLiteException) { }
+      MedicineRepository(context).use { repo ->
+        assertEquals("unregistered", repo.alarm(item.id)?.token)
+        assertNull(repo.occurrence(item.id, at, includeCleared = true))
+      }
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.writableDatabase.execSQL("DROP TRIGGER IF EXISTS reject_recovery_due")
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        for (table in listOf("alarms", "doses", "occurrence_tracking")) repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
   @Test fun recoveryPreservesOverdueAlarmFromBeforeTrackingBegan() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     assertTrue(ReminderScheduler.enabled(context))
@@ -419,6 +449,183 @@ class ReminderFoundationTest {
         repo.alarm(item.id)?.let { cancel(context, it) }
         repo.writableDatabase.delete("alarms", "medicine_id = ?", arrayOf(item.id))
         repo.writableDatabase.delete("doses", "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
+  @Test fun watchdogRetainsReservedOccurrenceAfterRecoveryCursorAdvances() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    ReminderScheduler.rebuild(context)
+    val zone = java.time.ZoneId.systemDefault()
+    val day = java.time.LocalDate.now(zone).minusDays(3)
+    val created = day.atStartOfDay(zone).toInstant().toEpochMilli()
+    val at = day.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+    val item = MedicineRepository(context).use { repo ->
+      repo.save("Reserved", "", listOf("09:00"), created, "reminder").also {
+        repo.setAlarm(it.id, at, "old-registered")
+        repo.markAlarmRegistered(it.id, "old-registered")
+      }
+    }
+    try {
+      ReminderScheduler.rebuild(context)
+      MedicineRepository(context).use { repo ->
+        assertTrue(repo.trackingStart(item.id) > at)
+        assertNull(repo.occurrence(item.id, at, includeCleared = true))
+      }
+      ReminderScheduler.recoverInterruptedDelivery(context, item.id, at, "old-registered")
+      ReminderScheduler.rebuild(context, recovery = true)
+      MedicineRepository(context).use { repo ->
+        assertNotNull(repo.occurrence(item.id, at, includeCleared = true))
+        assertTrue(repo.alarm(item.id)?.registered == true)
+      }
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        for (table in listOf("alarms", "doses", "occurrence_tracking")) repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
+  @Test fun recoveryFillsOlderGapWhenNewerOccurrenceAlreadyExists() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val zone = java.time.ZoneId.systemDefault()
+    val firstDay = java.time.LocalDate.now(zone).minusDays(5)
+    val created = firstDay.atStartOfDay(zone).toInstant().toEpochMilli()
+    val laterAt = firstDay.plusDays(4).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+    val item = MedicineRepository(context).use { repo ->
+      repo.save("Older gap", "", listOf("09:00"), created, "reminder").also {
+        repo.recordDue(it.id, laterAt)
+        repo.setOutcome(it.id, laterAt, "completed")
+        // Version 17 used the same schema but inferred progress from the latest row.
+        repo.writableDatabase.version = 17
+      }
+    }
+    try {
+      ReminderScheduler.rebuild(context, recovery = true)
+      val expected = (0L..5L).map { firstDay.plusDays(it).atTime(9, 0).atZone(zone).toInstant().toEpochMilli() }.filter { it <= System.currentTimeMillis() }
+      MedicineRepository(context).use { repo ->
+        assertEquals(expected, repo.occurrences(true).filter { it.medicineId == item.id }.map { it.at })
+        assertEquals("completed", repo.outcome(item.id, laterAt))
+        assertTrue(repo.alarm(item.id)?.registered == true)
+      }
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        for (table in listOf("alarms", "doses", "occurrence_tracking")) repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
+  @Test fun occurrencePagesPreserveOrderAndFiltersAcrossBoundaries() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val now = System.currentTimeMillis()
+    val item = MedicineRepository(context).use { repo ->
+      repo.save("Paged history", "", listOf("09:00"), now - 1_000_000, "reminder").also {
+        val times = (0L until 300L).map { offset -> now - 900_000 + offset * 1_000 }
+        repo.recordDueBatch(it.id, times)
+        repo.setOutcome(it.id, times[127], "completed")
+        repo.setOutcome(it.id, times[256], "skipped")
+        repo.clearHistory()
+      }
+    }
+    try {
+      MedicineRepository(context).use { repo ->
+        for (includeCleared in listOf(false, true)) for (unconfirmedOnly in listOf(false, true)) {
+          val expected = repo.occurrencesFor(item.id, includeCleared, unconfirmedOnly)
+          val actual = mutableListOf<MedicineRepository.Occurrence>()
+          var after: Long? = null
+          do {
+            val page = repo.occurrencesPage(item.id, after, 128, includeCleared, unconfirmedOnly)
+            assertTrue(page.size <= 128)
+            actual.addAll(page)
+            after = page.lastOrNull()?.at
+          } while (page.size == 128)
+          assertEquals(expected, actual)
+        }
+      }
+    } finally {
+      MedicineRepository(context).use { repo ->
+        for (table in listOf("alarms", "doses", "occurrence_tracking")) repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
+  @Test fun historyIndexUpgradeKeepsExistingOccurrences() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val databaseName = "history-index-upgrade-test.db"
+    context.deleteDatabase(databaseName)
+    try {
+      val now = System.currentTimeMillis()
+      val id = MedicineRepository(context, databaseName).use { repo ->
+        val item = repo.save("Existing history", "", listOf("09:00"), now - 10_000, "reminder")
+        repo.recordDueBatch(item.id, listOf(now - 5_000, now - 4_000))
+        repo.setOutcome(item.id, now - 5_000, "completed")
+        repo.retainUnconfirmed(item.id)
+        repo.setAlarm(item.id, now + 60_000, "future")
+        repo.markAlarmRegistered(item.id, "future")
+        repo.writableDatabase.execSQL("DROP INDEX doses_medicine_time")
+        repo.writableDatabase.execSQL("DROP INDEX doses_unconfirmed_time")
+        repo.writableDatabase.version = 18
+        item.id
+      }
+      MedicineRepository(context, databaseName).use { repo ->
+        assertEquals(listOf(now - 5_000, now - 4_000), repo.occurrencesPage(id, null, 128).map { it.at })
+        assertEquals("completed", repo.outcome(id, now - 5_000))
+        assertEquals(MedicineRepository.Alarm(id, now + 60_000, "future", true), repo.alarm(id))
+        val retained = requireNotNull(repo.occurrence(id, now - 4_000))
+        assertTrue(retained.retained)
+        assertEquals("Existing history", retained.name)
+        repo.readableDatabase.rawQuery("PRAGMA index_list(doses)", null).use { cursor ->
+          val names = mutableListOf<String>()
+          while (cursor.moveToNext()) names.add(cursor.getString(1))
+          assertTrue(names.contains("doses_medicine_time"))
+          assertTrue(names.contains("doses_unconfirmed_time"))
+        }
+      }
+    } finally {
+      context.deleteDatabase(databaseName)
+    }
+  }
+  @Test fun recoveryAfterSimulatedPartialLongGapKeepsOutcomesAndIsRepeatable() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val zone = java.time.ZoneId.systemDefault()
+    val firstDay = java.time.LocalDate.now(zone).minusDays(150)
+    val created = firstDay.atStartOfDay(zone).toInstant().toEpochMilli()
+    val firstAt = firstDay.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+    val item = MedicineRepository(context).use { repo ->
+      repo.save("Long gap", "", listOf("09:00"), created, "reminder").also {
+        val partial = (0L until 128L).map { day -> firstDay.plusDays(day).atTime(9, 0).atZone(zone).toInstant().toEpochMilli() }
+        repo.recordDueBatch(it.id, partial)
+        repo.setOutcome(it.id, firstAt, "completed")
+      }
+    }
+    try {
+      ReminderScheduler.rebuild(context, recovery = true)
+      val first = MedicineRepository(context).use { repo ->
+        assertEquals("completed", repo.outcome(item.id, firstAt))
+        assertTrue(repo.alarm(item.id)?.registered == true)
+        repo.occurrences(true).filter { it.medicineId == item.id }
+      }
+      val expected = (0L..150L).map { day -> firstDay.plusDays(day).atTime(9, 0).atZone(zone).toInstant().toEpochMilli() }.filter { it <= System.currentTimeMillis() }
+      assertEquals(expected, first.map { it.at })
+      ReminderScheduler.rebuild(context, recovery = true)
+      MedicineRepository(context).use { repo ->
+        assertEquals(first, repo.occurrences(true).filter { it.medicineId == item.id })
+        assertTrue(repo.alarm(item.id)?.registered == true)
+      }
+    } finally {
+      MedicineRepository(context).use { repo ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        for (table in listOf("alarms", "doses", "occurrence_tracking")) {
+          repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        }
         repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
       }
     }
@@ -802,6 +1009,40 @@ class ReminderFoundationTest {
           repo.writableDatabase.delete("medicines", "id = ?", arrayOf(id))
         }
       }
+    }
+  }
+  @Test fun pausingOneOfTwoSoundingAlarmsLeavesTheOtherSounding() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(ReminderScheduler.enabled(context))
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val manager = context.getSystemService(NotificationManager::class.java)
+    val items = mutableListOf<Medicine>()
+    val at = System.currentTimeMillis() - 1_000
+    try {
+      for (type in listOf("medicine", "reminder")) {
+        val item = MedicineRepository(context).use { it.save("Sounding", "", listOf(LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))), at - 10_000, type, "alarm") }
+        items.add(item)
+        MedicineRepository(context).use { it.setAlarm(item.id, at, item.id) }
+        ReminderScheduler.deliver(context, item.id, at, item.id)
+      }
+      repeat(100) { if (manager.activeNotifications.none { it.id == 119348 }) Thread.sleep(50) }
+      assertTrue(manager.activeNotifications.any { it.id == 119348 })
+      ReminderScheduler.setStatus(context, items[0].id, "paused")
+      androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+      assertTrue("The other alarm must keep the shared session", manager.activeNotifications.any { it.id == 119348 })
+      assertTrue(manager.activeNotifications.any { it.id == ("${items[1].id}:$at").hashCode() })
+      ReminderScheduler.setStatus(context, items[1].id, "paused")
+      repeat(100) { if (manager.activeNotifications.any { it.id == 119348 }) Thread.sleep(50) }
+      assertFalse(manager.activeNotifications.any { it.id == 119348 })
+      MedicineRepository(context).use { repo -> items.forEach { assertNull(repo.outcome(it.id, at)) } }
+    } finally {
+      context.stopService(Intent(context, AlarmSoundService::class.java))
+      MedicineRepository(context).use { repo -> items.forEach { item ->
+        repo.alarm(item.id)?.let { cancel(context, it) }
+        manager.cancel(("${item.id}:$at").hashCode())
+        for (table in listOf("alarms", "doses", "occurrence_tracking")) repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      } }
     }
   }
   @Test fun overlappingAlarmsShareSoundAndStopWithoutChangingOccurrences() {

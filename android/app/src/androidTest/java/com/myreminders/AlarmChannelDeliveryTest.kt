@@ -55,6 +55,10 @@ class AlarmChannelDeliveryTest {
       android.os.ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(command)).use { it.readBytes() }
     }
     fun observe(label: String) {
+      // Simulate interrupted access recovery, then complete the recovery normally
+      // performed by the app before directly inserting this test alarm.
+      context.getSharedPreferences("reminder_access", Context.MODE_PRIVATE).edit().putBoolean("recovery_pending", true).commit()
+      ReminderScheduler.rebuild(context)
       val now = System.currentTimeMillis()
       val at = now + 3000
       val item = MedicineRepository(context).use { it.save("Alarm channel experiment", "", listOf(LocalTime.now().plusHours(2).format(DateTimeFormatter.ofPattern("HH:mm"))), now - 10000, "reminder", "alarm") }

@@ -115,6 +115,114 @@ also reconciles each active item's gap; these are code-inspection leads, not
 quantified causes. See [UI results](long-history-ui.md) for the separate
 observed memory failure.
 
+## Recovery optimization in progress, 25 November 2026
+
+On the same disposable API 36 ARM64 emulator and dataset, a fresh baseline
+run took 8,003 ms. Temporary phase timing measured 2,699 ms for inactive-item
+cleanup and 5,127 ms for active-item reconciliation (7,836 ms total). These
+phase observations are one instrumented sample, not a detailed profile.
+
+After batching recovered occurrences and reducing inactive cleanup, three
+fresh runs measured 3,160, 2,967 and 3,011 ms for direct recovery; full reads
+took 23, 24 and 24 ms and subsequent scheduling 19, 17 and 18 ms. Each began
+with 8,760 occurrences and ended with 9,852 occurrences and 12 active items
+with registered alarms. These samples meet the direct-call target but do not
+establish timely delivery while recovery is running. The receiver execution
+strategy and real process-interruption and Android-delivery checks remain open.
+
+The full Android 16 instrumentation run on the partial feature branch ran 67
+tests with one failure: `AlarmChannelDeliveryTest` recorded the enabled alarm
+occurrence without its expected notification. A subsequent focused feature
+run passed; the same focused test then failed with the same assertion on an
+independent checkout of baseline `a76b0dd`. This reproduces the failure without
+the optimization but does not establish its cause. The full run did pass its
+actual Android schedule and snooze delivery tests; those were not long-history
+or simultaneous-recovery delivery tests. The partial-batch test simulates a
+committed partial recovery; it does not kill or restart the process.
+
+Follow-up diagnostic runs reproduced the missing notification once in three
+fresh focused runs. Temporary logging showed the failure arrived while
+`recovery_pending` was true and took the recovery path; the two passing runs
+arrived with recovery clear and claimed the injected alarm. The test inserted
+the alarm directly, bypassing the app's access reconciliation. As a control,
+three runs explicitly set recovery pending, reconciled it before inserting
+the alarm, and passed all enabled, blocked and restored channel checks. The
+test now models that setup; these observations do not establish an ordinary
+user-visible delivery failure or prove recovery safe under concurrency.
+
+On the disposable Android 16 `pill_reminder_test` emulator, the opt-in
+`ANDROID_SERIAL=emulator-5554 ./scripts/test-restart-delivery.sh` check
+prepared a Reminder and a Medicine with 150-day gaps and a near-future alarm.
+Instrumentation ended the original target process; Android then started a new
+process for the alarm broadcast. Before starting instrumentation again, the
+script observed both notifications and two future Android alarm clocks. It
+then verified the stored occurrences and future alarm records. The script
+clears the disposable installation and its alarms. This is an actual process
+restart and Android delivery, but it is not the 24-item benchmark dataset, a
+process death during recovery, or delivery concurrent with full recovery.
+
+After the version-18 recovery-cursor change, three freshly seeded runs on
+the same Android 16 emulator measured direct recovery at 3,653, 3,291 and
+2,971 ms; occurrence reads took 24, 23 and 22 ms and subsequent scheduling
+took 15, 18 and 15 ms. Each retained 9,852 occurrences and registered alarms
+for all 12 active items. These are direct calls, not recovery broadcasts.
+The separate process-restart delivery script also passed on this version.
+The full instrumentation suite ran 76 tests with one failure in the previously
+intermittent `languagePreferencePersistsAndSystemFallsBackToEnglish` test;
+the channel-delivery test passed in that run. The full suite is not clean.
+
+On 26 November, after adding indexed, paged occurrence reads and the version-19
+index migration, three freshly seeded direct recoveries on the same API 36
+emulator took 3,500, 3,121 and 2,975 ms. Occurrence reads took 23, 24 and
+23 ms; subsequent scheduling took 19, 22 and 18 ms. Each run ended with 9,852
+occurrences and 12 registered active alarms. The date advanced by one day
+relative to the earlier samples. Pagination bounds rows loaded per page, but
+the current scheduler still holds its lock across the full rebuild; these
+timings do not establish prompt concurrent delivery.
+
+On 26 November, `scripts/test-boot-recovery.sh` also rebooted the confirmed
+disposable emulator after scheduling one Reminder and one Medicine. Before
+verification instrumentation restarted the app, Android's alarm dump showed
+two reminder alarms. The persisted boot count increased, both alarm tokens
+were replaced, and both future alarm times matched their original values. The
+test does not wait for those alarms to fire after reboot. The separate
+process-restart delivery test passed again on this version. The same emulator
+check revoked exact-alarm access at the UID level, confirmed Android removed
+the two alarms, then restored access and observed both alarms re-registered at
+their original times. It did not wait for delivery after access restoration or
+exercise an occurrence due while access was unavailable.
+
+The full Android instrumentation run on this version ran 78 tests with one
+failure: the enabled alarm-channel case did not observe the alarm screen,
+although it observed the notification and sound. The focused channel test
+passed when rerun. This is an intermittent result, not a passing full suite.
+A subsequent full run completed 80 tests with no failures; the two opt-in boot
+methods were skipped in that run and exercised separately by the reboot
+script. The later permission-test methods were also exercised separately by
+that script.
+
+A further experimental queued-worker implementation was tested and removed.
+An actual Android alarm due while a recovery lock was held initially lost its
+notification when recovery retired its token; preserving the token made that
+focused test pass. A separate simulated forward-clock-change test then showed
+that relying on the elapsed deadline at callback handling time can incorrectly
+play a skipped alarm. The experiment did not test an actual system clock
+change. It also retained the scheduler lock during history work and had no
+durable handoff if the process died after claiming an alarm but before posting
+its notification. Those problems remain open; the experimental worker is not
+part of the implementation.
+
+An uncommitted experiment moved system recovery broadcasts to a queued Android
+job. In a disposable-emulator test, an actual `AlarmManager` alarm was fired
+while recovery was pending and the scheduler was held busy. The occurrence
+was recorded but the expected notification did not appear: recovery could
+retire the due alarm before its delivery receiver claimed it. The experiment
+was removed. A replacement must preserve the delivered alarm's identity
+across that handoff, avoid replaying recovery as a catch-up alert, and let
+delivery proceed without waiting behind an unbounded full-history rebuild.
+This failure describes the experiment, not a completed fix or a claim about
+the unmodified receiver's behaviour in that same sequence.
+
 A separate exploratory CPU sample attached Android `simpleperf` to the
 debuggable benchmark process immediately after it started, with `-e cpu-clock
 -g --duration 8`. It recorded 17,267 samples with none reported lost. Its

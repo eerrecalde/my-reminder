@@ -29,6 +29,23 @@ object ReminderScheduler {
     AlarmSoundService.stopOccurrence(context, id, at)
   }
 
+  private fun dismissInactive(context: Context, repo: MedicineRepository, id: String) {
+    val manager = context.getSystemService(NotificationManager::class.java)
+    val activeIds = manager.activeNotifications.map { it.id }.toSet()
+    var after: Long? = null
+    do {
+      val occurrences = repo.occurrencesPage(id, after, 128, includeCleared = true)
+      occurrences.forEach { occurrence ->
+        val notificationId = notificationId(id, occurrence.at)
+        if (notificationId in activeIds) manager.cancel(notificationId)
+      }
+      if (occurrences.isNotEmpty()) AlarmSoundService.stopOccurrences(context, id, occurrences.map { it.at }.toLongArray())
+      after = occurrences.lastOrNull()?.at
+    } while (occurrences.size == 128)
+    repo.snoozes().filter { it.medicineId == id }.forEach { cancelSnooze(context, id, it.at) }
+    repo.clearOutstanding(id)
+  }
+
   private fun snoozeIntent(context: Context, item: MedicineRepository.Snooze, watchdog: Boolean = false): PendingIntent {
     val intent = Intent(context, SnoozeReceiver::class.java)
       .setData(Uri.parse("myreminders://${if (watchdog) "snooze-watchdog" else "snooze"}/${item.medicineId}/${item.at}/${item.token}"))
@@ -87,19 +104,30 @@ object ReminderScheduler {
   }
 
   private fun reconcileOccurrences(context: Context, repo: MedicineRepository, medicine: Medicine, now: Instant, zone: ZoneId) {
-    var cursor = Instant.ofEpochMilli(maxOf(repo.latestOccurrence(medicine.id) ?: medicine.createdAt, repo.trackingStart(medicine.id)))
+    var cursor = Instant.ofEpochMilli(maxOf(medicine.createdAt, repo.trackingStart(medicine.id)))
+    val due = mutableListOf<Long>()
     while (true) {
       val next = DailySchedule.next(medicine, cursor, zone) ?: break
       if (next > now) break
-      repo.recordDue(medicine.id, next.toEpochMilli())
+      due.add(next.toEpochMilli())
+      if (due.size == 128) {
+        repo.recordDueBatch(medicine.id, due)
+        due.clear()
+      }
       cursor = next
     }
-    repo.occurrences().filter { it.medicineId == medicine.id && it.outcome == null }.forEach { occurrence ->
-      val next = DailySchedule.next(medicine, Instant.ofEpochMilli(maxOf(occurrence.at, medicine.changedAt)), zone)
-      if (next != null && next <= now && repo.markMissed(medicine.id, occurrence.at)) {
-        dismissOccurrence(context, medicine.id, occurrence.at)
+    if (due.isNotEmpty()) repo.recordDueBatch(medicine.id, due)
+    var after: Long? = null
+    do {
+      val occurrences = repo.occurrencesPage(medicine.id, after, 128, unconfirmedOnly = true)
+      occurrences.forEach { occurrence ->
+        val next = DailySchedule.next(medicine, Instant.ofEpochMilli(maxOf(occurrence.at, medicine.changedAt)), zone)
+        if (next != null && next <= now && repo.markMissed(medicine.id, occurrence.at)) {
+          dismissOccurrence(context, medicine.id, occurrence.at)
+        }
       }
-    }
+      after = occurrences.lastOrNull()?.at
+    } while (occurrences.size == 128)
   }
   fun notificationsEnabled(context: Context): Boolean {
     val channel = context.getSystemService(NotificationManager::class.java).getNotificationChannel(CHANNEL)
@@ -144,14 +172,13 @@ object ReminderScheduler {
       val old = repo.alarm(medicine.id)
       if (old != null) {
         if (!old.registered && old.at <= after.toEpochMilli()) {
-          repo.invalidateAlarm(medicine.id)
-          repo.recordDue(medicine.id, old.at)
+          repo.retireAlarmForRecovery(medicine.id, after.toEpochMilli(), Long.MIN_VALUE)
         } else {
           if (RecoveryPolicy.shouldRegister(old, after.toEpochMilli())) {
             try {
               register(context, old)
               repo.markAlarmRegistered(medicine.id, old.token)
-            } catch (_: SecurityException) { repo.invalidateAlarm(medicine.id) }
+            } catch (_: SecurityException) { repo.retireAlarmForRecovery(medicine.id, System.currentTimeMillis(), Long.MIN_VALUE) }
           }
           return
         }
@@ -162,7 +189,7 @@ object ReminderScheduler {
       try {
         register(context, alarm)
         repo.markAlarmRegistered(medicine.id, alarm.token)
-      } catch (_: SecurityException) { repo.invalidateAlarm(medicine.id) }
+      } catch (_: SecurityException) { repo.retireAlarmForRecovery(medicine.id, System.currentTimeMillis(), Long.MIN_VALUE) }
     }
   }
 
@@ -214,8 +241,7 @@ object ReminderScheduler {
       medicines.filter { it.status != "active" }.forEach { medicine ->
         cancelFuture(context, repo, medicine.id)
         repo.retainUnconfirmed(medicine.id)
-        repo.occurrences(includeCleared = true).filter { it.medicineId == medicine.id }.forEach { dismissOccurrence(context, medicine.id, it.at) }
-        repo.snoozes().filter { it.medicineId == medicine.id }.forEach { cancelSnooze(context, medicine.id, it.at) }
+        dismissInactive(context, repo, medicine.id)
       }
       medicines.filter { it.status == "active" }.forEach { medicine ->
         if (invalidate) {
@@ -227,8 +253,7 @@ object ReminderScheduler {
             alarmManager(context).cancel(pending(context, it))
             alarmManager(context).cancel(watchdog(context, it))
           }
-          repo.invalidateAlarm(medicine.id)
-          if (oldAlarm != null && oldAlarm.at <= now.toEpochMilli() && oldAlarm.at > medicine.createdAt) repo.recordDue(medicine.id, oldAlarm.at)
+          repo.retireAlarmForRecovery(medicine.id, now.toEpochMilli(), medicine.createdAt)
         }
         reconcileOccurrences(context, repo, medicine, now, zone)
         if (available) schedule(context, medicine, now)
@@ -257,8 +282,7 @@ object ReminderScheduler {
       if (active != null && active.at == at && active.token == token && at <= now) {
         val following = DailySchedule.next(medicine, Instant.ofEpochMilli(at), ZoneId.systemDefault())
         if (following != null && !following.isAfter(Instant.ofEpochMilli(now))) {
-          repo.invalidateAlarm(id)
-          repo.recordDue(id, at)
+          repo.retireAlarmForRecovery(id, now, Long.MIN_VALUE)
           reconcileOccurrences(context, repo, medicine, Instant.ofEpochMilli(now), ZoneId.systemDefault())
           schedule(context, medicine, Instant.ofEpochMilli(now))
           return
@@ -275,8 +299,7 @@ object ReminderScheduler {
   }
   private fun cancelFuture(context: Context, repo: MedicineRepository, id: String) {
     val alarm = repo.alarm(id)
-    repo.invalidateAlarm(id)
-    if (alarm != null && alarm.at <= System.currentTimeMillis()) repo.recordDue(id, alarm.at)
+    repo.retireAlarmForRecovery(id, System.currentTimeMillis(), Long.MIN_VALUE)
     alarm?.let {
       listOf(pending(context, it), watchdog(context, it)).forEach { operation ->
         alarmManager(context).cancel(operation); operation.cancel()
@@ -310,8 +333,7 @@ object ReminderScheduler {
         repo.setStatus(id, status)
         if (status != "active") {
           repo.retainUnconfirmed(id)
-          repo.occurrences(includeCleared = true).filter { it.medicineId == id }.forEach { dismissOccurrence(context, id, it.at) }
-          repo.snoozes().filter { it.medicineId == id }.forEach { cancelSnooze(context, id, it.at) }
+          dismissInactive(context, repo, id)
         }
         if (status == "active") schedule(context, requireNotNull(repo.all().find { it.id == id }))
         repo.transition(id)?.let { finishTransition(context, repo, it) }
@@ -445,8 +467,7 @@ object ReminderScheduler {
       val medicine = repo.all().find { it.id == id && it.status == "active" } ?: return
       if (current != null) {
         if (!current.registered && current.at <= System.currentTimeMillis()) {
-          repo.invalidateAlarm(id)
-          repo.recordDue(id, current.at)
+          repo.retireAlarmForRecovery(id, System.currentTimeMillis(), Long.MIN_VALUE)
           schedule(context, medicine)
           return
         }
@@ -455,7 +476,7 @@ object ReminderScheduler {
           val now = Instant.now()
           val following = DailySchedule.next(medicine, Instant.ofEpochMilli(at), ZoneId.systemDefault())
           if (following != null && !following.isAfter(now)) {
-            repo.invalidateAlarm(id)
+            repo.retireAlarmForRecovery(id, now.toEpochMilli(), Long.MIN_VALUE)
             DailySchedule.dueToday(medicine, now, ZoneId.systemDefault()).forEach { due ->
               repo.recordDue(id, due.toEpochMilli())
             }
@@ -465,7 +486,7 @@ object ReminderScheduler {
           try {
             register(context, current)
             repo.markAlarmRegistered(id, current.token)
-          } catch (_: SecurityException) { repo.invalidateAlarm(id) }
+          } catch (_: SecurityException) { repo.retireAlarmForRecovery(id, System.currentTimeMillis(), Long.MIN_VALUE) }
         } else {
           schedule(context, medicine)
         }
