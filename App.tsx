@@ -7,6 +7,7 @@ import { HistoryScreen } from './src/HistoryScreen';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppState,
+  BackHandler,
   Alert,
   Image,
   PermissionsAndroid,
@@ -38,6 +39,7 @@ export default function App() {
   const [screen, setScreen] = useState<
     'today' | 'reminders' | 'setup' | 'access' | 'history'
   >('today');
+  const [accessOrigin, setAccessOrigin] = useState<'today' | 'reminders' | 'history'>('today');
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [pastExpanded, setPastExpanded] = useState(false);
@@ -88,6 +90,24 @@ export default function App() {
       listener.remove();
     };
   }, [refresh]);
+  const leaveAccess = useCallback(() => {
+    refresh();
+    setScreen(accessOrigin);
+  }, [accessOrigin, refresh]);
+  useEffect(() => {
+    if (screen !== 'access') return;
+    const listener = BackHandler.addEventListener('hardwareBackPress', () => {
+      leaveAccess();
+      return true;
+    });
+    return () => listener.remove();
+  }, [screen, leaveAccess]);
+  const openAccess = () => {
+    if (screen === 'today' || screen === 'reminders' || screen === 'history') {
+      setAccessOrigin(screen);
+      setScreen('access');
+    }
+  };
   const sortedUpcoming = (state?.upcoming ?? [])
     .filter(
       item =>
@@ -462,6 +482,14 @@ export default function App() {
                 occurrenceView={occurrenceView}
               />
             ) : (
+            <>
+            {screen === 'access' && (
+              <View style={styles.accessHeader}>
+                <Pressable accessibilityRole="button" accessibilityLabel={translations[language].setup.back} onPress={leaveAccess} style={styles.accessBack}>
+                  <Text style={styles.accessBackText}>{translations[language].setup.back}</Text>
+                </Pressable>
+              </View>
+            )}
             <ScrollView contentContainerStyle={styles.content}>
               {screen === 'today' && (
                 <View style={styles.brandRow}>
@@ -476,7 +504,7 @@ export default function App() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t.settings}
-                    onPress={() => setScreen('access')}
+                    onPress={openAccess}
                     hitSlop={12}
                   >
                     <AppIcon name="moreVertical" color="#142219" />
@@ -523,7 +551,7 @@ export default function App() {
                       {reminderAccessWarning}
                       <PillAction
                         title={t.enable}
-                        onPress={() => setScreen('access')}
+                        onPress={openAccess}
                       />
                     </View>
                   )}
@@ -745,7 +773,7 @@ export default function App() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t.settings}
-                    onPress={() => setScreen('access')}
+                    onPress={openAccess}
                     style={styles.accessLink}
                   >
                     <Text style={styles.accessLinkText}>{t.settings}</Text>
@@ -1151,14 +1179,6 @@ export default function App() {
                       }
                     }}
                   />
-                  <PillAction
-                    secondary
-                    title={t.cancel}
-                    onPress={() => {
-                      refresh();
-                      setScreen('today');
-                    }}
-                  />
                 </>
               )}
               {!!error && (
@@ -1167,6 +1187,7 @@ export default function App() {
                 </Text>
               )}
             </ScrollView>
+            </>
             )}
             {screen !== 'access' && (
               <MainNavigation
@@ -1186,6 +1207,9 @@ export default function App() {
 }
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fbf6eb' },
+  accessHeader: { paddingHorizontal: 20, paddingTop: 8 },
+  accessBack: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 4 },
+  accessBackText: { color: '#36542b', fontSize: 16, fontWeight: '700' },
   content: {
     paddingHorizontal: 20,
     paddingTop: 18,
