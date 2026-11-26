@@ -171,6 +171,26 @@ The full instrumentation suite ran 76 tests with one failure in the previously
 intermittent `languagePreferencePersistsAndSystemFallsBackToEnglish` test;
 the channel-delivery test passed in that run. The full suite is not clean.
 
+On 26 November, after adding indexed, paged occurrence reads and the version-19
+index migration, three freshly seeded direct recoveries on the same API 36
+emulator took 3,500, 3,121 and 2,975 ms. Occurrence reads took 23, 24 and
+23 ms; subsequent scheduling took 19, 22 and 18 ms. Each run ended with 9,852
+occurrences and 12 registered active alarms. The date advanced by one day
+relative to the earlier samples. Pagination bounds rows loaded per page, but
+the current scheduler still holds its lock across the full rebuild; these
+timings do not establish prompt concurrent delivery.
+
+A further experimental queued-worker implementation was tested and removed.
+An actual Android alarm due while a recovery lock was held initially lost its
+notification when recovery retired its token; preserving the token made that
+focused test pass. A separate simulated forward-clock-change test then showed
+that relying on the elapsed deadline at callback handling time can incorrectly
+play a skipped alarm. The experiment did not test an actual system clock
+change. It also retained the scheduler lock during history work and had no
+durable handoff if the process died after claiming an alarm but before posting
+its notification. Those problems remain open; the experimental worker is not
+part of the implementation.
+
 An uncommitted experiment moved system recovery broadcasts to a queued Android
 job. In a disposable-emulator test, an actual `AlarmManager` alarm was fired
 while recovery was pending and the scheduler was held busy. The occurrence

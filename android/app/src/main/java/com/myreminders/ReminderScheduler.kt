@@ -32,13 +32,16 @@ object ReminderScheduler {
   private fun dismissInactive(context: Context, repo: MedicineRepository, id: String) {
     val manager = context.getSystemService(NotificationManager::class.java)
     val activeIds = manager.activeNotifications.map { it.id }.toSet()
-    repo.occurrencesFor(id, includeCleared = true).chunked(128).forEach { occurrences ->
+    var after: Long? = null
+    do {
+      val occurrences = repo.occurrencesPage(id, after, 128, includeCleared = true)
       occurrences.forEach { occurrence ->
         val notificationId = notificationId(id, occurrence.at)
         if (notificationId in activeIds) manager.cancel(notificationId)
       }
-      AlarmSoundService.stopOccurrences(context, id, occurrences.map { it.at }.toLongArray())
-    }
+      if (occurrences.isNotEmpty()) AlarmSoundService.stopOccurrences(context, id, occurrences.map { it.at }.toLongArray())
+      after = occurrences.lastOrNull()?.at
+    } while (occurrences.size == 128)
     repo.snoozes().filter { it.medicineId == id }.forEach { cancelSnooze(context, id, it.at) }
     repo.clearOutstanding(id)
   }
@@ -114,12 +117,17 @@ object ReminderScheduler {
       cursor = next
     }
     if (due.isNotEmpty()) repo.recordDueBatch(medicine.id, due)
-    repo.occurrencesFor(medicine.id, unconfirmedOnly = true).forEach { occurrence ->
-      val next = DailySchedule.next(medicine, Instant.ofEpochMilli(maxOf(occurrence.at, medicine.changedAt)), zone)
-      if (next != null && next <= now && repo.markMissed(medicine.id, occurrence.at)) {
-        dismissOccurrence(context, medicine.id, occurrence.at)
+    var after: Long? = null
+    do {
+      val occurrences = repo.occurrencesPage(medicine.id, after, 128, unconfirmedOnly = true)
+      occurrences.forEach { occurrence ->
+        val next = DailySchedule.next(medicine, Instant.ofEpochMilli(maxOf(occurrence.at, medicine.changedAt)), zone)
+        if (next != null && next <= now && repo.markMissed(medicine.id, occurrence.at)) {
+          dismissOccurrence(context, medicine.id, occurrence.at)
+        }
       }
-    }
+      after = occurrences.lastOrNull()?.at
+    } while (occurrences.size == 128)
   }
   fun notificationsEnabled(context: Context): Boolean {
     val channel = context.getSystemService(NotificationManager::class.java).getNotificationChannel(CHANNEL)

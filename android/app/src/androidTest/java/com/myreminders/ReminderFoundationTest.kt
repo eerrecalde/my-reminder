@@ -520,6 +520,77 @@ class ReminderFoundationTest {
       }
     }
   }
+  @Test fun occurrencePagesPreserveOrderAndFiltersAcrossBoundaries() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    assertTrue(MedicineRepository(context).use { it.all().isEmpty() })
+    val now = System.currentTimeMillis()
+    val item = MedicineRepository(context).use { repo ->
+      repo.save("Paged history", "", listOf("09:00"), now - 1_000_000, "reminder").also {
+        val times = (0L until 300L).map { offset -> now - 900_000 + offset * 1_000 }
+        repo.recordDueBatch(it.id, times)
+        repo.setOutcome(it.id, times[127], "completed")
+        repo.setOutcome(it.id, times[256], "skipped")
+        repo.clearHistory()
+      }
+    }
+    try {
+      MedicineRepository(context).use { repo ->
+        for (includeCleared in listOf(false, true)) for (unconfirmedOnly in listOf(false, true)) {
+          val expected = repo.occurrencesFor(item.id, includeCleared, unconfirmedOnly)
+          val actual = mutableListOf<MedicineRepository.Occurrence>()
+          var after: Long? = null
+          do {
+            val page = repo.occurrencesPage(item.id, after, 128, includeCleared, unconfirmedOnly)
+            assertTrue(page.size <= 128)
+            actual.addAll(page)
+            after = page.lastOrNull()?.at
+          } while (page.size == 128)
+          assertEquals(expected, actual)
+        }
+      }
+    } finally {
+      MedicineRepository(context).use { repo ->
+        for (table in listOf("alarms", "doses", "occurrence_tracking")) repo.writableDatabase.delete(table, "medicine_id = ?", arrayOf(item.id))
+        repo.writableDatabase.delete("medicines", "id = ?", arrayOf(item.id))
+      }
+    }
+  }
+  @Test fun historyIndexUpgradeKeepsExistingOccurrences() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val databaseName = "history-index-upgrade-test.db"
+    context.deleteDatabase(databaseName)
+    try {
+      val now = System.currentTimeMillis()
+      val id = MedicineRepository(context, databaseName).use { repo ->
+        val item = repo.save("Existing history", "", listOf("09:00"), now - 10_000, "reminder")
+        repo.recordDueBatch(item.id, listOf(now - 5_000, now - 4_000))
+        repo.setOutcome(item.id, now - 5_000, "completed")
+        repo.retainUnconfirmed(item.id)
+        repo.setAlarm(item.id, now + 60_000, "future")
+        repo.markAlarmRegistered(item.id, "future")
+        repo.writableDatabase.execSQL("DROP INDEX doses_medicine_time")
+        repo.writableDatabase.execSQL("DROP INDEX doses_unconfirmed_time")
+        repo.writableDatabase.version = 18
+        item.id
+      }
+      MedicineRepository(context, databaseName).use { repo ->
+        assertEquals(listOf(now - 5_000, now - 4_000), repo.occurrencesPage(id, null, 128).map { it.at })
+        assertEquals("completed", repo.outcome(id, now - 5_000))
+        assertEquals(MedicineRepository.Alarm(id, now + 60_000, "future", true), repo.alarm(id))
+        val retained = requireNotNull(repo.occurrence(id, now - 4_000))
+        assertTrue(retained.retained)
+        assertEquals("Existing history", retained.name)
+        repo.readableDatabase.rawQuery("PRAGMA index_list(doses)", null).use { cursor ->
+          val names = mutableListOf<String>()
+          while (cursor.moveToNext()) names.add(cursor.getString(1))
+          assertTrue(names.contains("doses_medicine_time"))
+          assertTrue(names.contains("doses_unconfirmed_time"))
+        }
+      }
+    } finally {
+      context.deleteDatabase(databaseName)
+    }
+  }
   @Test fun recoveryAfterSimulatedPartialLongGapKeepsOutcomesAndIsRepeatable() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     assertTrue(ReminderScheduler.enabled(context))
