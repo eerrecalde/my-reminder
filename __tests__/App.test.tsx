@@ -3,6 +3,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import {
   Alert,
   AppState,
+  BackHandler,
   FlatList,
   NativeModules,
   Platform,
@@ -955,6 +956,11 @@ test('refreshes permission cards when the app returns from settings', async () =
       .findAllByType(Text)
       .some(text => text.props.children === 'Allowed'),
   ).toBe(true);
+  await ReactTestRenderer.act(async () => {
+    view.root.findByProps({ accessibilityLabel: 'Back' }).props.onPress();
+  });
+  expect(view.root.findByProps({ testID: 'nav-today' }).props.accessibilityState.selected).toBe(true);
+  expect(state).toHaveBeenCalledTimes(3);
   await ReactTestRenderer.act(() => view.unmount());
   subscription.mockRestore();
 });
@@ -1506,6 +1512,10 @@ test('selects Spanish in Options and updates the screen immediately', async () =
       .findAllByType(Text)
       .some(text => text.props.children === 'Acceso a recordatorios'),
   ).toBe(true);
+  await ReactTestRenderer.act(async () => renderer.root.findByProps({ accessibilityLabel: 'Volver' }).props.onPress());
+  expect(renderer.root.findByProps({ testID: 'nav-today' }).props.accessibilityState.selected).toBe(true);
+  await ReactTestRenderer.act(() => renderer.root.findAllByProps({ accessibilityLabel: 'Acceso a recordatorios' })[0].props.onPress());
+  expect(renderer.root.findByProps({ testID: 'language-dropdown' }).props.accessibilityValue.text).toBe('Español');
   await ReactTestRenderer.act(() => renderer.unmount());
   listener.mockRestore();
 });
@@ -1612,3 +1622,54 @@ test.each([
     subscription.mockRestore();
   },
 );
+
+test.each([['en', 'Back'], ['es', 'Volver']] as const)(
+  'leaves Reminder access using the localized Back control in %s',
+  async (language, back) => {
+    const appState = jest.spyOn(AppState, 'addEventListener').mockReturnValue({ remove: jest.fn() });
+    const repo = require('../src/reminderRepository');
+    repo.reminderRepository = {
+      state: jest.fn().mockResolvedValue({ enabled: true, exactAlarms: true, notifications: true, language, medicines: [], todayDoses: [], upcoming: [] }),
+    };
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+    await ReactTestRenderer.act(() => view.root.findAllByProps({ accessibilityLabel: language === 'en' ? 'Reminder access' : 'Acceso a recordatorios' })[0].props.onPress());
+    const button = view.root.findByProps({ accessibilityRole: 'button', accessibilityLabel: back });
+    expect(button.findAllByType(Text).some(text => text.props.children === back)).toBe(true);
+    await ReactTestRenderer.act(async () => { button.props.onPress(); });
+    expect(view.root.findByProps({ testID: 'nav-today' }).props.accessibilityState.selected).toBe(true);
+    expect(repo.reminderRepository.state).toHaveBeenCalledTimes(2);
+    await ReactTestRenderer.act(() => view.unmount());
+    appState.mockRestore();
+  },
+);
+
+
+test('system Back leaves Reminder access and preserves the applied sound', async () => {
+  const appState = jest.spyOn(AppState, 'addEventListener').mockReturnValue({ remove: jest.fn() });
+  let hardwareBack!: () => boolean;
+  const listener = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, callback) => {
+    hardwareBack = () => callback({} as never) === true;
+    return { remove: jest.fn() };
+  });
+  const repo = require('../src/reminderRepository');
+  let notification: string | null = null;
+  repo.reminderRepository = {
+    state: jest.fn().mockResolvedValue({ enabled: true, exactAlarms: true, notifications: true, language: 'en', medicines: [], todayDoses: [], upcoming: [] }),
+    soundDefaults: jest.fn(async () => ({ notification, alarm: null })),
+    selectSound: jest.fn().mockResolvedValue(''),
+    setSoundDefault: jest.fn(async (_mode: string, value: string | null) => { notification = value; }),
+  };
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+  await ReactTestRenderer.act(async () => { view.root.findAllByProps({ accessibilityLabel: 'Reminder access' })[0].props.onPress(); });
+  await ReactTestRenderer.act(async () => { await view.root.findByProps({ accessibilityLabel: 'Notification sound: Phone setting' }).props.onPress(); });
+  expect(repo.reminderRepository.setSoundDefault).toHaveBeenCalledWith('notification', '');
+  await ReactTestRenderer.act(async () => { expect(hardwareBack()).toBe(true); });
+  expect(view.root.findByProps({ testID: 'nav-today' }).props.accessibilityState.selected).toBe(true);
+  await ReactTestRenderer.act(async () => { view.root.findAllByProps({ accessibilityLabel: 'Reminder access' })[0].props.onPress(); });
+  expect(view.root.findByProps({ accessibilityLabel: 'Notification sound: Silent' })).toBeTruthy();
+  await ReactTestRenderer.act(() => view.unmount());
+  listener.mockRestore();
+  appState.mockRestore();
+});
