@@ -21,6 +21,7 @@ import { PillAction } from './PillAction';
 import type { FullScreenAccess } from './reminderRepository';
 import { ReminderAlertChoice } from './ReminderAlertChoice';
 import { SetupReview } from './SetupReview';
+import { ScheduleFrequency } from './ScheduleFrequency';
 
 export type DailyMedicineInput = {
   type: ReminderType;
@@ -329,49 +330,13 @@ export function MedicineSetup({
         )}
         {step === 2 && (
           <>
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>{t.frequency}</Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${t.frequency}: ${t[scheduleKind]}`}
-                accessibilityState={{ expanded: frequencyOpen }}
-                onPress={() => setFrequencyOpen(open => !open)}
-                style={styles.fieldControl}
-              >
-                <Text style={styles.fieldValue}>{t[scheduleKind]}</Text>
-                <AppIcon
-                  name={frequencyOpen ? 'chevronUp' : 'chevronDown'}
-                  color="#36542b"
-                />
-              </Pressable>
-              {frequencyOpen && (
-                <View
-                  accessibilityRole="radiogroup"
-                  style={styles.scheduleOptions}
-                >
-                  {(
-                    ['once', 'daily', 'weekday', 'interval', 'monthly'] as const
-                  ).map(kind => (
-                    <Pressable
-                      key={kind}
-                      accessibilityRole="radio"
-                      accessibilityState={{ checked: scheduleKind === kind }}
-                      onPress={() => {
-                        setScheduleKind(kind);
-                        setFrequencyOpen(false);
-                      }}
-                      style={styles.scheduleOption}
-                    >
-                      <AppIcon
-                        name={scheduleKind === kind ? 'circleDot' : 'circle'}
-                        color="#36542b"
-                      />
-                      <Text style={styles.modeText}>{t[kind]}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
+            <ScheduleFrequency
+              language={language}
+              value={scheduleKind}
+              onChange={setScheduleKind}
+              open={frequencyOpen}
+              onOpenChange={setFrequencyOpen}
+            />
             {scheduleKind === 'weekday' &&
               t.weekdays.map((label, index) => (
                 <Pressable
@@ -793,19 +758,6 @@ const styles = StyleSheet.create({
   },
   error: { color: '#a01818', fontSize: 18, marginVertical: 12 },
   actions: { gap: 12, marginTop: 24 },
-  scheduleOptions: {
-    borderWidth: 1,
-    borderColor: '#a4b398',
-    backgroundColor: '#fffaf1',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-  },
-  scheduleOption: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   fieldGroup: { gap: 8, marginVertical: 8 },
   fieldLabel: { color: '#162524', fontSize: 17, fontWeight: '600' },
   fieldControl: {
