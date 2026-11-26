@@ -180,6 +180,27 @@ relative to the earlier samples. Pagination bounds rows loaded per page, but
 the current scheduler still holds its lock across the full rebuild; these
 timings do not establish prompt concurrent delivery.
 
+On 26 November, `scripts/test-boot-recovery.sh` also rebooted the confirmed
+disposable emulator after scheduling one Reminder and one Medicine. Before
+verification instrumentation restarted the app, Android's alarm dump showed
+two reminder alarms. The persisted boot count increased, both alarm tokens
+were replaced, and both future alarm times matched their original values. The
+test does not wait for those alarms to fire after reboot. The separate
+process-restart delivery test passed again on this version. The same emulator
+check revoked exact-alarm access at the UID level, confirmed Android removed
+the two alarms, then restored access and observed both alarms re-registered at
+their original times. It did not wait for delivery after access restoration or
+exercise an occurrence due while access was unavailable.
+
+The full Android instrumentation run on this version ran 78 tests with one
+failure: the enabled alarm-channel case did not observe the alarm screen,
+although it observed the notification and sound. The focused channel test
+passed when rerun. This is an intermittent result, not a passing full suite.
+A subsequent full run completed 80 tests with no failures; the two opt-in boot
+methods were skipped in that run and exercised separately by the reboot
+script. The later permission-test methods were also exercised separately by
+that script.
+
 A further experimental queued-worker implementation was tested and removed.
 An actual Android alarm due while a recovery lock was held initially lost its
 notification when recovery retired its token; preserving the token made that
