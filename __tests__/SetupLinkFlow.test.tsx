@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Alert, Linking, Share, Text, TextInput } from 'react-native';
+import { Alert, AppState, Linking, Share, Text, TextInput } from 'react-native';
+import type { Medicine } from '../src/reminderRepository';
 import { translations } from '../src/translations';
 import App from '../App';
 import { PillAction } from '../src/PillAction';
@@ -757,3 +758,61 @@ test('reopening a saved link and a separately produced matching link both warn',
   await ReactTestRenderer.act(() => view.unmount());
   jest.restoreAllMocks();
 });
+
+test.each(['en', 'es'] as const)(
+  'a recipient can save with missing alert access and sees updated guidance in %s',
+  async language => {
+    let allowed = false;
+    const items: Medicine[] = [];
+    let resume!: (state: 'active') => void;
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, callback) => {
+      resume = callback as typeof resume;
+      return { remove: jest.fn() };
+    });
+    const openAlarmSettings = jest.fn();
+    const state = jest.fn(async () => ({
+      enabled: allowed, notifications: allowed, exactAlarms: allowed,
+      fullScreenAccess: 'allowed', language, medicines: [...items], todayDoses: [], upcoming: [],
+    }));
+    const saveScheduled = jest.fn(async (type, name, instructions, times, mode, startDate, endDate, scheduleKind) => {
+      items.push({ id: 'saved', type, name, instructions, times, mode, startDate, endDate, scheduleKind });
+    });
+    require('../src/reminderRepository').reminderRepository = { state, saveScheduled, openAlarmSettings, openNotificationSettings: jest.fn() };
+    jest.spyOn(Linking, 'getInitialURL').mockResolvedValue('https://setup-links.example.com/setup?v=1&name=Water&date=2099-06-30&time=09%3A15');
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+    const action = (title: string) => view.root.findAllByType(PillAction).find(node => node.props.title === title);
+    expect(action(translations[language].app.allowExact)).toBeDefined();
+    await ReactTestRenderer.act(async () => { action(translations[language].app.allowExact)!.props.onPress(); });
+    expect(openAlarmSettings).toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => { await action(translations[language].setup.saveReminder)!.props.onPress(); });
+    expect(items).toHaveLength(1);
+    expect(view.root.findAllByType(Text).some(node => node.props.children === translations[language].app.offBoth)).toBe(true);
+    allowed = true;
+    await ReactTestRenderer.act(async () => { resume('active'); });
+    expect(items).toHaveLength(1);
+    expect(view.root.findAllByType(Text).some(node => node.props.children === translations[language].app.offBoth)).toBe(false);
+    await ReactTestRenderer.act(() => view.unmount());
+    jest.restoreAllMocks();
+  },
+);
+
+test.each([
+  ['en', 'reminder', false, true, 'notification'],
+  ['es', 'medicine', true, false, 'alarm'],
+] as const)(
+  'review identifies only the missing access for a %s %s',
+  async (language, type, notifications, exactAlarms, mode) => {
+    const state = jest.fn().mockResolvedValue({ enabled: false, notifications, exactAlarms, fullScreenAccess: 'denied', language, medicines: [], todayDoses: [], upcoming: [] });
+    require('../src/reminderRepository').reminderRepository = { state, openFullScreenSettings: jest.fn(), openAlarmSettings: jest.fn(), openNotificationSettings: jest.fn() };
+    jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(`https://setup-links.example.com/setup?v=1&type=${type}&mode=${mode}&name=Water&date=2099-06-30&time=09%3A15`);
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+    const actions = view.root.findAllByType(PillAction).map(node => node.props.title);
+    expect(actions.includes(translations[language].app.allowNotifications)).toBe(!notifications);
+    expect(actions.includes(translations[language].app.allowExact)).toBe(!exactAlarms);
+    expect(actions.includes(translations[language].alarmScreenAccess.allow)).toBe(mode === 'alarm');
+    await ReactTestRenderer.act(() => view.unmount());
+    jest.restoreAllMocks();
+  },
+);
