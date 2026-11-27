@@ -192,7 +192,7 @@ export function MedicineSetup({
     scheduleKind !== 'once' &&
     !!endDate &&
     !hasFutureOccurrence(preparedInput(), now ?? new Date());
-  const expiredLink = initialReview && expiredRecurring();
+  const expiredLink = initialReview && step === 3 && expiredRecurring();
   const goBack = useCallback(() => {
     setError('');
     if (step === 0 || (initialReview && step === 3)) onExit();
