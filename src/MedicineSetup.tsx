@@ -252,7 +252,7 @@ export function MedicineSetup({
   );
   return (
     <View style={styles.screen}>
-      <AppHeader action={{ kind: 'back', label: t.back, onPress: goBack }} />
+      <AppHeader language={language} action={{ kind: 'back', label: t.back, onPress: goBack }} />
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"

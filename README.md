@@ -1,8 +1,8 @@
-# My Reminders
+# Ding Reminders
 
-An offline Android reminder app with medicine support, built with React Native, TypeScript and Kotlin. It supports Android 8.0 (API 26) and later. The current app name is **My Reminders**.
+An offline Android reminder app with medicine support, built with React Native, TypeScript and Kotlin. It supports Android 8.0 (API 26) and later. The app is named **Ding Reminders** in English and **Ding Recordatorios** in Spanish.
 
-My Reminders uses a new Android application ID and installs separately from the previous app. It starts with no reminders; the old app and its reminders remain on the device until removed separately.
+Ding updates the existing My Reminders installation when signed with the same key, retaining reminders, schedules and settings.
 
 ## Local setup
 
@@ -40,7 +40,7 @@ See the [React Native environment guide](https://reactnative.dev/docs/set-up-you
    adb shell am start -W -n com.myreminders/.MainActivity
    ```
 
-   If multiple devices are listed, add `-s <serial>` after `adb` in both commands. Check that **My Reminders** is visible. This APK runs independently of Metro.
+   If multiple devices are listed, add `-s <serial>` after `adb` in both commands. Check that **Ding Reminders** or **Ding Recordatorios** is visible in the app, according to the selected app language. The launcher label follows Android locale settings. This APK runs independently of Metro.
 
 ## Private release signing and distribution
 

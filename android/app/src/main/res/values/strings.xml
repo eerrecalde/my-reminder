@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">My Reminders</string>
+    <string name="app_name">Ding Reminders</string>
     <string name="reminder_channel">Reminders</string>
     <string name="reminder_due">Your medicine is due</string>
     <string name="alarm_alert_channel">Alarm alerts</string>

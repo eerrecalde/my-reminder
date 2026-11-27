@@ -324,7 +324,7 @@ class AlarmActivity : Activity() {
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
       }, LinearLayout.LayoutParams(dp(48), dp(36)))
       addView(TextView(context).apply {
-        setText(R.string.app_name)
+        text = localized.getString(R.string.app_name)
         setTextColor(Color.rgb(23, 35, 26))
         textSize = 17f
         setTypeface(Typeface.DEFAULT, Typeface.BOLD)

@@ -1,13 +1,14 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppIcon } from './AppIcon';
+import { translations } from './translations';
 
 type Action = { kind: 'back' | 'settings'; label: string; onPress: () => void };
 
-export function AppHeader({ action }: { action?: Action }) {
+export function AppHeader({ action, language }: { action?: Action; language: keyof typeof translations }) {
   return (
     <View style={styles.header}>
-      <View style={styles.brandPosition} pointerEvents="none">
+      <View style={[styles.brandPosition, action?.kind === 'back' && styles.brandWithBack]} pointerEvents="none">
         <View style={styles.brand}>
           <Image
             source={require('../assets/brand-sprig.png')}
@@ -15,7 +16,7 @@ export function AppHeader({ action }: { action?: Action }) {
             resizeMode="contain"
             accessible={false}
           />
-          <Text style={styles.brandText}>My Reminders</Text>
+          <Text style={styles.brandText} numberOfLines={1} adjustsFontSizeToFit>{translations[language].android.app_name}</Text>
         </View>
       </View>
       {action && (
@@ -55,9 +56,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  leaf: { width: 40, height: 36 },
-  brandText: { color: '#17231a', fontSize: 17, fontWeight: '700' },
+  brandWithBack: { left: 110, alignItems: 'stretch' },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  leaf: { width: 30, height: 30 },
+  brandText: { color: '#17231a', fontSize: 15, fontWeight: '700', flexShrink: 1 },
   back: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
