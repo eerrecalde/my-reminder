@@ -47,7 +47,7 @@ export function ReminderAlertChoice({
           >
             <AppIcon
               name={mode === choice ? 'circleDot' : 'circle'}
-              color="#36542b"
+              color="#76500f"
             />
             <Text style={styles.modeText}>{t[choice]}</Text>
           </Pressable>

@@ -248,7 +248,7 @@ class AlarmActivity : Activity() {
         setStroke(dp(1), Color.rgb(229, 225, 207))
       }
       addView(ImageView(context).apply {
-        background = rounded(Color.rgb(238, 240, 216), 24)
+        background = rounded(Color.rgb(244, 233, 208), 24)
         setPadding(dp(12), dp(12), dp(12), dp(12))
         setImageResource(R.drawable.ic_alarm_screen_clock)
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -263,7 +263,7 @@ class AlarmActivity : Activity() {
       if (occurrences.size > 1) {
         addView(TextView(context).apply {
           text = localized.getString(R.string.alarm_screen_another_due)
-          setTextColor(Color.rgb(62, 93, 51))
+          setTextColor(Color.rgb(118, 80, 15))
           textSize = 16f
           gravity = Gravity.CENTER
         }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
@@ -391,7 +391,7 @@ class AlarmActivity : Activity() {
   private fun actionButton(label: String, primary: Boolean, action: () -> Unit) = Button(this).apply {
     text = label
     isAllCaps = false
-    setTextColor(if (primary) Color.rgb(255, 253, 244) else Color.rgb(62, 93, 51))
+    setTextColor(if (primary) Color.rgb(255, 253, 244) else Color.rgb(118, 80, 15))
     textSize = if (primary) 16f else 14f
     letterSpacing = 0f
     setTypeface(Typeface.DEFAULT, Typeface.BOLD)
@@ -402,8 +402,8 @@ class AlarmActivity : Activity() {
     stateListAnimator = null
     backgroundTintList = null
     background = RippleDrawable(
-      ColorStateList.valueOf(if (primary) 0x33FFFFFF else 0x224B6F3D),
-      if (primary) rounded(Color.rgb(75, 111, 61), 24) else null,
+      ColorStateList.valueOf(if (primary) 0x33FFFFFF else 0x227C5614),
+      if (primary) rounded(Color.rgb(124, 86, 20), 24) else null,
       rounded(Color.WHITE, 24),
     )
     setOnClickListener { action() }

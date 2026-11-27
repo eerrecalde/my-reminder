@@ -29,7 +29,7 @@ export function AppHeader({ action, language }: { action?: Action; language: key
         >
           <AppIcon
             name={action.kind === 'back' ? 'arrowLeft' : 'settings'}
-            color={action.kind === 'back' ? '#36542b' : '#142219'}
+            color={action.kind === 'back' ? '#76500f' : '#142219'}
           />
           {action.kind === 'back' && (
             <Text style={styles.backText}>{action.label}</Text>
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 48,
   },
-  backText: { color: '#36542b', fontSize: 18, fontWeight: '600' },
+  backText: { color: '#76500f', fontSize: 18, fontWeight: '600' },
   settings: {
     alignSelf: 'flex-end',
     minWidth: 48,

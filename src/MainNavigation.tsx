@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     borderRadius: 14,
   },
-  navSelected: { backgroundColor: '#e0e9c7' },
+  navSelected: { backgroundColor: '#f0e1bd' },
   navIconBox: {
     width: 25,
     height: 27,

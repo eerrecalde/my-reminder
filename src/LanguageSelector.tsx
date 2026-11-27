@@ -25,7 +25,7 @@ export function LanguageSelector({
   return (
     <View style={styles.card}>
       <View style={styles.title}>
-        <AppIcon name="languages" color="#203b21" />
+        <AppIcon name="languages" color="#594014" />
         <Text style={styles.titleText}>{title}</Text>
       </View>
       <Pressable
@@ -39,11 +39,11 @@ export function LanguageSelector({
       >
         <View style={styles.label}>
           {selected.value === 'system' && (
-            <AppIcon name="globe" color="#203b21" />
+            <AppIcon name="globe" color="#594014" />
           )}
           <Text style={styles.text}>{selected.label}</Text>
         </View>
-        <AppIcon name={open ? 'chevronUp' : 'chevronDown'} color="#203b21" />
+        <AppIcon name={open ? 'chevronUp' : 'chevronDown'} color="#594014" />
       </Pressable>
       {open && (
         <ScrollView style={styles.options} nestedScrollEnabled>
@@ -60,11 +60,11 @@ export function LanguageSelector({
               style={styles.option}
             >
               {choice.value === 'system' && (
-                <AppIcon name="globe" color="#203b21" />
+                <AppIcon name="globe" color="#594014" />
               )}
               <Text style={styles.text}>{choice.label}</Text>
               {value === choice.value && (
-                <AppIcon name="check" color="#203b21" />
+                <AppIcon name="check" color="#594014" />
               )}
             </Pressable>
           ))}
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   titleText: { color: '#162524', fontSize: 18, fontWeight: '700' },
   dropdown: {
     borderWidth: 1,
-    borderColor: '#526d40',
+    borderColor: '#76500f',
     borderRadius: 12,
     padding: 12,
     flexDirection: 'row',

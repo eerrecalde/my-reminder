@@ -68,7 +68,7 @@ export function SoundChoice({
         style={styles.button}
       >
         <Text style={styles.value}>{label}</Text>
-        <AppIcon name="chevronRight" color="#305f55" />
+        <AppIcon name="chevronRight" color="#76500f" />
       </Pressable>
       {value !== null && (
         <Pressable accessibilityRole="button" onPress={() => onChange(null)}>
@@ -89,6 +89,6 @@ const styles = StyleSheet.create({
   container: { marginVertical: 12 },
   title: { color: '#162524', fontSize: 18 },
   button: { paddingVertical: 14, flexDirection: 'row', alignItems: 'center' },
-  value: { color: '#305f55', fontSize: 16, flexShrink: 1 },
-  reset: { color: '#305f55' },
+  value: { color: '#76500f', fontSize: 16, flexShrink: 1 },
+  reset: { color: '#76500f' },
 });
