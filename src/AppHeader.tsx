@@ -8,7 +8,7 @@ type Action = { kind: 'back' | 'settings'; label: string; onPress: () => void };
 export function AppHeader({ action, language }: { action?: Action; language: keyof typeof translations }) {
   return (
     <View style={styles.header}>
-      <View style={styles.brandPosition} pointerEvents="none">
+      <View style={[styles.brandPosition, action?.kind === 'back' && styles.brandWithBack]} pointerEvents="none">
         <View style={styles.brand}>
           <Image
             source={require('../assets/brand-sprig.png')}
@@ -16,7 +16,7 @@ export function AppHeader({ action, language }: { action?: Action; language: key
             resizeMode="contain"
             accessible={false}
           />
-          <Text style={styles.brandText}>{translations[language].android.app_name}</Text>
+          <Text style={styles.brandText} numberOfLines={1} adjustsFontSizeToFit>{translations[language].android.app_name}</Text>
         </View>
       </View>
       {action && (
@@ -56,7 +56,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  brandWithBack: { left: 92, alignItems: 'flex-end' },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   leaf: { width: 30, height: 30 },
   brandText: { color: '#17231a', fontSize: 15, fontWeight: '700' },
   back: {

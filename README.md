@@ -40,7 +40,7 @@ See the [React Native environment guide](https://reactnative.dev/docs/set-up-you
    adb shell am start -W -n com.myreminders/.MainActivity
    ```
 
-   If multiple devices are listed, add `-s <serial>` after `adb` in both commands. Check that **Ding Reminders** or **Ding Recordatorios** is visible, according to the app language. This APK runs independently of Metro.
+   If multiple devices are listed, add `-s <serial>` after `adb` in both commands. Check that **Ding Reminders** or **Ding Recordatorios** is visible in the app, according to the selected app language. The launcher label follows Android locale settings. This APK runs independently of Metro.
 
 ## Private release signing and distribution
 
