@@ -8,6 +8,7 @@ import { HistoryScreen } from './src/HistoryScreen';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppState,
+  Linking,
   BackHandler,
   Alert,
   PermissionsAndroid,
@@ -21,6 +22,8 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { MedicineSetup } from './src/MedicineSetup';
+import type { DailyMedicineInput } from './src/MedicineSetup';
+import { parseSetupLink } from './src/setupLink';
 import { hasFutureOccurrence } from './src/pastSchedules';
 import { isOneOffSchedule } from './src/dailySchedule';
 import { PillAction } from './src/PillAction';
@@ -37,7 +40,7 @@ import { translations } from './src/translations';
 export default function App() {
   const [state, setState] = useState<ReminderState>();
   const [screen, setScreen] = useState<
-    'today' | 'reminders' | 'setup' | 'access' | 'history'
+    'today' | 'reminders' | 'setup' | 'access' | 'history' | 'linkError'
   >('today');
   const [accessOrigin, setAccessOrigin] = useState<'today' | 'reminders' | 'history'>('today');
   const [error, setError] = useState('');
@@ -45,6 +48,23 @@ export default function App() {
   const [pastExpanded, setPastExpanded] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [editing, setEditing] = useState<Medicine>();
+  const [linkProposal, setLinkProposal] = useState<DailyMedicineInput>();
+  const [linkKey, setLinkKey] = useState(0);
+  useEffect(() => {
+    let active = true;
+    let received = false;
+    const open = (url: string) => {
+      const proposal = parseSetupLink(url);
+      setEditing(undefined);
+      setLinkProposal(proposal ?? undefined);
+      setLinkKey(key => key + 1);
+      setError('');
+      setScreen(proposal ? 'setup' : 'linkError');
+    };
+    const listener = Linking.addEventListener('url', ({ url }) => { received = true; open(url); });
+    Linking.getInitialURL().then(url => { if (active && !received && url) open(url); }).catch(() => {});
+    return () => { active = false; listener.remove(); };
+  }, []);
   const [soundDefaults, setSoundDefaults] = useState<{
     notification: string | null;
     alarm: string | null;
@@ -411,12 +431,20 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView style={styles.screen}>
-        {screen === 'setup' ? (
+        {screen === 'linkError' ? (
+          <View style={styles.content}>
+            <Text accessibilityRole="alert" style={styles.error}>{translations[language].setup.linkError}</Text>
+            <PillAction title={translations[language].setup.back} onPress={() => setScreen('today')} />
+          </View>
+        ) : screen === 'setup' ? (
           <>
             <MedicineSetup
-              initial={editing}
+              key={linkKey}
+              initial={linkProposal ?? editing}
+              initialReview={!!linkProposal}
               onExit={() => {
                 setEditing(undefined);
+                setLinkProposal(undefined);
                 setError('');
                 setScreen(setupOrigin);
               }}
@@ -453,6 +481,7 @@ export default function App() {
                   );
                   await refresh();
                   setEditing(undefined);
+                  setLinkProposal(undefined);
                   setScreen('today');
                   setError('');
                 } catch {

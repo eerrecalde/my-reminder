@@ -43,6 +43,7 @@ export type DailyMedicineInput = {
 type Props = {
   language: 'en' | 'es';
   initial?: DailyMedicineInput;
+  initialReview?: boolean;
   now?: Date;
   onSave: (medicine: DailyMedicineInput) => void | Promise<void>;
   onExit: () => void;
@@ -57,6 +58,7 @@ import { translations } from './translations';
 export function MedicineSetup({
   language,
   initial,
+  initialReview,
   now,
   onSave,
   onExit,
@@ -72,7 +74,7 @@ export function MedicineSetup({
       date.getMinutes(),
     ).padStart(2, '0')}`;
   };
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(initialReview ? 3 : 0);
   const [type, setType] = useState<ReminderType>(initial?.type ?? 'reminder');
   const [mode, setMode] = useState<'notification' | 'alarm'>(
     initial?.mode ?? 'notification',
@@ -149,12 +151,16 @@ export function MedicineSetup({
     anchorTime === originalTime
       ? originalAnchor
       : new Date(`${anchorDate}T${anchorTime}:00`);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() =>
+    initialReview && initial && isOneOffSchedule(initial) &&
+    nextDailyOccurrences(initial.times, now ?? new Date(), 1, initial.startDate, initial.endDate).length === 0
+      ? t.onceFuture : '',
+  );
   const goBack = useCallback(() => {
     setError('');
-    if (step === 0) onExit();
+    if (step === 0 || (initialReview && step === 3)) onExit();
     else setStep(step - 1);
-  }, [step, onExit]);
+  }, [step, onExit, initialReview]);
   useEffect(() => {
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
       goBack();
@@ -630,6 +636,7 @@ export function MedicineSetup({
           {step > 0 && step < 3 ? (
             <PillAction title={step === 1 ? t.next : t.review} onPress={next} />
           ) : step === 3 ? (
+            <>
             <PillAction
               title={type === 'medicine' ? t.save : t.saveReminder}
               disabled={saving}
@@ -687,6 +694,8 @@ export function MedicineSetup({
                 }
               }}
             />
+            {initialReview && <PillAction secondary title={t.editLink} onPress={() => { setError(''); setStep(1); }} />}
+            </>
           ) : null}
         </View>
       </ScrollView>
