@@ -114,6 +114,7 @@
     "onceDate": "Date",
     "onceTime": "Time",
     "onceFuture": "Choose a future date and time.",
+    "expiredEnd": "Choose a future end date.",
     "oncePreview": "Reminder time",
     "daily": "Every day",
     "weekday": "Selected weekdays",

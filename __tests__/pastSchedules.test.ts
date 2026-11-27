@@ -85,3 +85,19 @@ test('uses local clock times on a daylight-saving transition date', () => {
     false,
   );
 });
+
+test('an interval occurrence before the start date does not make an ended schedule future', () => {
+  expect(
+    hasFutureOccurrence(
+      {
+        ...base,
+        scheduleKind: 'interval',
+        startDate: '2026-11-13',
+        endDate: '2026-11-13',
+        intervalAnchor: new Date(2026, 10, 12, 9).getTime(),
+        intervalHours: 48,
+      },
+      new Date(2026, 10, 12, 8),
+    ),
+  ).toBe(false);
+});
