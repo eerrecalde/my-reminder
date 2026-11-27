@@ -10,6 +10,9 @@ A reminder with optional dosage instructions. The app records these instructions
 
 ## Language
 
+**Setup link**:
+A shareable link containing the proposed details for one new **Reminder** or **Medicine**.
+
 **Reminder occurrence**:
 A single scheduled instance of a Reminder or Medicine at a particular date and time.
 
