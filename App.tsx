@@ -469,7 +469,7 @@ export default function App() {
           </>
         ) : (
           <>
-            <AppHeader action={screen === 'access' ? { kind: 'back', label: translations[language].setup.back, onPress: leaveAccess } : screen === 'today' ? { kind: 'settings', label: t.settings, onPress: openAccess } : undefined} />
+            <AppHeader language={language} action={screen === 'access' ? { kind: 'back', label: translations[language].setup.back, onPress: leaveAccess } : screen === 'today' ? { kind: 'settings', label: t.settings, onPress: openAccess } : undefined} />
             {screen === 'history' ? (
               <HistoryScreen
                 historyState={historyState}

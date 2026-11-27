@@ -1,10 +1,11 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppIcon } from './AppIcon';
+import { translations } from './translations';
 
 type Action = { kind: 'back' | 'settings'; label: string; onPress: () => void };
 
-export function AppHeader({ action }: { action?: Action }) {
+export function AppHeader({ action, language }: { action?: Action; language: keyof typeof translations }) {
   return (
     <View style={styles.header}>
       <View style={styles.brandPosition} pointerEvents="none">
@@ -15,7 +16,7 @@ export function AppHeader({ action }: { action?: Action }) {
             resizeMode="contain"
             accessible={false}
           />
-          <Text style={styles.brandText}>My Reminders</Text>
+          <Text style={styles.brandText}>{translations[language].android.app_name}</Text>
         </View>
       </View>
       {action && (
@@ -56,8 +57,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  leaf: { width: 40, height: 36 },
-  brandText: { color: '#17231a', fontSize: 17, fontWeight: '700' },
+  leaf: { width: 30, height: 30 },
+  brandText: { color: '#17231a', fontSize: 15, fontWeight: '700' },
   back: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
