@@ -56,10 +56,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brandWithBack: { left: 92, alignItems: 'flex-end' },
+  brandWithBack: { left: 110, alignItems: 'stretch' },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   leaf: { width: 30, height: 30 },
-  brandText: { color: '#17231a', fontSize: 15, fontWeight: '700' },
+  brandText: { color: '#17231a', fontSize: 15, fontWeight: '700', flexShrink: 1 },
   back: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
