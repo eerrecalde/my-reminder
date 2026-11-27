@@ -6,8 +6,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] Provide a static fallback page with clear installation guidance and instructions to reopen the original message link; support a release APK link when one is available without implying that an APK is already published.
-- [ ] Prepare the Android app and site association for a Surge HTTPS subdomain; verify the association file is available at the required path without redirects and matches the relevant signing certificate on a hosted test address.
+- [ ] Check availability and control of the proposed `ding-reminders.surge.sh` hostname before using it in real setup links. If unavailable, choose a single replacement and keep link generation, Android handling and the fallback aligned to it. Use one hostname across English and Spanish.
+- [ ] Serve the static fallback at the shared setup URL. Use **Ding Reminders** in English copy and **Ding Recordatorios** in Spanish copy. Give installation guidance and tell recipients to reopen the original message link. Add the release APK link when one is available for distribution.
+- [ ] On the hosted verification address, confirm `/.well-known/assetlinks.json` is served as `application/json` directly over HTTPS and associates `com.myreminders` with the SHA-256 signing-certificate fingerprint of the APK under test. Use the distributed APK's fingerprint on the production host. [Android website association documentation](https://developer.android.com/training/app-links/configure-assetlinks)
 - [ ] Verify an installed disposable Android app opens the setup link on cold launch and while running, and an uninstalled device reaches the fallback page. Record the device or emulator and Android version and distinguish actual Android resolution from simulated delivery.
-- [ ] Document the chosen or provisional hostname, signing and hosting requirements, and the need to retain the original domain and association after an app rename. Do not expose real Reminder or Medicine details in test links or logs.
+- [ ] Document the chosen hostname, signing and hosting requirements, and how to keep the original domain and association working after a future rename. Use synthetic Reminder and Medicine details in test links and logs.
 - [ ] Keep production APK distribution, Play Store publication and automatic continuation through installation as separate release work.

@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] A valid Android HTTPS setup link reaches the review when the app is launched or already running; verify intent delivery using a test address. Domain verification and the public fallback are covered separately by ticket 06.
+- [ ] A valid Android HTTPS setup link reaches the review when the app is launched or already running. Define the setup path and a test address aligned with shared link generation and the fallback plan. The proposed production hostname is `ding-reminders.surge.sh`, with availability and domain verification covered by ticket 06.
 - [ ] The read-only review displays the name, one-time local date and time, effective type, optional Medicine instructions and alert mode, with a prominent save action and a separate edit action. Edits return to review before saving.
 - [ ] Saving creates a new scheduled item through the existing save flow; opening, cancelling or editing the link does not create or change an item. Test both Reminder and Medicine and both supported app languages.
 - [ ] Omitted type defaults to Reminder and omitted mode to notification. Medicine instructions require an explicit Medicine type. Optional details can be omitted.
