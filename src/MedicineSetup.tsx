@@ -245,7 +245,7 @@ export function MedicineSetup({
         </Text>
         <View style={styles.fieldActionRow}>
           <Text style={styles.fieldAction}>{action}</Text>
-          <AppIcon name="chevronRight" color="#36542b" />
+          <AppIcon name="chevronRight" color="#76500f" />
         </View>
       </Pressable>
     </View>
@@ -337,7 +337,7 @@ export function MedicineSetup({
                     name={
                       weekdays.includes(index + 1) ? 'squareCheck' : 'square'
                     }
-                    color="#36542b"
+                    color="#76500f"
                   />
                   <Text style={styles.modeText}>{label}</Text>
                 </Pressable>
@@ -380,7 +380,7 @@ export function MedicineSetup({
                       <Text style={styles.fieldAction}>
                         {anchorTime ? t.change : t.select}
                       </Text>
-                      <AppIcon name="chevronRight" color="#36542b" />
+                      <AppIcon name="chevronRight" color="#76500f" />
                     </View>
                   </Pressable>
                 </View>
@@ -404,7 +404,7 @@ export function MedicineSetup({
                 >
                   <AppIcon
                     name={monthlyDay === 'last' ? 'circleDot' : 'circle'}
-                    color="#36542b"
+                    color="#76500f"
                   />
                   <Text style={styles.modeText}>{t.lastDay}</Text>
                 </Pressable>
@@ -425,7 +425,7 @@ export function MedicineSetup({
                           name={
                             shortMonthPolicy === policy ? 'circleDot' : 'circle'
                           }
-                          color="#36542b"
+                          color="#76500f"
                         />
                         <Text style={styles.modeText}>
                           {policy === 'last' ? t.useLast : t.skipMonth}
@@ -470,7 +470,7 @@ export function MedicineSetup({
                       <Text style={styles.fieldAction}>
                         {onceTime ? t.change : t.select}
                       </Text>
-                      <AppIcon name="chevronRight" color="#36542b" />
+                      <AppIcon name="chevronRight" color="#76500f" />
                     </View>
                   </Pressable>
                 </View>
@@ -533,7 +533,7 @@ export function MedicineSetup({
                           <Text style={styles.fieldValue}>{time}</Text>
                           <View style={styles.fieldActionRow}>
                             <Text style={styles.fieldAction}>{t.change}</Text>
-                            <AppIcon name="chevronRight" color="#36542b" />
+                            <AppIcon name="chevronRight" color="#76500f" />
                           </View>
                         </Pressable>
                         {times.length > 1 && (
@@ -570,7 +570,7 @@ export function MedicineSetup({
                     >
                       {times.length ? (
                         <View style={styles.fieldActionRow}>
-                          <AppIcon name="plus" color="#36542b" />
+                          <AppIcon name="plus" color="#76500f" />
                           <Text style={styles.linkText}>{t.addTime}</Text>
                         </View>
                       ) : (
@@ -578,7 +578,7 @@ export function MedicineSetup({
                           <Text style={styles.fieldValue}>{t.selectTime}</Text>
                           <View style={styles.fieldActionRow}>
                             <Text style={styles.fieldAction}>{t.select}</Text>
-                            <AppIcon name="chevronRight" color="#36542b" />
+                            <AppIcon name="chevronRight" color="#76500f" />
                           </View>
                         </>
                       )}
@@ -707,7 +707,7 @@ const styles = StyleSheet.create({
     color: '#162524',
     fontSize: 18,
     borderWidth: 1,
-    borderColor: '#a4b398',
+    borderColor: '#b9a582',
     backgroundColor: '#fffaf1',
     borderRadius: 12,
     minHeight: 52,
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
   fieldControl: {
     minHeight: 48,
     borderWidth: 1,
-    borderColor: '#a4b398',
+    borderColor: '#b9a582',
     backgroundColor: '#fffaf1',
     borderRadius: 10,
     paddingHorizontal: 12,
@@ -732,7 +732,7 @@ const styles = StyleSheet.create({
   },
   fieldValue: { color: '#162524', fontSize: 17, flexShrink: 1 },
   fieldActionRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  fieldAction: { color: '#36542b', fontSize: 15, fontWeight: '600' },
+  fieldAction: { color: '#76500f', fontSize: 15, fontWeight: '600' },
   timeRow: { flexDirection: 'row', gap: 8, alignItems: 'stretch' },
   timeControl: { flex: 1 },
   removeButton: {
@@ -750,7 +750,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     justifyContent: 'center',
   },
-  linkText: { color: '#36542b', fontSize: 16, fontWeight: '700' },
+  linkText: { color: '#76500f', fontSize: 16, fontWeight: '700' },
   modeOption: {
     minHeight: 48,
     flexDirection: 'row',

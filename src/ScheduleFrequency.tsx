@@ -33,7 +33,7 @@ export function ScheduleFrequency({
         style={styles.fieldControl}
       >
         <Text style={styles.fieldValue}>{t[value]}</Text>
-        <AppIcon name={open ? 'chevronUp' : 'chevronDown'} color="#36542b" />
+        <AppIcon name={open ? 'chevronUp' : 'chevronDown'} color="#76500f" />
       </Pressable>
       {open && (
         <View accessibilityRole="radiogroup" style={styles.scheduleOptions}>
@@ -51,7 +51,7 @@ export function ScheduleFrequency({
               >
                 <AppIcon
                   name={value === kind ? 'circleDot' : 'circle'}
-                  color="#36542b"
+                  color="#76500f"
                 />
                 <Text style={styles.modeText}>{t[kind]}</Text>
               </Pressable>
@@ -66,7 +66,7 @@ export function ScheduleFrequency({
 const styles = StyleSheet.create({
   scheduleOptions: {
     borderWidth: 1,
-    borderColor: '#a4b398',
+    borderColor: '#b9a582',
     backgroundColor: '#fffaf1',
     borderRadius: 10,
     paddingHorizontal: 12,
@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
   fieldControl: {
     minHeight: 48,
     borderWidth: 1,
-    borderColor: '#a4b398',
+    borderColor: '#b9a582',
     backgroundColor: '#fffaf1',
     borderRadius: 10,
     paddingHorizontal: 12,

@@ -326,7 +326,7 @@ export default function App() {
           <View style={styles.iconCircle}>
             <AppIcon
               name={medicine.type === 'medicine' ? 'pill' : 'clock'}
-              color="#4d6d38"
+              color="#805a19"
             />
           </View>
           <View style={styles.occurrenceCopy}>
@@ -597,7 +597,7 @@ export default function App() {
                           </Text>
                           <View style={styles.nextBody}>
                             <View style={styles.iconCircle}>
-                              <AppIcon name="clock" color="#4d6d38" />
+                              <AppIcon name="clock" color="#805a19" />
                             </View>
                             <View style={styles.occurrenceCopy}>
                               <Text style={styles.itemName}>
@@ -715,14 +715,14 @@ export default function App() {
                                 ? 'warning'
                                 : 'checkCircle'
                             }
-                            color="#203b21"
+                            color="#594014"
                           />
                           <Text style={styles.outcomeLabel}>
                             {group.label} ({items.length})
                           </Text>
                           <AppIcon
                             name={isExpanded ? 'chevronUp' : 'chevronDown'}
-                            color="#203b21"
+                            color="#594014"
                           />
                         </Pressable>
                         {isExpanded &&
@@ -752,7 +752,7 @@ export default function App() {
                     style={styles.accessLink}
                   >
                     <Text style={styles.accessLinkText}>{t.settings}</Text>
-                    <AppIcon name="chevronRight" color="#526d40" />
+                    <AppIcon name="chevronRight" color="#76500f" />
                   </Pressable>
                 </>
               ) : screen === 'reminders' ? (
@@ -792,7 +792,7 @@ export default function App() {
                                 name={
                                   pastExpanded ? 'chevronUp' : 'chevronDown'
                                 }
-                                color="#526d40"
+                                color="#76500f"
                               />
                             </Pressable>
                           )}
@@ -850,7 +850,7 @@ export default function App() {
                                       }}
                                     >
                                       <View style={styles.cardActionIcon}>
-                                        <AppIcon name="edit" color="#315a36" />
+                                        <AppIcon name="edit" color="#76500f" />
                                       </View>
                                       <Text style={styles.cardActionText}>
                                         {t.edit}
@@ -886,7 +886,7 @@ export default function App() {
                                                 ? 'play'
                                                 : 'pause'
                                             }
-                                            color="#315a36"
+                                            color="#76500f"
                                           />
                                         </View>
                                         <Text style={styles.cardActionText}>
@@ -1206,7 +1206,7 @@ const styles = StyleSheet.create({
   leaf: { width: 104, height: 90, marginRight: -8 },
   date: { fontSize: 17, color: '#302e25', marginTop: 4 },
   sectionTitle: {
-    color: '#314e37',
+    color: '#76500f',
     fontSize: 20,
     fontWeight: '700',
     marginTop: 8,
@@ -1218,7 +1218,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   sectionBand: {
-    backgroundColor: '#e3e8c9',
+    backgroundColor: '#f0e4c8',
     color: '#202d1b',
     fontSize: 18,
     fontWeight: '700',
@@ -1245,7 +1245,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#eef0d8',
+    backgroundColor: '#f4e9d0',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1283,7 +1283,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
-  accessLinkText: { color: '#526d40', fontSize: 15, fontWeight: '600' },
+  accessLinkText: { color: '#76500f', fontSize: 15, fontWeight: '600' },
   title: { color: '#162524', fontSize: 26, fontWeight: '700' },
   text: { color: '#162524', fontSize: 18, marginVertical: 8 },
   warning: {
@@ -1360,7 +1360,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardActionText: {
-    color: '#315a36',
+    color: '#76500f',
     fontSize: 14,
     lineHeight: 18,
     includeFontPadding: false,

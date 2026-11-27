@@ -31,7 +31,7 @@ export function PillAction({
       ]}
     >
       {showPlus && (
-        <AppIcon name="plus" color={secondary ? '#36542b' : '#fffdf4'} />
+        <AppIcon name="plus" color={secondary ? '#76500f' : '#fffdf4'} />
       )}
       <Text style={[styles.pillLabel, secondary && styles.pillSecondaryLabel]}>
         {title}
@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 24,
-    backgroundColor: '#4b6f3d',
+    backgroundColor: '#7c5614',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
   pillSecondary: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#789063',
+    borderColor: '#a68851',
   },
   pillLabel: {
     color: '#fffdf4',
@@ -65,5 +65,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     flexShrink: 1,
   },
-  pillSecondaryLabel: { color: '#36542b' },
+  pillSecondaryLabel: { color: '#76500f' },
 });

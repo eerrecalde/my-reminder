@@ -138,28 +138,30 @@ export function HistoryScreen({
                 />
               </>
             )}
-            <PillAction
-              secondary
-              title={t.clearHistory}
-              onPress={() =>
-                Alert.alert(t.clearHistory, t.clearQuestion, [
-                  { text: t.cancel, style: 'cancel' },
-                  {
-                    text: t.clear,
-                    style: 'destructive',
-                    onPress: async () => {
-                      try {
-                        await reminderRepository.clearHistory();
-                        await loadHistory(true);
-                        await onCleared();
-                      } catch {
-                        onClearError();
-                      }
+            <View style={styles.clearAction}>
+              <PillAction
+                secondary
+                title={t.clearHistory}
+                onPress={() =>
+                  Alert.alert(t.clearHistory, t.clearQuestion, [
+                    { text: t.cancel, style: 'cancel' },
+                    {
+                      text: t.clear,
+                      style: 'destructive',
+                      onPress: async () => {
+                        try {
+                          await reminderRepository.clearHistory();
+                          await loadHistory(true);
+                          await onCleared();
+                        } catch {
+                          onClearError();
+                        }
+                      },
                     },
-                  },
-                ])
-              }
-            />
+                  ])
+                }
+              />
+            </View>
             <PillAction
               secondary
               title={t.cancel}
@@ -190,8 +192,9 @@ const styles = StyleSheet.create({
   title: { color: '#162524', fontSize: 26, fontWeight: '700' },
   text: { color: '#162524', fontSize: 18, marginVertical: 8 },
   error: { color: '#a01818', fontSize: 18 },
+  clearAction: { marginBottom: 12 },
   sectionTitle: {
-    color: '#314e37',
+    color: '#76500f',
     fontSize: 20,
     fontWeight: '700',
     marginTop: 8,
