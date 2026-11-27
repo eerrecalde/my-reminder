@@ -24,6 +24,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { MedicineSetup } from './src/MedicineSetup';
 import type { DailyMedicineInput } from './src/MedicineSetup';
 import { parseSetupLink } from './src/setupLink';
+import { matchesSetup } from './src/duplicateSetup';
 import { hasFutureOccurrence } from './src/pastSchedules';
 import { isOneOffSchedule } from './src/dailySchedule';
 import { PillAction } from './src/PillAction';
@@ -454,39 +455,59 @@ export default function App() {
               fullScreenAccess={state?.fullScreenAccess}
               openFullScreenSettings={openFullScreenSettings}
               onSave={async medicine => {
+                const save = async () => {
+                  try {
+                    if (linkProposal && !hasFutureOccurrence(medicine, new Date())) {
+                      setError(isOneOffSchedule(medicine) ? translations[language].setup.onceFuture : translations[language].setup.expiredEnd);
+                      return;
+                    }
+                    await (editing
+                      ? reminderRepository.editScheduled.bind(
+                          reminderRepository,
+                          editing.id,
+                        )
+                      : reminderRepository.saveScheduled.bind(
+                          reminderRepository,
+                        ))(
+                      medicine.type,
+                      medicine.name,
+                      medicine.instructions,
+                      medicine.times,
+                      medicine.mode,
+                      medicine.startDate!,
+                      medicine.endDate ?? null,
+                      medicine.scheduleKind ?? 'daily',
+                      medicine.weekdays ?? [],
+                      medicine.intervalHours ?? null,
+                      medicine.intervalAnchor ?? null,
+                      medicine.monthlyDay ?? null,
+                      medicine.shortMonthPolicy ?? 'last',
+                      medicine.notificationSound ?? null,
+                      medicine.alarmSound ?? null,
+                    );
+                    await refresh();
+                    setEditing(undefined);
+                    setLinkProposal(undefined);
+                    setScreen('today');
+                    setError('');
+                  } catch {
+                    setError(t.error);
+                  }
+                };
+                if (!linkProposal) { await save(); return; }
                 try {
-                  await (editing
-                    ? reminderRepository.editScheduled.bind(
-                        reminderRepository,
-                        editing.id,
-                      )
-                    : reminderRepository.saveScheduled.bind(
-                        reminderRepository,
-                      ))(
-                    medicine.type,
-                    medicine.name,
-                    medicine.instructions,
-                    medicine.times,
-                    medicine.mode,
-                    medicine.startDate!,
-                    medicine.endDate ?? null,
-                    medicine.scheduleKind ?? 'daily',
-                    medicine.weekdays ?? [],
-                    medicine.intervalHours ?? null,
-                    medicine.intervalAnchor ?? null,
-                    medicine.monthlyDay ?? null,
-                    medicine.shortMonthPolicy ?? 'last',
-                    medicine.notificationSound ?? null,
-                    medicine.alarmSound ?? null,
-                  );
-                  await refresh();
-                  setEditing(undefined);
-                  setLinkProposal(undefined);
-                  setScreen('today');
-                  setError('');
-                } catch {
-                  setError(t.error);
-                }
+                  const latest = await reminderRepository.state();
+                  if (latest.medicines.some(item => matchesSetup(item, medicine))) {
+                    const copy = translations[language].setup;
+                    const confirmed = await new Promise<boolean>(resolve => {
+                      Alert.alert(medicine.type === 'medicine' ? copy.duplicateMedicine : copy.duplicateReminder, copy.duplicateMessage, [
+                        { text: copy.duplicateCancel, style: 'cancel', onPress: () => resolve(false) },
+                        { text: copy.duplicateAdd, onPress: () => resolve(true) },
+                      ], { cancelable: true, onDismiss: () => resolve(false) });
+                    });
+                    if (confirmed) await save();
+                  } else await save();
+                } catch { setError(t.error); }
               }}
             />
             {!!error && (

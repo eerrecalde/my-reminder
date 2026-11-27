@@ -42,3 +42,13 @@ https://ding-reminders.surge.sh/setup?v=1&name=Exercise&schedule=weekday&start=2
 https://ding-reminders.surge.sh/setup?v=1&name=Example&schedule=interval&start=2099-01-01&hours=8&anchor=2099-01-01T09%3A00
 https://ding-reminders.surge.sh/setup?v=1&name=Example&schedule=monthly&start=2099-01-01&times=09%3A00&day=31&shortMonth=skip
 ```
+
+### Duplicate warning
+
+Before saving an incoming setup, names are compared after Unicode NFC normalization,
+trimming, collapsing whitespace and lowercasing. Schedules compare kind, start and end
+dates, and the fields relevant to that kind. Times and weekdays are unordered sets;
+intervals compare their hours and anchor; monthly schedules compare their day and,
+for days 29–31, short-month policy. Type, instructions, alert mode and the link itself
+are not part of the match. A matching item prompts the recipient to cancel or add a
+separate item.

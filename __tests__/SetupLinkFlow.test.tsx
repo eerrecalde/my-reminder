@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Linking, Share, Text, TextInput } from 'react-native';
+import { Alert, Linking, Share, Text, TextInput } from 'react-native';
 import { translations } from '../src/translations';
 import App from '../App';
 import { PillAction } from '../src/PillAction';
@@ -688,3 +688,72 @@ test.each([
     jest.restoreAllMocks();
   },
 );
+
+
+test.each([['en', 'reminder'], ['es', 'reminder'], ['en', 'medicine'], ['es', 'medicine']] as const)(
+  'a matching %s %s setup link warns before adding a separate item',
+  async (language, type) => {
+    const existing = { id: 'existing', type: 'reminder', name: '  WATER  ', instructions: '', mode: 'notification', scheduleKind: 'daily', times: ['09:15'], startDate: '2099-06-30', endDate: '2099-06-30' };
+    const saveScheduled = jest.fn().mockResolvedValue('new');
+    const editScheduled = jest.fn();
+    require('../src/reminderRepository').reminderRepository = {
+      state: jest.fn().mockResolvedValue({ enabled: true, language, medicines: [existing], todayDoses: [], upcoming: [] }), saveScheduled, editScheduled,
+    };
+    jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(`https://setup-links.example.com/setup?v=1&type=${type}&name=Water&date=2099-06-30&time=09%3A15`);
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+    const save = () => view.root.findAllByType(PillAction).find(node => node.props.title === (type === 'medicine' ? translations[language].setup.save : translations[language].setup.saveReminder))!.props.onPress();
+    await ReactTestRenderer.act(async () => { save(); });
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(alert.mock.calls[0][0]).toBe(type === 'medicine' ? translations[language].setup.duplicateMedicine : translations[language].setup.duplicateReminder);
+    expect(saveScheduled).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => { await alert.mock.calls[0][2]![0].onPress?.(); });
+    expect(saveScheduled).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => { save(); });
+    await ReactTestRenderer.act(async () => { await alert.mock.calls[1][2]![1].onPress?.(); });
+    expect(saveScheduled).toHaveBeenCalledTimes(1);
+    expect(editScheduled).not.toHaveBeenCalled();
+    expect(existing.name).toBe('  WATER  ');
+    await ReactTestRenderer.act(() => view.unmount());
+    jest.restoreAllMocks();
+  },
+);
+
+test('reopening a saved link and a separately produced matching link both warn', async () => {
+  const items: object[] = [];
+  const saveScheduled = jest.fn(async (type, name, instructions, times, mode, startDate, endDate, scheduleKind) => {
+    items.push({ id: `item-${items.length}`, type, name, instructions, times, mode, startDate, endDate, scheduleKind });
+  });
+  require('../src/reminderRepository').reminderRepository = {
+    state: jest.fn(async () => ({ enabled: true, language: 'en', medicines: [...items], todayDoses: [], upcoming: [] })),
+    saveScheduled,
+  };
+  const link = 'https://setup-links.example.com/setup?v=1&name=Water&date=2099-06-30&time=09%3A15';
+  jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(link);
+  let receive!: (event: { url: string }) => void;
+  jest.spyOn(Linking, 'addEventListener').mockImplementation((_event, callback) => {
+    receive = callback;
+    return { remove: jest.fn() };
+  });
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+  const save = () => view.root.findAllByType(PillAction).find(node => node.props.title === translations.en.setup.saveReminder)!.props.onPress();
+  await ReactTestRenderer.act(async () => { await save(); });
+  expect(items).toHaveLength(1);
+  await ReactTestRenderer.act(() => receive({ url: link }));
+  await ReactTestRenderer.act(async () => { save(); });
+  expect(alert).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(async () => { alert.mock.calls[0][2]![0].onPress?.(); });
+  expect(items).toHaveLength(1);
+  await ReactTestRenderer.act(() => receive({ url: 'https://ding-reminders.surge.sh/setup?time=09%3A15&date=2099-06-30&name=WATER&v=1&mode=alarm' }));
+  await ReactTestRenderer.act(async () => { save(); });
+  expect(alert).toHaveBeenCalledTimes(2);
+  await ReactTestRenderer.act(async () => { alert.mock.calls[1][2]![1].onPress?.(); });
+  expect(items).toHaveLength(2);
+  expect(items[0]).toMatchObject({ id: 'item-0', name: 'Water', mode: 'notification' });
+  expect(items[1]).toMatchObject({ id: 'item-1', name: 'WATER', mode: 'alarm' });
+  await ReactTestRenderer.act(() => view.unmount());
+  jest.restoreAllMocks();
+});
