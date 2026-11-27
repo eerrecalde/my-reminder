@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
   Pressable,
+  Share,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,6 +24,7 @@ import { ReminderAlertChoice } from './ReminderAlertChoice';
 import { AlarmScreenAccess } from './AlarmScreenAccess';
 import { SetupReview } from './SetupReview';
 import { ScheduleFrequency } from './ScheduleFrequency';
+import { createSetupLink } from './setupLink';
 
 export type DailyMedicineInput = {
   type: ReminderType;
@@ -696,7 +698,9 @@ export function MedicineSetup({
                       alarmSound,
                       name: name.trim(),
                       instructions:
-                        type === 'medicine' || !initialReview ? instructions.trim() : '',
+                        type === 'medicine' || !initialReview
+                          ? instructions.trim()
+                          : '',
                       times:
                         scheduleKind === 'once'
                           ? [onceTime]
@@ -712,6 +716,45 @@ export function MedicineSetup({
                   }
                 }}
               />
+              {!initial && scheduleKind === 'once' && (
+                <>
+                  <Text style={styles.error}>{t.shareTestNotice}</Text>
+                  <PillAction
+                    secondary
+                    title={t.shareSetup}
+                    onPress={async () => {
+                      if (
+                        nextDailyOccurrences(
+                          [onceTime],
+                          now ?? new Date(),
+                          1,
+                          onceDate,
+                          onceDate,
+                        ).length === 0
+                      ) {
+                        setError(t.onceFuture);
+                        return;
+                      }
+                      try {
+                        await Share.share({
+                          message: createSetupLink({
+                            type,
+                            mode,
+                            name: name.trim(),
+                            instructions:
+                              type === 'medicine' ? instructions.trim() : '',
+                            times: [onceTime],
+                            startDate: onceDate,
+                            endDate: onceDate,
+                          }),
+                        });
+                      } catch {
+                        setError(t.shareError);
+                      }
+                    }}
+                  />
+                </>
+              )}
               {initialReview && (
                 <PillAction
                   secondary
