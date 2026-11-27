@@ -362,31 +362,39 @@ test('cancelling a valid link leaves existing items untouched', async () => {
   jest.restoreAllMocks();
 });
 
-test.each(['en', 'es'] as const)(
-  'shares a prepared Medicine without saving, then saves an independent copy in %s',
-  async language => {
-    const share = jest
-      .spyOn(Share, 'share')
-      .mockResolvedValue({
-        action: Share.dismissedAction,
-        activityType: undefined,
-      });
+test.each([
+  ['en', 'medicine'],
+  ['es', 'medicine'],
+  ['en', 'reminder'],
+  ['es', 'reminder'],
+] as const)(
+  'shares a prepared %s %s without saving, then saves an independent copy',
+  async (language, type) => {
+    const share = jest.spyOn(Share, 'share').mockResolvedValue({
+      action: Share.dismissedAction,
+      activityType: undefined,
+    });
     const saveScheduled = jest.fn().mockResolvedValue('copy');
     require('../src/reminderRepository').reminderRepository = {
-      state: jest
-        .fn()
-        .mockResolvedValue({
-          enabled: true,
-          language,
-          medicines: [],
-          todayDoses: [],
-          upcoming: [],
-        }),
+      state: jest.fn().mockResolvedValue({
+        enabled: true,
+        language,
+        medicines: [],
+        todayDoses: [],
+        upcoming: [],
+      }),
       selectTime: jest.fn().mockResolvedValue('09:15'),
       selectDate: jest.fn().mockResolvedValue('2099-06-30'),
       saveScheduled,
     };
     jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(null);
+    let receive!: (event: { url: string }) => void;
+    jest
+      .spyOn(Linking, 'addEventListener')
+      .mockImplementation((_event, callback) => {
+        receive = callback;
+        return { remove: jest.fn() };
+      });
     let view!: ReactTestRenderer.ReactTestRenderer;
     await ReactTestRenderer.act(async () => {
       view = ReactTestRenderer.create(<App />);
@@ -399,14 +407,30 @@ test.each(['en', 'es'] as const)(
           .props.onPress();
       });
     await press(language === 'en' ? 'Add reminder' : translations.es.app.add);
-    await press(translations[language].setup.medicine);
+    await press(
+      type === 'medicine'
+        ? translations[language].setup.medicine
+        : translations[language].setup.reminder,
+    );
     await ReactTestRenderer.act(() => {
       const inputs = view.root.findAllByType(TextInput);
       inputs[0].props.onChangeText('Café & tea');
-      inputs[1].props.onChangeText('After food & water');
+      if (type === 'medicine')
+        inputs[1].props.onChangeText('After food & water');
     });
     const copy = translations[language].setup;
     await press(copy.next);
+    if (type === 'reminder')
+      await ReactTestRenderer.act(() =>
+        view.root
+          .findAll(
+            node =>
+              node.props.accessibilityRole === 'radio' &&
+              node.props.accessibilityLabel ===
+                (language === 'en' ? 'Alarm' : 'Alarma'),
+          )[0]
+          .props.onPress(),
+      );
     await ReactTestRenderer.act(async () => {
       await view.root
         .findAll(node =>
@@ -428,21 +452,22 @@ test.each(['en', 'es'] as const)(
     const link = share.mock.calls[0][0].message;
     expect(link).toContain('setup-links.example.com/setup?');
     expect(require('../src/setupLink').parseSetupLink(link)).toMatchObject({
-      type: 'medicine',
+      type,
+      mode: type === 'medicine' ? 'notification' : 'alarm',
       name: 'Café & tea',
-      instructions: 'After food & water',
+      instructions: type === 'medicine' ? 'After food & water' : '',
       startDate: '2099-06-30',
       endDate: '2099-06-30',
       times: ['09:15'],
     });
-    await press(copy.save);
+    await press(type === 'medicine' ? copy.save : copy.saveReminder);
     expect(saveScheduled).toHaveBeenCalledTimes(1);
     expect(saveScheduled).toHaveBeenCalledWith(
-      'medicine',
+      type,
       'Café & tea',
-      'After food & water',
+      type === 'medicine' ? 'After food & water' : '',
       ['09:15'],
-      'notification',
+      type === 'medicine' ? 'notification' : 'alarm',
       '2099-06-30',
       '2099-06-30',
       'daily',
@@ -454,6 +479,19 @@ test.each(['en', 'es'] as const)(
       null,
       null,
     );
+    await ReactTestRenderer.act(() => receive({ url: link! }));
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(node => node.props.children === 'Café & tea'),
+    ).toBe(true);
+    if (type === 'medicine')
+      expect(
+        view.root
+          .findAllByType(Text)
+          .some(node => node.props.children === 'After food & water'),
+      ).toBe(true);
+    expect(saveScheduled).toHaveBeenCalledTimes(1);
     await ReactTestRenderer.act(() => view.unmount());
     jest.restoreAllMocks();
   },
