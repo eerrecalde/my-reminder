@@ -191,7 +191,7 @@
     "help": "Sound also depends on your phone’s notification settings."
   },
   "android": {
-    "app_name": "Ding Reminders",
+    "app_name": "Ding",
     "reminder_channel": "Reminders",
     "reminder_due": "Your medicine is due",
     "alarm_alert_channel": "Alarm alerts",
