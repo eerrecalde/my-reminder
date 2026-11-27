@@ -20,6 +20,7 @@ import type { ReminderType } from './reminderRepository';
 import { PillAction } from './PillAction';
 import type { FullScreenAccess } from './reminderRepository';
 import { ReminderAlertChoice } from './ReminderAlertChoice';
+import { AlarmScreenAccess } from './AlarmScreenAccess';
 import { SetupReview } from './SetupReview';
 import { ScheduleFrequency } from './ScheduleFrequency';
 
@@ -151,11 +152,13 @@ export function MedicineSetup({
     anchorTime === originalTime
       ? originalAnchor
       : new Date(`${anchorDate}T${anchorTime}:00`);
-  const [error, setError] = useState(() =>
-    initialReview && initial && isOneOffSchedule(initial) &&
-    nextDailyOccurrences(initial.times, now ?? new Date(), 1, initial.startDate, initial.endDate).length === 0
-      ? t.onceFuture : '',
-  );
+  const [error, setError] = useState('');
+  const pastLink =
+    initialReview &&
+    step === 3 &&
+    scheduleKind === 'once' &&
+    nextDailyOccurrences([onceTime], now ?? new Date(), 1, onceDate, onceDate)
+      .length === 0;
   const goBack = useCallback(() => {
     setError('');
     if (step === 0 || (initialReview && step === 3)) onExit();
@@ -258,7 +261,10 @@ export function MedicineSetup({
   );
   return (
     <View style={styles.screen}>
-      <AppHeader language={language} action={{ kind: 'back', label: t.back, onPress: goBack }} />
+      <AppHeader
+        language={language}
+        action={{ kind: 'back', label: t.back, onPress: goBack }}
+      />
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
@@ -627,9 +633,20 @@ export function MedicineSetup({
             now={now}
           />
         )}
-        {!!error && (
+        {step === 3 &&
+          initialReview &&
+          mode === 'alarm' &&
+          fullScreenAccess &&
+          openFullScreenSettings && (
+            <AlarmScreenAccess
+              language={language}
+              access={fullScreenAccess}
+              openSettings={openFullScreenSettings}
+            />
+          )}
+        {(!!error || pastLink) && (
           <Text accessibilityRole="alert" style={styles.error}>
-            {error}
+            {error || t.onceFuture}
           </Text>
         )}
         <View style={styles.actions}>
@@ -637,64 +654,74 @@ export function MedicineSetup({
             <PillAction title={step === 1 ? t.next : t.review} onPress={next} />
           ) : step === 3 ? (
             <>
-            <PillAction
-              title={type === 'medicine' ? t.save : t.saveReminder}
-              disabled={saving}
-              onPress={async () => {
-                if (savingRef.current) return;
-                if (
-                  scheduleKind === 'once' &&
-                  nextDailyOccurrences(
-                    [onceTime],
-                    now ?? new Date(),
-                    1,
-                    onceDate,
-                    onceDate,
-                  ).length === 0
-                ) {
-                  setError(t.onceFuture);
-                  return;
-                }
-                savingRef.current = true;
-                setSaving(true);
-                try {
-                  await onSave({
-                    type,
-                    scheduleKind:
-                      scheduleKind === 'once' ? 'daily' : scheduleKind,
-                    weekdays,
-                    intervalHours:
-                      scheduleKind === 'interval'
-                        ? Number(intervalHours)
-                        : null,
-                    intervalAnchor:
-                      scheduleKind === 'interval' ? anchor.getTime() : null,
-                    monthlyDay:
-                      scheduleKind === 'monthly' && monthlyDay !== 'last'
-                        ? Number(monthlyDay)
-                        : null,
-                    shortMonthPolicy,
-                    mode,
-                    notificationSound,
-                    alarmSound,
-                    name: name.trim(),
-                    instructions: instructions.trim(),
-                    times:
-                      scheduleKind === 'once'
-                        ? [onceTime]
-                        : scheduleKind === 'interval' && !times.length
-                        ? [anchorTime]
-                        : [...new Set(times)],
-                    startDate: scheduleKind === 'once' ? onceDate : startDate,
-                    endDate: scheduleKind === 'once' ? onceDate : endDate,
-                  });
-                } finally {
-                  savingRef.current = false;
-                  setSaving(false);
-                }
-              }}
-            />
-            {initialReview && <PillAction secondary title={t.editLink} onPress={() => { setError(''); setStep(1); }} />}
+              <PillAction
+                title={type === 'medicine' ? t.save : t.saveReminder}
+                disabled={saving}
+                onPress={async () => {
+                  if (savingRef.current) return;
+                  if (
+                    scheduleKind === 'once' &&
+                    nextDailyOccurrences(
+                      [onceTime],
+                      now ?? new Date(),
+                      1,
+                      onceDate,
+                      onceDate,
+                    ).length === 0
+                  ) {
+                    setError(t.onceFuture);
+                    return;
+                  }
+                  savingRef.current = true;
+                  setSaving(true);
+                  try {
+                    await onSave({
+                      type,
+                      scheduleKind:
+                        scheduleKind === 'once' ? 'daily' : scheduleKind,
+                      weekdays,
+                      intervalHours:
+                        scheduleKind === 'interval'
+                          ? Number(intervalHours)
+                          : null,
+                      intervalAnchor:
+                        scheduleKind === 'interval' ? anchor.getTime() : null,
+                      monthlyDay:
+                        scheduleKind === 'monthly' && monthlyDay !== 'last'
+                          ? Number(monthlyDay)
+                          : null,
+                      shortMonthPolicy,
+                      mode,
+                      notificationSound,
+                      alarmSound,
+                      name: name.trim(),
+                      instructions:
+                        type === 'medicine' || !initialReview ? instructions.trim() : '',
+                      times:
+                        scheduleKind === 'once'
+                          ? [onceTime]
+                          : scheduleKind === 'interval' && !times.length
+                          ? [anchorTime]
+                          : [...new Set(times)],
+                      startDate: scheduleKind === 'once' ? onceDate : startDate,
+                      endDate: scheduleKind === 'once' ? onceDate : endDate,
+                    });
+                  } finally {
+                    savingRef.current = false;
+                    setSaving(false);
+                  }
+                }}
+              />
+              {initialReview && (
+                <PillAction
+                  secondary
+                  title={t.editLink}
+                  onPress={() => {
+                    setError('');
+                    setStep(1);
+                  }}
+                />
+              )}
             </>
           ) : null}
         </View>
