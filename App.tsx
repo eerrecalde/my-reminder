@@ -10,7 +10,6 @@ import {
   AppState,
   BackHandler,
   Alert,
-  Image,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -499,16 +498,6 @@ export default function App() {
                       )}
                     </Text>
                   </View>
-                  {(!state ||
-                    state.medicines.length > 0 ||
-                    state.todayDoses.length > 0) && (
-                    <Image
-                      source={require('./assets/today-illustration.png')}
-                      style={styles.leaf}
-                      resizeMode="contain"
-                      accessibilityIgnoresInvertColors
-                    />
-                  )}
                 </View>
               ) : (
                 <Text accessibilityRole="header" style={styles.title}>
@@ -534,11 +523,6 @@ export default function App() {
                   {state.medicines.length === 0 &&
                     state.todayDoses.length === 0 && (
                       <View style={styles.emptyCard}>
-                        <Image
-                          source={require('./assets/today-illustration.png')}
-                          style={styles.emptyLeaf}
-                          resizeMode="contain"
-                        />
                         <Text
                           accessibilityRole="header"
                           style={styles.emptyTitle}
@@ -1203,7 +1187,6 @@ const styles = StyleSheet.create({
     lineHeight: 44,
     fontWeight: '700',
   },
-  leaf: { width: 104, height: 90, marginRight: -8 },
   date: { fontSize: 17, color: '#302e25', marginTop: 4 },
   sectionTitle: {
     color: '#76500f',
@@ -1260,7 +1243,6 @@ const styles = StyleSheet.create({
     paddingTop: 32,
     paddingBottom: 12,
   },
-  emptyLeaf: { width: 210, height: 140, marginBottom: 4 },
   emptyTitle: {
     color: '#17291b',
     fontSize: 22,
