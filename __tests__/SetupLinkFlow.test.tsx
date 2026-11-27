@@ -16,25 +16,23 @@ test.each(['en', 'es'] as const)(
     const saveScheduled = jest.fn().mockResolvedValue('new');
     const editScheduled = jest.fn();
     require('../src/reminderRepository').reminderRepository = {
-      state: jest
-        .fn()
-        .mockResolvedValue({
-          enabled: true,
-          exactAlarms: true,
-          notifications: true,
-          language,
-          medicines: [
-            {
-              id: 'existing',
-              type: 'reminder',
-              name: 'Existing',
-              instructions: '',
-              times: ['09:00'],
-            },
-          ],
-          todayDoses: [],
-          upcoming: [],
-        }),
+      state: jest.fn().mockResolvedValue({
+        enabled: true,
+        exactAlarms: true,
+        notifications: true,
+        language,
+        medicines: [
+          {
+            id: 'existing',
+            type: 'reminder',
+            name: 'Existing',
+            instructions: '',
+            times: ['09:00'],
+          },
+        ],
+        todayDoses: [],
+        upcoming: [],
+      }),
       saveScheduled,
       editScheduled,
     };
@@ -77,25 +75,23 @@ test.each(['en', 'es'] as const)(
     const saveScheduled = jest.fn().mockResolvedValue('new');
     const editScheduled = jest.fn();
     require('../src/reminderRepository').reminderRepository = {
-      state: jest
-        .fn()
-        .mockResolvedValue({
-          enabled: true,
-          exactAlarms: true,
-          notifications: true,
-          language,
-          medicines: [
-            {
-              id: 'existing',
-              type: 'reminder',
-              name: 'Existing',
-              instructions: '',
-              times: ['09:00'],
-            },
-          ],
-          todayDoses: [],
-          upcoming: [],
-        }),
+      state: jest.fn().mockResolvedValue({
+        enabled: true,
+        exactAlarms: true,
+        notifications: true,
+        language,
+        medicines: [
+          {
+            id: 'existing',
+            type: 'reminder',
+            name: 'Existing',
+            instructions: '',
+            times: ['09:00'],
+          },
+        ],
+        todayDoses: [],
+        upcoming: [],
+      }),
       saveScheduled,
       editScheduled,
     };
@@ -185,15 +181,13 @@ test.each(['en', 'es'] as const)(
 test('an invalid link shows an error and saves nothing', async () => {
   const saveScheduled = jest.fn();
   require('../src/reminderRepository').reminderRepository = {
-    state: jest
-      .fn()
-      .mockResolvedValue({
-        enabled: true,
-        language: 'en',
-        medicines: [],
-        todayDoses: [],
-        upcoming: [],
-      }),
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      language: 'en',
+      medicines: [],
+      todayDoses: [],
+      upcoming: [],
+    }),
     saveScheduled,
   };
   jest
@@ -220,15 +214,13 @@ test('an invalid link shows an error and saves nothing', async () => {
 test('a past one-time link asks for a future time and cannot be saved', async () => {
   const saveScheduled = jest.fn();
   require('../src/reminderRepository').reminderRepository = {
-    state: jest
-      .fn()
-      .mockResolvedValue({
-        enabled: true,
-        language: 'en',
-        medicines: [],
-        todayDoses: [],
-        upcoming: [],
-      }),
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      language: 'en',
+      medicines: [],
+      todayDoses: [],
+      upcoming: [],
+    }),
     saveScheduled,
   };
   jest
@@ -258,16 +250,14 @@ test('a past one-time link asks for a future time and cannot be saved', async ()
 
 test('a shared Alarm shows the existing Alarm screen guidance', async () => {
   require('../src/reminderRepository').reminderRepository = {
-    state: jest
-      .fn()
-      .mockResolvedValue({
-        enabled: true,
-        fullScreenAccess: 'denied',
-        language: 'en',
-        medicines: [],
-        todayDoses: [],
-        upcoming: [],
-      }),
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      fullScreenAccess: 'denied',
+      language: 'en',
+      medicines: [],
+      todayDoses: [],
+      upcoming: [],
+    }),
   };
   jest
     .spyOn(Linking, 'getInitialURL')
@@ -308,6 +298,12 @@ test('a past link uses the saved language even when it loads later', async () =>
   await ReactTestRenderer.act(async () => {
     view = ReactTestRenderer.create(<App />);
   });
+  await ReactTestRenderer.act(async () => {
+    await view.root
+      .findAllByType(PillAction)
+      .find(node => node.props.title === 'Save reminder')!
+      .props.onPress();
+  });
   await ReactTestRenderer.act(async () =>
     resolveState({
       enabled: true,
@@ -322,6 +318,48 @@ test('a past link uses the saved language even when it loads later', async () =>
       .findAllByType(Text)
       .some(node => node.props.children === translations.es.setup.onceFuture),
   ).toBe(true);
+  await ReactTestRenderer.act(() => view.unmount());
+  jest.restoreAllMocks();
+});
+
+test('cancelling a valid link leaves existing items untouched', async () => {
+  const saveScheduled = jest.fn();
+  const editScheduled = jest.fn();
+  require('../src/reminderRepository').reminderRepository = {
+    state: jest
+      .fn()
+      .mockResolvedValue({
+        enabled: true,
+        language: 'en',
+        medicines: [
+          {
+            id: 'existing',
+            type: 'reminder',
+            name: 'Existing',
+            instructions: '',
+            times: ['09:00'],
+          },
+        ],
+        todayDoses: [],
+        upcoming: [],
+      }),
+    saveScheduled,
+    editScheduled,
+  };
+  jest
+    .spyOn(Linking, 'getInitialURL')
+    .mockResolvedValue(
+      'https://setup-links.example.com/setup?v=1&name=Water&date=2099-06-30&time=09%3A15',
+    );
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    view = ReactTestRenderer.create(<App />);
+  });
+  await ReactTestRenderer.act(() =>
+    view.root.findByProps({ accessibilityLabel: 'Back' }).props.onPress(),
+  );
+  expect(saveScheduled).not.toHaveBeenCalled();
+  expect(editScheduled).not.toHaveBeenCalled();
   await ReactTestRenderer.act(() => view.unmount());
   jest.restoreAllMocks();
 });

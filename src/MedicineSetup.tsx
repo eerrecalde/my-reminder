@@ -669,7 +669,7 @@ export function MedicineSetup({
                       onceDate,
                     ).length === 0
                   ) {
-                    setError(t.onceFuture);
+                    setError(initialReview ? '' : t.onceFuture);
                     return;
                   }
                   savingRef.current = true;
