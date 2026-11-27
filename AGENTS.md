@@ -6,3 +6,10 @@
 - Before Android builds or tests, check the [local toolchain setup](README.md#local-setup), including the existing JDK location.
 - When creating or updating tickets, read [issue tracker conventions](docs/agents/issue-tracker.md).
 - When assigning triage status, read [triage labels](docs/agents/triage-labels.md).
+
+## Task completion
+
+- Continue working until the requested outcome and its verification are complete.
+- Do not end a turn merely because work remains, a step is inconvenient, or additional tools, time, or investigation are needed.
+- Pause only when a required action needs user input or approval, or when a concrete blocker prevents further progress. First complete all independent work, then state the blocker, what was attempted, and exactly what remains.
+- Never describe work as complete until all requested checks and repository workflow steps have succeeded. Report any unfinished work explicitly.
