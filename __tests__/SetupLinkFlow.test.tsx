@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Alert, AppState, Linking, Share, Text, TextInput } from 'react-native';
+import { Alert, AppState, Linking, PermissionsAndroid, Platform, Share, Text, TextInput } from 'react-native';
 import type { Medicine } from '../src/reminderRepository';
 import { translations } from '../src/translations';
 import App from '../App';
@@ -770,6 +770,10 @@ test.each(['en', 'es'] as const)(
       return { remove: jest.fn() };
     });
     const openAlarmSettings = jest.fn();
+    const openNotificationSettings = jest.fn();
+    jest.replaceProperty(Platform, 'OS', 'android');
+    jest.spyOn(Platform, 'Version', 'get').mockReturnValue(33);
+    const request = jest.spyOn(PermissionsAndroid, 'request').mockResolvedValue(PermissionsAndroid.RESULTS.DENIED);
     const state = jest.fn(async () => ({
       enabled: allowed, notifications: allowed, exactAlarms: allowed,
       fullScreenAccess: 'allowed', language, medicines: [...items], todayDoses: [], upcoming: [],
@@ -777,7 +781,7 @@ test.each(['en', 'es'] as const)(
     const saveScheduled = jest.fn(async (type, name, instructions, times, mode, startDate, endDate, scheduleKind) => {
       items.push({ id: 'saved', type, name, instructions, times, mode, startDate, endDate, scheduleKind });
     });
-    require('../src/reminderRepository').reminderRepository = { state, saveScheduled, openAlarmSettings, openNotificationSettings: jest.fn() };
+    require('../src/reminderRepository').reminderRepository = { state, saveScheduled, openAlarmSettings, openNotificationSettings };
     jest.spyOn(Linking, 'getInitialURL').mockResolvedValue('https://setup-links.example.com/setup?v=1&name=Water&date=2099-06-30&time=09%3A15');
     let view!: ReactTestRenderer.ReactTestRenderer;
     await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
@@ -785,6 +789,9 @@ test.each(['en', 'es'] as const)(
     expect(action(translations[language].app.allowExact)).toBeDefined();
     await ReactTestRenderer.act(async () => { action(translations[language].app.allowExact)!.props.onPress(); });
     expect(openAlarmSettings).toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => { await action(translations[language].app.allowNotifications)!.props.onPress(); });
+    expect(request).toHaveBeenCalledWith(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    expect(openNotificationSettings).toHaveBeenCalled();
     await ReactTestRenderer.act(async () => { await action(translations[language].setup.saveReminder)!.props.onPress(); });
     expect(items).toHaveLength(1);
     expect(view.root.findAllByType(Text).some(node => node.props.children === translations[language].app.offBoth)).toBe(true);
