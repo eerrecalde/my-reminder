@@ -499,10 +499,13 @@ export default function App() {
                   const latest = await reminderRepository.state();
                   if (latest.medicines.some(item => matchesSetup(item, medicine))) {
                     const copy = translations[language].setup;
-                    Alert.alert(medicine.type === 'medicine' ? copy.duplicateMedicine : copy.duplicateReminder, copy.duplicateMessage, [
-                      { text: copy.duplicateCancel, style: 'cancel' },
-                      { text: copy.duplicateAdd, onPress: save },
-                    ]);
+                    const confirmed = await new Promise<boolean>(resolve => {
+                      Alert.alert(medicine.type === 'medicine' ? copy.duplicateMedicine : copy.duplicateReminder, copy.duplicateMessage, [
+                        { text: copy.duplicateCancel, style: 'cancel', onPress: () => resolve(false) },
+                        { text: copy.duplicateAdd, onPress: () => resolve(true) },
+                      ], { cancelable: true, onDismiss: () => resolve(false) });
+                    });
+                    if (confirmed) await save();
                   } else await save();
                 } catch { setError(t.error); }
               }}
