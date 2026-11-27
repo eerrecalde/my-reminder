@@ -181,7 +181,12 @@
     "shareTestNotice": "Test link only: this address is not available for real sharing yet.",
     "shareError": "Could not share. Please try again.",
     "linkError": "This setup link is invalid or unsupported. Please ask the person who shared it to check the link.",
-    "editLink": "Edit details"
+    "editLink": "Edit details",
+    "duplicateReminder": "Reminder already exists",
+    "duplicateMedicine": "Medicine already exists",
+    "duplicateMessage": "An item with the same name and schedule already exists. Add another?",
+    "duplicateCancel": "Cancel",
+    "duplicateAdd": "Add anyway"
   },
   "sound": {
     "alarm": "Alarm sound",

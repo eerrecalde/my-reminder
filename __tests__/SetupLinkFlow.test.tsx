@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Linking, Share, Text, TextInput } from 'react-native';
+import { Alert, Linking, Share, Text, TextInput } from 'react-native';
 import { translations } from '../src/translations';
 import App from '../App';
 import { PillAction } from '../src/PillAction';
@@ -684,6 +684,37 @@ test.each([
           .some(node => node.props.children === 'After food & water'),
       ).toBe(true);
     expect(saveScheduled).toHaveBeenCalledTimes(1);
+    await ReactTestRenderer.act(() => view.unmount());
+    jest.restoreAllMocks();
+  },
+);
+
+
+test.each([['en', 'reminder'], ['es', 'reminder'], ['en', 'medicine'], ['es', 'medicine']] as const)(
+  'a matching %s %s setup link warns before adding a separate item',
+  async (language, type) => {
+    const existing = { id: 'existing', type: 'reminder', name: '  WATER  ', instructions: '', mode: 'notification', scheduleKind: 'daily', times: ['09:15'], startDate: '2099-06-30', endDate: '2099-06-30' };
+    const saveScheduled = jest.fn().mockResolvedValue('new');
+    const editScheduled = jest.fn();
+    require('../src/reminderRepository').reminderRepository = {
+      state: jest.fn().mockResolvedValue({ enabled: true, language, medicines: [existing], todayDoses: [], upcoming: [] }), saveScheduled, editScheduled,
+    };
+    jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(`https://setup-links.example.com/setup?v=1&type=${type}&name=Water&date=2099-06-30&time=09%3A15`);
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
+    const save = () => view.root.findAllByType(PillAction).find(node => node.props.title === (type === 'medicine' ? translations[language].setup.save : translations[language].setup.saveReminder))!.props.onPress();
+    await ReactTestRenderer.act(async () => { await save(); });
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(alert.mock.calls[0][0]).toBe(type === 'medicine' ? translations[language].setup.duplicateMedicine : translations[language].setup.duplicateReminder);
+    expect(saveScheduled).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => { await alert.mock.calls[0][2]![0].onPress?.(); });
+    expect(saveScheduled).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => { await save(); });
+    await ReactTestRenderer.act(async () => { await alert.mock.calls[1][2]![1].onPress?.(); });
+    expect(saveScheduled).toHaveBeenCalledTimes(1);
+    expect(editScheduled).not.toHaveBeenCalled();
+    expect(existing.name).toBe('  WATER  ');
     await ReactTestRenderer.act(() => view.unmount());
     jest.restoreAllMocks();
   },
