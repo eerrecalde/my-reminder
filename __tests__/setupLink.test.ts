@@ -1,4 +1,5 @@
 import { createSetupLink, parseSetupLink } from '../src/setupLink';
+import { nextDailyOccurrences } from '../src/dailySchedule';
 
 const base =
   'https://ding-reminders.surge.sh/setup?v=1&name=Drink%20water&date=2099-06-30&time=09%3A15';
@@ -38,6 +39,21 @@ test('accepts a recurring daily schedule with multiple local times', () => {
     endDate: null,
     times: ['09:00', '18:30'],
   });
+});
+
+test('a past-start link begins with the next future local occurrence', () => {
+  const proposal = parseSetupLink(
+    'https://setup-links.example.com/setup?v=1&name=Water&schedule=daily&start=2020-01-01&times=09%3A00%2C18%3A30',
+  )!;
+  expect(
+    nextDailyOccurrences(
+      proposal.times,
+      new Date(2026, 10, 12, 12),
+      2,
+      proposal.startDate,
+      proposal.endDate,
+    ),
+  ).toEqual([new Date(2026, 10, 12, 18, 30), new Date(2026, 10, 13, 9)]);
 });
 
 test('shares and receives a weekday schedule without losing its days or times', () => {

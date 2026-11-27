@@ -694,7 +694,7 @@ export function MedicineSetup({
                 disabled={saving}
                 onPress={async () => {
                   if (savingRef.current) return;
-                  if (initialReview && expiredRecurring()) {
+                  if (expiredRecurring()) {
                     setError(t.expiredEnd);
                     return;
                   }

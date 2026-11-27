@@ -1,5 +1,5 @@
 import type { DailyMedicineInput } from './MedicineSetup';
-import { nextDailyOccurrences } from './dailySchedule';
+import { localDate, nextDailyOccurrences } from './dailySchedule';
 import { nextWeekdayOccurrences } from './weekdaySchedule';
 import { nextIntervalOccurrences } from './intervalSchedule';
 import { nextMonthlyOccurrences } from './monthlySchedule';
@@ -28,7 +28,12 @@ export function hasFutureOccurrence(
         nextIntervalOccurrences(
           new Date(schedule.intervalAnchor),
           schedule.intervalHours,
-          now,
+          new Date(
+            Math.max(
+              now.getTime(),
+              startDate ? localDate(startDate).getTime() - 1 : now.getTime(),
+            ),
+          ),
           1,
           endDate,
         ).length > 0
