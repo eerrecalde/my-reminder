@@ -176,6 +176,9 @@
     "everyDay": "Every day at",
     "save": "Save medicine",
     "back": "Back",
+    "shareSetup": "Share setup",
+    "shareTestNotice": "Test link only: this address is not available for real sharing yet.",
+    "shareError": "Could not share. Please try again.",
     "linkError": "This setup link is invalid or unsupported. Please ask the person who shared it to check the link.",
     "editLink": "Edit details"
   },

@@ -52,3 +52,20 @@ export function parseSetupLink(url: string): DailyMedicineInput | null {
     scheduleKind: 'daily',
   };
 }
+
+/** Create a test-host link until the production host is verified. */
+export function createSetupLink(input: DailyMedicineInput): string {
+  const fields: [string, string][] = [
+    ['v', '1'],
+    ['name', input.name],
+    ['date', input.startDate!],
+    ['time', input.times[0]],
+    ['type', input.type],
+    ['mode', input.mode],
+  ];
+  if (input.type === 'medicine' && input.instructions)
+    fields.push(['instructions', input.instructions]);
+  return `https://setup-links.example.com/setup?${fields
+    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+    .join('&')}`;
+}

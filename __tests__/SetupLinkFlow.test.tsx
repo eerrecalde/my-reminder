@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Linking, Text, TextInput } from 'react-native';
+import { Linking, Share, Text, TextInput } from 'react-native';
 import { translations } from '../src/translations';
 import App from '../App';
 import { PillAction } from '../src/PillAction';
@@ -326,23 +326,21 @@ test('cancelling a valid link leaves existing items untouched', async () => {
   const saveScheduled = jest.fn();
   const editScheduled = jest.fn();
   require('../src/reminderRepository').reminderRepository = {
-    state: jest
-      .fn()
-      .mockResolvedValue({
-        enabled: true,
-        language: 'en',
-        medicines: [
-          {
-            id: 'existing',
-            type: 'reminder',
-            name: 'Existing',
-            instructions: '',
-            times: ['09:00'],
-          },
-        ],
-        todayDoses: [],
-        upcoming: [],
-      }),
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      language: 'en',
+      medicines: [
+        {
+          id: 'existing',
+          type: 'reminder',
+          name: 'Existing',
+          instructions: '',
+          times: ['09:00'],
+        },
+      ],
+      todayDoses: [],
+      upcoming: [],
+    }),
     saveScheduled,
     editScheduled,
   };
@@ -363,3 +361,100 @@ test('cancelling a valid link leaves existing items untouched', async () => {
   await ReactTestRenderer.act(() => view.unmount());
   jest.restoreAllMocks();
 });
+
+test.each(['en', 'es'] as const)(
+  'shares a prepared Medicine without saving, then saves an independent copy in %s',
+  async language => {
+    const share = jest
+      .spyOn(Share, 'share')
+      .mockResolvedValue({
+        action: Share.dismissedAction,
+        activityType: undefined,
+      });
+    const saveScheduled = jest.fn().mockResolvedValue('copy');
+    require('../src/reminderRepository').reminderRepository = {
+      state: jest
+        .fn()
+        .mockResolvedValue({
+          enabled: true,
+          language,
+          medicines: [],
+          todayDoses: [],
+          upcoming: [],
+        }),
+      selectTime: jest.fn().mockResolvedValue('09:15'),
+      selectDate: jest.fn().mockResolvedValue('2099-06-30'),
+      saveScheduled,
+    };
+    jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(null);
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      view = ReactTestRenderer.create(<App />);
+    });
+    const press = async (title: string) =>
+      ReactTestRenderer.act(async () => {
+        await view.root
+          .findAllByType(PillAction)
+          .find(node => node.props.title === title)!
+          .props.onPress();
+      });
+    await press(language === 'en' ? 'Add reminder' : translations.es.app.add);
+    await press(translations[language].setup.medicine);
+    await ReactTestRenderer.act(() => {
+      const inputs = view.root.findAllByType(TextInput);
+      inputs[0].props.onChangeText('Café & tea');
+      inputs[1].props.onChangeText('After food & water');
+    });
+    const copy = translations[language].setup;
+    await press(copy.next);
+    await ReactTestRenderer.act(async () => {
+      await view.root
+        .findAll(node =>
+          node.props.accessibilityLabel?.startsWith(`${copy.onceDate}: `),
+        )[0]
+        .props.onPress();
+      await view.root
+        .findAll(
+          node =>
+            node.props.accessibilityLabel ===
+            (language === 'en' ? 'Select a time' : 'Elegir una hora'),
+        )[0]
+        .props.onPress();
+    });
+    await press(copy.review);
+    await press(copy.shareSetup);
+    expect(saveScheduled).not.toHaveBeenCalled();
+    expect(share).toHaveBeenCalledTimes(1);
+    const link = share.mock.calls[0][0].message;
+    expect(link).toContain('setup-links.example.com/setup?');
+    expect(require('../src/setupLink').parseSetupLink(link)).toMatchObject({
+      type: 'medicine',
+      name: 'Café & tea',
+      instructions: 'After food & water',
+      startDate: '2099-06-30',
+      endDate: '2099-06-30',
+      times: ['09:15'],
+    });
+    await press(copy.save);
+    expect(saveScheduled).toHaveBeenCalledTimes(1);
+    expect(saveScheduled).toHaveBeenCalledWith(
+      'medicine',
+      'Café & tea',
+      'After food & water',
+      ['09:15'],
+      'notification',
+      '2099-06-30',
+      '2099-06-30',
+      'daily',
+      expect.any(Array),
+      null,
+      null,
+      null,
+      'last',
+      null,
+      null,
+    );
+    await ReactTestRenderer.act(() => view.unmount());
+    jest.restoreAllMocks();
+  },
+);
