@@ -53,6 +53,10 @@ type Props = {
   onExit: () => void;
   fullScreenAccess?: FullScreenAccess;
   openFullScreenSettings?: () => void;
+  notificationsAllowed?: boolean;
+  exactAlarmsAllowed?: boolean;
+  allowNotifications?: () => void;
+  openAlarmSettings?: () => void;
   selectDate?: (date: string) => Promise<string | null>;
   selectTime?: (time: string) => Promise<string | null>;
 };
@@ -70,6 +74,10 @@ export function MedicineSetup({
   selectDate,
   fullScreenAccess,
   openFullScreenSettings,
+  notificationsAllowed,
+  exactAlarmsAllowed,
+  allowNotifications,
+  openAlarmSettings,
 }: Props) {
   const t = translations[language].setup;
   const currentTime = () => {
@@ -668,6 +676,18 @@ export function MedicineSetup({
             now={now}
           />
         )}
+        {step === 3 && initialReview &&
+          (notificationsAllowed === false || exactAlarmsAllowed === false) && (
+            <View style={styles.actions}>
+              <Text>{translations[language].app.accessIntro}</Text>
+              {notificationsAllowed === false && allowNotifications && (
+                <PillAction secondary title={translations[language].app.allowNotifications} onPress={allowNotifications} />
+              )}
+              {exactAlarmsAllowed === false && openAlarmSettings && (
+                <PillAction secondary title={translations[language].app.allowExact} onPress={openAlarmSettings} />
+              )}
+            </View>
+          )}
         {step === 3 &&
           initialReview &&
           mode === 'alarm' &&

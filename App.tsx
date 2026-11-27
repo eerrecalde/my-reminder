@@ -454,6 +454,10 @@ export default function App() {
               language={language}
               fullScreenAccess={state?.fullScreenAccess}
               openFullScreenSettings={openFullScreenSettings}
+              notificationsAllowed={state?.notifications}
+              exactAlarmsAllowed={state?.exactAlarms}
+              allowNotifications={allowNotifications}
+              openAlarmSettings={() => reminderRepository.openAlarmSettings()}
               onSave={async medicine => {
                 const save = async () => {
                   try {
