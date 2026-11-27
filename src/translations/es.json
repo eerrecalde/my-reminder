@@ -114,6 +114,7 @@
     "onceDate": "Fecha",
     "onceTime": "Hora",
     "onceFuture": "Elige una fecha y hora futuras.",
+    "expiredEnd": "Elige una fecha de fin futura.",
     "oncePreview": "Hora del recordatorio",
     "daily": "Todos los días",
     "weekday": "Días de la semana",

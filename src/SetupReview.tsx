@@ -135,6 +135,33 @@ export function SetupReview({
           ? `: ${times.join(', ')}`
           : `: ${intervalHours}h`}
       </Text>
+      {scheduleKind !== 'once' && (
+        <Text style={styles.label}>
+          {t.startDate}: {startDate} · {t.endDate}: {endDate ?? t.noEnd}
+        </Text>
+      )}
+      {scheduleKind === 'weekday' && (
+        <Text style={styles.label}>
+          {weekdays.map(day => t.weekdays[day - 1]).join(', ')}
+        </Text>
+      )}
+      {scheduleKind === 'interval' && (
+        <Text style={styles.label}>
+          {t.first}:{' '}
+          {anchor.toLocaleString(translations[language].locale, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          })}
+        </Text>
+      )}
+      {scheduleKind === 'monthly' && (
+        <Text style={styles.label}>
+          {monthlyDay === 'last' ? t.lastDay : `${t.monthDay}: ${monthlyDay}`}
+          {monthlyDay !== 'last' && Number(monthlyDay) >= 29
+            ? ` · ${shortMonthPolicy === 'last' ? t.useLast : t.skipMonth}`
+            : ''}
+        </Text>
+      )}
       <Text accessibilityRole="header" style={styles.label}>
         {scheduleKind === 'once' ? t.oncePreview : t.nextThree}
       </Text>

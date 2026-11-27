@@ -25,6 +25,7 @@ import { AlarmScreenAccess } from './AlarmScreenAccess';
 import { SetupReview } from './SetupReview';
 import { ScheduleFrequency } from './ScheduleFrequency';
 import { createSetupLink } from './setupLink';
+import { hasFutureOccurrence } from './pastSchedules';
 
 export type DailyMedicineInput = {
   type: ReminderType;
@@ -161,6 +162,37 @@ export function MedicineSetup({
     scheduleKind === 'once' &&
     nextDailyOccurrences([onceTime], now ?? new Date(), 1, onceDate, onceDate)
       .length === 0;
+  const preparedInput = (): DailyMedicineInput => ({
+    type,
+    scheduleKind: scheduleKind === 'once' ? 'daily' : scheduleKind,
+    weekdays,
+    intervalHours: scheduleKind === 'interval' ? Number(intervalHours) : null,
+    intervalAnchor: scheduleKind === 'interval' ? anchor.getTime() : null,
+    monthlyDay:
+      scheduleKind === 'monthly' && monthlyDay !== 'last'
+        ? Number(monthlyDay)
+        : null,
+    shortMonthPolicy,
+    mode,
+    notificationSound,
+    alarmSound,
+    name: name.trim(),
+    instructions:
+      type === 'medicine' || !initialReview ? instructions.trim() : '',
+    times:
+      scheduleKind === 'once'
+        ? [onceTime]
+        : scheduleKind === 'interval' && !times.length
+        ? [anchorTime]
+        : [...new Set(times)],
+    startDate: scheduleKind === 'once' ? onceDate : startDate,
+    endDate: scheduleKind === 'once' ? onceDate : endDate,
+  });
+  const expiredRecurring = () =>
+    scheduleKind !== 'once' &&
+    !!endDate &&
+    !hasFutureOccurrence(preparedInput(), now ?? new Date());
+  const expiredLink = initialReview && expiredRecurring();
   const goBack = useCallback(() => {
     setError('');
     if (step === 0 || (initialReview && step === 3)) onExit();
@@ -197,6 +229,7 @@ export function MedicineSetup({
         (scheduleKind === 'interval' &&
           (!Number.isSafeInteger(Number(intervalHours)) ||
             Number(intervalHours) < 1 ||
+            Number(intervalHours) > 2147483647 ||
             !Number.isFinite(anchor.getTime()))) ||
         (scheduleKind === 'monthly' &&
           monthlyDay !== 'last' &&
@@ -646,9 +679,9 @@ export function MedicineSetup({
               openSettings={openFullScreenSettings}
             />
           )}
-        {(!!error || pastLink) && (
+        {(!!error || pastLink || (step === 3 && expiredLink)) && (
           <Text accessibilityRole="alert" style={styles.error}>
-            {error || t.onceFuture}
+            {error || (pastLink ? t.onceFuture : t.expiredEnd)}
           </Text>
         )}
         <View style={styles.actions}>
@@ -661,6 +694,10 @@ export function MedicineSetup({
                 disabled={saving}
                 onPress={async () => {
                   if (savingRef.current) return;
+                  if (initialReview && expiredRecurring()) {
+                    setError(t.expiredEnd);
+                    return;
+                  }
                   if (
                     scheduleKind === 'once' &&
                     nextDailyOccurrences(
@@ -677,53 +714,26 @@ export function MedicineSetup({
                   savingRef.current = true;
                   setSaving(true);
                   try {
-                    await onSave({
-                      type,
-                      scheduleKind:
-                        scheduleKind === 'once' ? 'daily' : scheduleKind,
-                      weekdays,
-                      intervalHours:
-                        scheduleKind === 'interval'
-                          ? Number(intervalHours)
-                          : null,
-                      intervalAnchor:
-                        scheduleKind === 'interval' ? anchor.getTime() : null,
-                      monthlyDay:
-                        scheduleKind === 'monthly' && monthlyDay !== 'last'
-                          ? Number(monthlyDay)
-                          : null,
-                      shortMonthPolicy,
-                      mode,
-                      notificationSound,
-                      alarmSound,
-                      name: name.trim(),
-                      instructions:
-                        type === 'medicine' || !initialReview
-                          ? instructions.trim()
-                          : '',
-                      times:
-                        scheduleKind === 'once'
-                          ? [onceTime]
-                          : scheduleKind === 'interval' && !times.length
-                          ? [anchorTime]
-                          : [...new Set(times)],
-                      startDate: scheduleKind === 'once' ? onceDate : startDate,
-                      endDate: scheduleKind === 'once' ? onceDate : endDate,
-                    });
+                    await onSave(preparedInput());
                   } finally {
                     savingRef.current = false;
                     setSaving(false);
                   }
                 }}
               />
-              {!initial && scheduleKind === 'once' && (
+              {!initial && (
                 <>
                   <Text style={styles.error}>{t.shareTestNotice}</Text>
                   <PillAction
                     secondary
                     title={t.shareSetup}
                     onPress={async () => {
+                      if (expiredRecurring()) {
+                        setError(t.expiredEnd);
+                        return;
+                      }
                       if (
+                        scheduleKind === 'once' &&
                         nextDailyOccurrences(
                           [onceTime],
                           now ?? new Date(),
@@ -737,16 +747,7 @@ export function MedicineSetup({
                       }
                       try {
                         await Share.share({
-                          message: createSetupLink({
-                            type,
-                            mode,
-                            name: name.trim(),
-                            instructions:
-                              type === 'medicine' ? instructions.trim() : '',
-                            times: [onceTime],
-                            startDate: onceDate,
-                            endDate: onceDate,
-                          }),
+                          message: createSetupLink(preparedInput()),
                         });
                       } catch {
                         setError(t.shareError);

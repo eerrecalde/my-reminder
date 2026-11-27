@@ -5,6 +5,201 @@ import { translations } from '../src/translations';
 import App from '../App';
 import { PillAction } from '../src/PillAction';
 
+test.each(['en', 'es'] as const)(
+  'a recurring Medicine can be reviewed, edited and saved in %s',
+  async language => {
+    const saveScheduled = jest.fn().mockResolvedValue('new');
+    require('../src/reminderRepository').reminderRepository = {
+      state: jest
+        .fn()
+        .mockResolvedValue({
+          enabled: true,
+          language,
+          medicines: [],
+          todayDoses: [],
+          upcoming: [],
+        }),
+      saveScheduled,
+    };
+    jest
+      .spyOn(Linking, 'getInitialURL')
+      .mockResolvedValue(
+        'https://setup-links.example.com/setup?v=1&type=medicine&name=Example&instructions=Food&schedule=weekday&start=2000-01-01&times=08%3A00%2C18%3A30&weekdays=1%2C5',
+      );
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      view = ReactTestRenderer.create(<App />);
+    });
+    const copy = translations[language].setup;
+    expect(
+      view.root
+        .findAllByType(Text)
+        .some(
+          node =>
+            node.props.children === `${copy.weekdays[0]}, ${copy.weekdays[4]}`,
+        ),
+    ).toBe(true);
+    const press = async (title: string) =>
+      ReactTestRenderer.act(async () => {
+        await view.root
+          .findAllByType(PillAction)
+          .find(node => node.props.title === title)!
+          .props.onPress();
+      });
+    await press(copy.editLink);
+    await ReactTestRenderer.act(() =>
+      view.root.findAllByType(TextInput)[0].props.onChangeText('Changed'),
+    );
+    await press(copy.next);
+    await press(copy.review);
+    expect(saveScheduled).not.toHaveBeenCalled();
+    await press(copy.save);
+    expect(saveScheduled).toHaveBeenCalledWith(
+      'medicine',
+      'Changed',
+      'Food',
+      ['08:00', '18:30'],
+      'notification',
+      '2000-01-01',
+      null,
+      'weekday',
+      [1, 5],
+      null,
+      null,
+      null,
+      'last',
+      null,
+      null,
+    );
+    await ReactTestRenderer.act(() => view.unmount());
+    jest.restoreAllMocks();
+  },
+);
+
+test('a caregiver shares a daily Reminder and can save an independent copy', async () => {
+  const share = jest
+    .spyOn(Share, 'share')
+    .mockResolvedValue({
+      action: Share.dismissedAction,
+      activityType: undefined,
+    });
+  const saveScheduled = jest.fn().mockResolvedValue('copy');
+  require('../src/reminderRepository').reminderRepository = {
+    state: jest
+      .fn()
+      .mockResolvedValue({
+        enabled: true,
+        language: 'en',
+        medicines: [],
+        todayDoses: [],
+        upcoming: [],
+      }),
+    selectTime: jest.fn().mockResolvedValue('09:15'),
+    saveScheduled,
+  };
+  jest.spyOn(Linking, 'getInitialURL').mockResolvedValue(null);
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    view = ReactTestRenderer.create(<App />);
+  });
+  const copy = translations.en.setup;
+  const press = async (title: string) =>
+    ReactTestRenderer.act(async () => {
+      await view.root
+        .findAllByType(PillAction)
+        .find(node => node.props.title === title)!
+        .props.onPress();
+    });
+  await press('Add reminder');
+  await press(copy.reminder);
+  await ReactTestRenderer.act(() =>
+    view.root.findAllByType(TextInput)[0].props.onChangeText('Water'),
+  );
+  await press(copy.next);
+  await ReactTestRenderer.act(() =>
+    view.root
+      .findByProps({ accessibilityLabel: `${copy.frequency}: ${copy.once}` })
+      .props.onPress(),
+  );
+  await ReactTestRenderer.act(() =>
+    view.root
+      .findAll(
+        node =>
+          node.props.accessibilityRole === 'radio' &&
+          node
+            .findAllByType(Text)
+            .some(child => child.props.children === copy.daily),
+      )[0]
+      .props.onPress(),
+  );
+  await ReactTestRenderer.act(async () => {
+    await view.root
+      .findByProps({ accessibilityLabel: copy.selectTime })
+      .props.onPress();
+  });
+  await press(copy.review);
+  await press(copy.shareSetup);
+  expect(saveScheduled).not.toHaveBeenCalled();
+  const link = share.mock.calls[0][0].message!;
+  expect(require('../src/setupLink').parseSetupLink(link)).toMatchObject({
+    name: 'Water',
+    scheduleKind: 'daily',
+    times: ['09:15'],
+  });
+  await press(copy.saveReminder);
+  expect(saveScheduled).toHaveBeenCalledWith(
+    'reminder',
+    'Water',
+    '',
+    ['09:15'],
+    'notification',
+    expect.any(String),
+    null,
+    'daily',
+    expect.any(Array),
+    null,
+    null,
+    null,
+    'last',
+    null,
+    null,
+  );
+  await ReactTestRenderer.act(() => view.unmount());
+  jest.restoreAllMocks();
+});
+
+test('an expired recurring link cannot be saved', async () => {
+  const saveScheduled = jest.fn();
+  require('../src/reminderRepository').reminderRepository = {
+    state: jest.fn().mockResolvedValue({
+      enabled: true,
+      language: 'en',
+      medicines: [],
+      todayDoses: [],
+      upcoming: [],
+    }),
+    saveScheduled,
+  };
+  jest
+    .spyOn(Linking, 'getInitialURL')
+    .mockResolvedValue(
+      'https://setup-links.example.com/setup?v=1&name=Water&schedule=daily&start=2000-01-01&end=2001-01-01&times=09%3A00',
+    );
+  let view!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    view = ReactTestRenderer.create(<App />);
+  });
+  await ReactTestRenderer.act(async () => {
+    await view.root
+      .findAllByType(PillAction)
+      .find(node => node.props.title === 'Save reminder')!
+      .props.onPress();
+  });
+  expect(saveScheduled).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => view.unmount());
+  jest.restoreAllMocks();
+});
+
 jest.mock(
   'react-native-safe-area-context',
   () => jest.requireActual('react-native-safe-area-context/jest/mock').default,

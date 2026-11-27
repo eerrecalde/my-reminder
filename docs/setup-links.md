@@ -10,17 +10,35 @@ Append these query parameters, separated by `&`. Encode each value using UTF-8 p
 | --- | --- | --- |
 | `v` | Yes | `1` |
 | `name` | Yes | Non-blank item name |
-| `date` | Yes | Local calendar date `YYYY-MM-DD` |
-| `time` | Yes | Local 24-hour time `HH:MM` |
+| `date` | One-time only | Local calendar date `YYYY-MM-DD` |
+| `time` | One-time only | Local 24-hour time `HH:MM` |
 | `type` | No | `reminder` (default) or `medicine` |
 | `mode` | No | `notification` (default) or `alarm` |
 | `instructions` | No | Medicine instructions; requires explicit `type=medicine` |
 
-Dates and times use the recipient's local time zone. A past date remains reviewable but must be changed to a future time before saving. Version 1 currently supports only one-time schedules; other schedules are reserved for later work.
+For recurring schedules omit `date` and `time` and use the following fields instead. Fields for a different schedule are rejected.
+
+| Parameter | Required | Value |
+| --- | --- | --- |
+| `schedule` | Yes | `daily`, `weekday`, `interval` or `monthly` |
+| `start` | Yes | Local start date `YYYY-MM-DD` |
+| `end` | No | Inclusive local end date `YYYY-MM-DD`, on or after `start` |
+| `times` | Daily, weekday, monthly | Comma-separated distinct local 24-hour times `HH:MM` |
+| `weekdays` | Weekday | Comma-separated distinct ISO weekday numbers, Monday `1` through Sunday `7` |
+| `hours` | Interval | Whole hours from `1` to `2147483647` |
+| `anchor` | Interval | Local reference date and time `YYYY-MM-DDTHH:MM` |
+| `day` | Monthly | Day of month `1`–`31` or `last` |
+| `shortMonth` | Monthly | `last` to use the last day, or `skip` to skip a short month |
+
+Dates, times and interval anchors use the recipient's local time zone. Interval occurrences are spaced by elapsed hours from the local anchor. A past one-time date remains reviewable but must be changed to a future time before saving. A past recurring start is allowed; only future occurrences are scheduled. An ended recurring schedule needs an end date that permits a future occurrence. Temporal validity is rechecked on save.
 
 Examples:
 
 ```text
 https://ding-reminders.surge.sh/setup?v=1&name=Drink%20water&date=2099-06-30&time=09%3A15
 https://ding-reminders.surge.sh/setup?v=1&type=medicine&name=Example&instructions=With%20food&date=2099-06-30&time=09%3A15&mode=alarm
+https://ding-reminders.surge.sh/setup?v=1&name=Water&schedule=daily&start=2099-01-01&times=09%3A00%2C18%3A00
+https://ding-reminders.surge.sh/setup?v=1&name=Exercise&schedule=weekday&start=2099-01-01&times=09%3A00&weekdays=1%2C3%2C5
+https://ding-reminders.surge.sh/setup?v=1&name=Example&schedule=interval&start=2099-01-01&hours=8&anchor=2099-01-01T09%3A00
+https://ding-reminders.surge.sh/setup?v=1&name=Example&schedule=monthly&start=2099-01-01&times=09%3A00&day=31&shortMonth=skip
 ```
