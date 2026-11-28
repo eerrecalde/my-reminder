@@ -175,7 +175,8 @@ test('updates an edited history row locally and reloads after an external change
     historyPage,
     setOutcome: jest.fn().mockResolvedValue({ previous: 'completed', revision: 1, previousCleared: false, changed: true }),
   };
-  jest.useFakeTimers();
+  // React's async act needs the real task scheduler while the refresh interval is faked.
+  jest.useFakeTimers({ doNotFake: ['setImmediate'] });
   let view!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
   await ReactTestRenderer.act(async () => { view.root.findByProps({ testID: 'nav-history' }).props.onPress(); });
@@ -223,7 +224,7 @@ test('undo during a pending history reset cannot be overwritten by a stale page'
     setOutcome: jest.fn().mockResolvedValue({ previous: 'completed', revision: 1, previousCleared: false, changed: true }),
     undoOutcome: jest.fn().mockResolvedValue(undefined),
   };
-  jest.useFakeTimers();
+  jest.useFakeTimers({ doNotFake: ['setImmediate'] });
   let view!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
   await ReactTestRenderer.act(async () => { view.root.findByProps({ testID: 'nav-history' }).props.onPress(); });
@@ -248,7 +249,7 @@ test('an older state response cannot replace a newer history revision', async ()
     state: jest.fn().mockResolvedValueOnce({ ...base, historyRevision: 1 }).mockReturnValueOnce(oldState).mockResolvedValueOnce({ ...base, historyRevision: 3 }),
     historyPage,
   };
-  jest.useFakeTimers();
+  jest.useFakeTimers({ doNotFake: ['setImmediate'] });
   let view!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { view = ReactTestRenderer.create(<App />); });
   await ReactTestRenderer.act(async () => { view.root.findByProps({ testID: 'nav-history' }).props.onPress(); });
