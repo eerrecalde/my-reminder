@@ -324,6 +324,7 @@ export function MedicineSetup({
         </Text>
         {step === 0 && (
           <View style={styles.actions}>
+            <Text style={styles.label}>{t.shareSetupIntro}</Text>
             <PillAction
               title={t.reminder}
               onPress={() => {
@@ -743,7 +744,6 @@ export function MedicineSetup({
               />
               {!initial && (
                 <>
-                  <Text style={styles.error}>{t.shareTestNotice}</Text>
                   <PillAction
                     secondary
                     title={t.shareSetup}
@@ -774,6 +774,7 @@ export function MedicineSetup({
                       }
                     }}
                   />
+                  <PillAction secondary title={t.closeSetup} onPress={onExit} />
                 </>
               )}
               {initialReview && (
