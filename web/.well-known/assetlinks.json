@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.myreminders",
+      "sha256_cert_fingerprints": [
+        "B6:06:45:77:D6:43:F5:A7:12:D4:54:9F:E5:D7:34:B7:77:EC:3F:78:74:FF:54:88:35:05:CE:17:0E:41:3F:E5"
+      ]
+    }
+  }
+]
