@@ -4,9 +4,14 @@
 
 **Blocked by:** 01 — Open and review a one-time setup link.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Identify missing permissions relevant to the chosen notification or Alarm mode and provide a way to reach the relevant settings or permission request.
-- [ ] If a required permission is declined or unavailable, retain the saved item and show a persistent indication that its alerts may not work, including after returning to the app.
-- [ ] When permissions are granted, the warning reflects the updated state; do not silently claim that alerts are ready while required access is missing.
-- [ ] Preserve existing Android Alarm screen and notification fallback behaviour, and cover both supported languages and relevant permission states using existing app-level test seams.
+- [x] Identify missing permissions relevant to the chosen notification or Alarm mode and provide a way to reach the relevant settings or permission request.
+- [x] If a required permission is declined or unavailable, retain the saved item and show a persistent indication that its alerts may not work, including after returning to the app.
+- [x] When permissions are granted, the warning reflects the updated state; do not silently claim that alerts are ready while required access is missing.
+- [x] Preserve existing Android Alarm screen and notification fallback behaviour, and cover both supported languages and relevant permission states using existing app-level test seams.
+
+## Comments
+
+- Implemented in merge commit `b54781a`. Verification passed locally: type checking, lint, translation checks, 203 JavaScript tests, Android unit tests and debug build, and a focused test on a disposable Android 16 emulator. The review screen was also inspected on the emulator.
+- GitHub Actions runs were cancelled after approximately six hours; their outcome is being investigated separately.
