@@ -14,8 +14,8 @@
     h1, h2 { line-height: 1.2; letter-spacing: -.02em; }
     h1 { font-size: clamp(2rem, 6vw, 2.75rem); margin: 1.25rem 0 .8rem; }
     h2 { font-size: 1.6rem; margin: 1.25rem 0 .8rem; }
-    ol { padding-left: 1.4rem; }
-    li { padding-left: .25rem; margin: .7rem 0; }
+    .download { display: inline-block; background: #225c40; color: #fff; border-radius: .7rem; padding: .7rem 1rem; font-weight: 700; text-decoration: none; }
+    .download:focus-visible { outline: 3px solid #225c40; outline-offset: 3px; }
     hr { border: 0; border-top: 1px solid #d6e7dc; margin: 2.5rem 0; }
     p:last-child { margin-bottom: 0; }
   </style>
@@ -26,27 +26,22 @@
       <section aria-labelledby="english-title">
         <span class="mark">Ding Reminders</span>
         <h1 id="english-title">Open your reminder</h1>
-        <p>Someone shared a reminder setup with you. To review it on your Android phone:</p>
-        <ol>
-          <li>Ask the person who shared the link how to install Ding Reminders on your phone.</li>
-          <li>After installing, return to the original message and open its link again.</li>
-          <li>Review the details in the app and choose whether to save them.</li>
-        </ol>
-        <p>The link may contain private information. Share it only with people you trust.</p>
+        <p>Your download should start automatically. If it doesn’t, tap below.</p>
+        <a class="download" href="/ding-reminders.apk" download>Download Ding Reminders</a>
+        <p>Install the app, then return to the original message and open its link again.</p>
       </section>
       <hr>
       <section lang="es" aria-labelledby="spanish-title">
         <span class="mark">Ding Recordatorios</span>
         <h2 id="spanish-title">Abre tu recordatorio</h2>
-        <p>Alguien compartió contigo la configuración de un recordatorio. Para revisarla en tu teléfono Android:</p>
-        <ol>
-          <li>Pregúntale a la persona que compartió el enlace cómo instalar Ding Recordatorios en tu teléfono.</li>
-          <li>Después de instalarlo, vuelve al mensaje original y abre el enlace de nuevo.</li>
-          <li>Revisa los detalles en la aplicación y elige si quieres guardarlos.</li>
-        </ol>
-        <p>El enlace puede contener información privada. Compártelo solo con personas de confianza.</p>
+        <p>La descarga debería comenzar automáticamente. Si no empieza, toca el botón.</p>
+        <a class="download" href="/ding-reminders.apk" download>Descargar Ding Recordatorios</a>
+        <p>Instala la aplicación, vuelve al mensaje original y abre el enlace de nuevo.</p>
       </section>
     </div>
   </main>
+  <script>
+    window.location.assign("/ding-reminders.apk");
+  </script>
 </body>
 </html>
