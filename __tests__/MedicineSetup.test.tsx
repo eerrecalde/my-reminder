@@ -1003,3 +1003,44 @@ test.each([
     await ReactTestRenderer.act(() => view.unmount());
   },
 );
+
+test.each([
+  ['en', 'Reminder', 'Next', 'Every day', 'Select a time', 'Review', 'Close'],
+  ['en', 'Medicine', 'Next', 'Every day', 'Select a time', 'Review', 'Close'],
+  ['es', 'Recordatorio', 'Continuar', 'Todos los días', 'Elegir una hora', 'Revisar', 'Cerrar'],
+  ['es', 'Medicamento', 'Continuar', 'Todos los días', 'Elegir una hora', 'Revisar', 'Cerrar'],
+] as const)(
+  'closes a prepared %s %s from review without saving',
+  async (language, type, next, frequency, select, review, close) => {
+    const exit = jest.fn();
+    const save = jest.fn();
+    let view!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(() => {
+      view = ReactTestRenderer.create(
+        <MedicineSetup
+          language={language}
+          onExit={exit}
+          onSave={save}
+          now={new Date(2026, 5, 1, 8)}
+          selectTime={async () => '09:00'}
+        />,
+      );
+    });
+    const press = (title: string) =>
+      ReactTestRenderer.act(async () => {
+        await findAction(view, title).props.onPress();
+      });
+    await press(type);
+    await ReactTestRenderer.act(() =>
+      view.root.findAllByType(TextInput)[0].props.onChangeText('Example'),
+    );
+    await press(next);
+    await chooseFrequency(view, frequency);
+    await press(select);
+    await press(review);
+    await press(close);
+    expect(exit).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(() => view.unmount());
+  },
+);
