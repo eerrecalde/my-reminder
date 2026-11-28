@@ -643,7 +643,7 @@ test.each([
     expect(saveScheduled).not.toHaveBeenCalled();
     expect(share).toHaveBeenCalledTimes(1);
     const link = share.mock.calls[0][0].message;
-    expect(link).toContain('setup-links.example.com/setup?');
+    expect(link).toContain('ding-reminders.surge.sh/setup?');
     expect(require('../src/setupLink').parseSetupLink(link)).toMatchObject({
       type,
       mode: type === 'medicine' ? 'notification' : 'alarm',

@@ -219,7 +219,7 @@ export function createSetupLink(input: DailyMedicineInput): string {
   }
   if (input.type === 'medicine' && input.instructions)
     fields.push(['instructions', input.instructions]);
-  return `https://setup-links.example.com/setup?${fields
+  return `https://ding-reminders.surge.sh/setup?${fields
     .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
     .join('&')}`;
 }
