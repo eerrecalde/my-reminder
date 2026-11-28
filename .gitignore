@@ -20,5 +20,8 @@ npm-debug.log*
 .metro-health-check*
 coverage/
 
+# Local release helper (contains machine-specific signing paths)
+/scripts/build-release.local.sh
+
 # Local review handoff
 production-readiness-handoff.md

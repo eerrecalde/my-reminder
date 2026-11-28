@@ -46,13 +46,13 @@ See the [React Native environment guide](https://reactnative.dev/docs/set-up-you
 
 Emiliano owns the release key. Keep the keystore outside this repository, restrict access to it and store its passwords and alias in a password manager. Generate a dedicated key once with JDK 17, for example `keytool -genkeypair -v -keystore /secure/path/my-reminders.keystore -alias my-reminders -keyalg RSA -keysize 4096 -validity 10000`; keytool prompts for passwords and identity. Do not use the checked-in debug key or a disposable test key for family releases. Keep an encrypted backup of the keystore, its passwords and alias in a separate secure location under Emiliano's control. Test restoration to another protected location and compare the restored certificate fingerprint with the original using `keytool -list -v -keystore /secure/path/my-reminders.keystore -alias my-reminders`.
 
-On Emiliano's Mac, the local release-build helper is `/private/tmp/my-reminders-release/build.sh`. When it is present, run it from any directory:
+On Emiliano's Mac, the local release-build helper is `scripts/build-release.local.sh`. When it is present, run it from the project root:
 
 ```sh
-/private/tmp/my-reminders-release/build.sh
+./scripts/build-release.local.sh
 ```
 
-It configures the existing JDK and Android SDK, prompts privately for the keystore and key passwords, removes any previous release APK, runs the same Gradle release build shown above, and verifies that the APK is signed with the configured release key. It writes `android/app/build/outputs/apk/release/app-release.apk`. Increase `versionCode` before each distributed update as described below. The helper is local to this Mac and `/private/tmp` may be cleared, so it is not a replacement for the protected keystore, password-manager entries or their backups. If the helper is missing, use the manual steps below.
+It configures the existing JDK and Android SDK, prompts privately for the keystore and key passwords, removes any previous release APK, runs the same Gradle release build shown above, and verifies that the APK is signed with the configured release key. It writes `android/app/build/outputs/apk/release/app-release.apk`. Increase `versionCode` before each distributed update as described below. The helper is local to this Mac and ignored by Git, so it will not be present in a fresh checkout. Keep any backup separate from the protected keystore and passwords. If the helper is missing, use the manual steps below.
 
 For a manual build, in the build shell set `MY_REMINDERS_KEYSTORE` to the absolute path of the keystore and `MY_REMINDERS_KEY_ALIAS` to its alias. Supply `MY_REMINDERS_STORE_PASSWORD` and `MY_REMINDERS_KEY_PASSWORD` securely (for example, read them without echo into shell variables, then export them); do not put passwords in command history, project files, logs or CI. Run the release build above. Clear these environment variables afterwards. If a build fails, do not distribute an APK left over from an earlier build.
 
